@@ -34,6 +34,14 @@ export default defineConfig(({ mode }) => {
       alias: { '@': path.resolve(_dirname, 'src') },
     },
     server: {
+      // data.luxarviewer.dev only allows CORS from luxarviewer.dev.
+      proxy: {
+        '/luxar-data': {
+          target: 'https://data.luxarviewer.dev',
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/luxar-data/, ''),
+        },
+      },
       watch: {
         include: [
           path.resolve(_dirname, 'src/**'),

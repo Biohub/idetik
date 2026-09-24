@@ -30,6 +30,25 @@ export type { ImageLayerProps } from "./layers/image_layer";
 export { VolumeLayer } from "./layers/volume_layer";
 export type { VolumeLayerProps } from "./layers/volume_layer";
 export { LabelLayer } from "./layers/label_layer";
+export { GaussianSplatLayer } from "./layers/gaussian_splat_layer";
+export type {
+  GaussianSplatCompositing,
+  GaussianSplatLayerProps,
+} from "./layers/gaussian_splat_layer";
+export { LuxarGSplatSource } from "./data/luxar/luxar_gsplat_source";
+export type {
+  HttpLuxarGSplatSourceProps,
+  LuxarGSplatRenderDefaults,
+} from "./data/luxar/luxar_gsplat_source";
+export type {
+  GaussianSplatBlock,
+  GaussianSplatSlice,
+  GaussianSplatSliceDimension,
+  GaussianSplatSource,
+  PackedSplats,
+} from "./data/gaussian_splat_source";
+export { COLORMAP_NAMES } from "./math/colormaps";
+export type { ColormapName } from "./math/colormaps";
 export type { LabelLayerProps } from "./layers/label_layer";
 export type {
   LabelColorMap,
@@ -46,6 +65,7 @@ export type { PointProps } from "./objects/renderable/points_renderable";
 export { ProjectedLineRenderable } from "./objects/renderable/projected_line_renderable";
 export type { ProjectedLineRenderableProps } from "./objects/renderable/projected_line_renderable";
 export { VolumeRenderable } from "./objects/renderable/volume_renderable";
+export { GaussianSplatRenderable } from "./objects/renderable/gaussian_splat_renderable";
 export type { VolumeRenderableProps } from "./objects/renderable/volume_renderable";
 
 export { Camera } from "./objects/cameras/camera";
