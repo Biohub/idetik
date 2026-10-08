@@ -2,7 +2,7 @@ import { Camera } from "../objects/cameras/camera";
 import { Layer } from "./layer";
 import { CameraControls } from "../objects/cameras/controls";
 import { Box2 } from "../math/box2";
-import { vec2, vec3 } from "gl-matrix";
+import { mat4, vec2, vec3 } from "gl-matrix";
 import { generateID } from "../utilities/id_generator";
 import { Logger } from "../utilities/logger";
 import { EventContext, EventDispatcher } from "./event_dispatcher";
@@ -61,6 +61,11 @@ export class Viewport {
   public cameraControls?: CameraControls;
 
   private layers_: Layer[] = [];
+  private layersChanged_ = true;
+  private lastRenderBox_?: Box2;
+  private lastVisibility_?: string;
+  private readonly lastCameraTransform_ = mat4.create();
+  private readonly lastProjection_ = mat4.create();
 
   constructor(props: ViewportProps) {
     this.id = props.id || props.domElement.id || generateID("viewport");
@@ -112,6 +117,7 @@ export class Viewport {
       throw new Error(`${layer.type} is already in viewport "${this.id}".`);
     }
     this.layers_.push(layer);
+    this.layersChanged_ = true;
   }
 
   /**
@@ -125,11 +131,44 @@ export class Viewport {
       throw new Error(`Layer to remove not found: ${layer}`);
     }
     this.layers_.splice(index, 1);
+    this.layersChanged_ = true;
   }
 
   /** Removes all layers from the viewport. */
   public removeAllLayers(): void {
+    if (this.layers_.length === 0) return;
     this.layers_ = [];
+    this.layersChanged_ = true;
+  }
+
+  /** @hidden */
+  public renderStateChanged(canvas: HTMLCanvasElement): boolean {
+    const renderBox = this.getBoxRelativeTo(canvas);
+    const visibility = getComputedStyle(this.domElement).visibility;
+    const cameraTransform = this.camera.transform.matrix;
+    const projection = this.camera.projectionMatrix;
+
+    const layoutChanged =
+      !this.lastRenderBox_ ||
+      !Box2.equals(renderBox, this.lastRenderBox_) ||
+      visibility !== this.lastVisibility_;
+
+    const cameraChanged =
+      !mat4.exactEquals(cameraTransform, this.lastCameraTransform_) ||
+      !mat4.exactEquals(projection, this.lastProjection_);
+
+    const changed = this.layersChanged_ || layoutChanged || cameraChanged;
+
+    if (!changed) return false;
+
+    this.layersChanged_ = false;
+    this.lastRenderBox_ = renderBox;
+    this.lastVisibility_ = visibility;
+
+    mat4.copy(this.lastCameraTransform_, cameraTransform);
+    mat4.copy(this.lastProjection_, projection);
+
+    return true;
   }
 
   /**

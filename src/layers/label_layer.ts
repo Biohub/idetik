@@ -175,8 +175,8 @@ export class LabelLayer extends Layer {
    *
    * @param viewport - The viewport being rendered.
    */
-  public update(viewport?: Viewport) {
-    if (!viewport || !this.chunkStoreView_) return;
+  public update(viewport?: Viewport): boolean {
+    if (!viewport || !this.chunkStoreView_) return true;
 
     const camera = viewport.camera;
 
@@ -198,6 +198,7 @@ export class LabelLayer extends Layer {
     for (const [chunk, labelRenderable] of this.visibleChunks_) {
       this.updateSlicePosition(labelRenderable, chunk);
     }
+    return true;
   }
 
   /** The slice plane the layer displays. */

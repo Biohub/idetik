@@ -66,7 +66,9 @@ export type LayerProps = {
  *     this.setState("ready");
  *   }
  *
- *   public update() {}
+ *   public update(): boolean {
+ *     return true;
+ *   }
  * }
  *
  * viewport.addLayer(new Particles(points));
@@ -78,23 +80,6 @@ export abstract class Layer {
   /** A string identifying the concrete layer type. */
   public abstract readonly type: string;
 
-  /**
-   * How the layer's output blends with previously drawn content. Also
-   * applies to blending between objects within the layer.
-   */
-  public blendMode: BlendMode;
-
-  /**
-   * Whether the layer writes depth and hides content drawn behind it.
-   *
-   * Occluding layers render a depth pass and always draw before
-   * non-occluding layers regardless of their order in the viewport. When
-   * not set explicitly this value is inferred from `blendMode` at
-   * construction only. Reassigning {@link blendMode} later does not update
-   * it.
-   */
-  public occludes: boolean;
-
   /** Set to `true` by subclasses whose shaders read scene depth. */
   protected requiresSceneDepth_ = false;
 
@@ -105,7 +90,10 @@ export abstract class Layer {
   private state_: LayerState = "initialized";
   private attached_ = false;
   private readonly callbacks_: StateChangeCallback[] = [];
+  private renderStateChanged_ = true;
   private opacity_: number;
+  private blendMode_: BlendMode;
+  private occludes_: boolean;
 
   /**
    * Creates a layer with the given presentation state.
@@ -118,8 +106,8 @@ export abstract class Layer {
     occludes,
   }: LayerProps = {}) {
     this.opacity_ = clamp(opacity, 0.0, 1.0);
-    this.blendMode = blendMode;
-    this.occludes = occludes ?? blendMode === "none";
+    this.blendMode_ = blendMode;
+    this.occludes_ = occludes ?? blendMode === "none";
   }
 
   /**
@@ -129,6 +117,45 @@ export abstract class Layer {
    */
   public get requiresSceneDepth() {
     return this.requiresSceneDepth_;
+  }
+
+  /**
+   * How the layer's output blends with previously drawn content.
+   */
+  public get blendMode() {
+    return this.blendMode_;
+  }
+
+  /** @param value - The blending mode to use. */
+  public set blendMode(value: BlendMode) {
+    if (value === this.blendMode_) {
+      return;
+    }
+
+    this.blendMode_ = value;
+    this.renderStateChanged_ = true;
+  }
+
+  /**
+   * Whether the layer writes depth and hides content drawn behind it.
+   *
+   * Occluding layers render a depth pass and always draw before
+   * non-occluding layers regardless of their order in the viewport. When
+   * not set explicitly this value is inferred from `blendMode` at
+   * construction only. Reassigning {@link blendMode} later does not update
+   */
+  public get occludes() {
+    return this.occludes_;
+  }
+
+  /** @param value - Whether the layer writes depth. */
+  public set occludes(value: boolean) {
+    if (value === this.occludes_) {
+      return;
+    }
+
+    this.occludes_ = value;
+    this.renderStateChanged_ = true;
   }
 
   /** The layer's opacity in `[0, 1]`. Values outside are clamped. */
@@ -144,7 +171,13 @@ export abstract class Layer {
         `Opacity out of bounds: ${value} — clamping to [0.0, 1.0]`
       );
     }
-    this.opacity_ = clamp(value, 0.0, 1.0);
+    const opacity = clamp(value, 0.0, 1.0);
+    if (opacity === this.opacity_) {
+      return;
+    }
+
+    this.opacity_ = opacity;
+    this.renderStateChanged_ = true;
   }
 
   /**
@@ -152,9 +185,20 @@ export abstract class Layer {
    * view. Called automatically once per frame for every layer in a
    * viewport.
    *
+   * Return `true` to request a draw or `false` when no draw is needed.
+   *
    * @param viewport - The viewport being rendered.
    */
-  public abstract update(viewport?: Viewport): void;
+  public abstract update(viewport?: Viewport): boolean;
+
+  /** @hidden */
+  public renderStateChanged(): boolean {
+    if (this.renderStateChanged_) {
+      this.renderStateChanged_ = false;
+      return true;
+    }
+    return false;
+  }
 
   /**
    * Handles a pointer or wheel event from the owning viewport. Called
@@ -255,6 +299,10 @@ export abstract class Layer {
   protected setState(newState: LayerState) {
     const prevState = this.state_;
     this.state_ = newState;
+    if (newState !== prevState) {
+      this.renderStateChanged_ = true;
+    }
+
     this.callbacks_.forEach((callback) => callback(newState, prevState));
   }
 

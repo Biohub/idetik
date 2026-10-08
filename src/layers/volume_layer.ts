@@ -301,8 +301,8 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
    *
    * @param viewport - The viewport being rendered.
    */
-  public update(viewport?: Viewport) {
-    if (!viewport || !this.chunkStoreView_) return;
+  public update(viewport?: Viewport): boolean {
+    if (!viewport || !this.chunkStoreView_) return true;
 
     this.chunkStoreView_.updateChunksForVolume(
       this.sliceCoords_,
@@ -316,6 +316,7 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
 
     this.updateChunks();
     this.rebuildObjects(viewport.camera);
+    return true;
   }
 
   private rebuildObjects(camera: Camera) {

@@ -11,7 +11,7 @@ import type { Layer } from "./core/layer";
 const DEFAULT_MEMORY_LIMIT_MB = 2048;
 
 /**
- * An object updated once per frame after all viewports have rendered.
+ * An object updated once per animation frame after any drawing.
  *
  * Overlays drive HUD elements that live outside the canvas such as scale
  * bars, time indicators, or memory readouts.
@@ -27,7 +27,7 @@ const DEFAULT_MEMORY_LIMIT_MB = 2048;
  * ```
  */
 export type Overlay = {
-  /** Called once per rendered frame. */
+  /** Called every animation frame, including when drawing is skipped. */
   update: (idetik: Idetik) => void;
 };
 
@@ -150,6 +150,7 @@ export class Idetik {
 
   private lastAnimationId_?: number;
   private lastTimestamp_: DOMHighResTimeStamp = 0;
+  private renderRequested_ = true;
 
   /**
    * Creates an Idetik runtime for the given canvas.
@@ -191,14 +192,20 @@ export class Idetik {
         sizeDependents.push(viewport.domElement);
       }
     }
+
     this.sizeObserver_ = new PixelSizeObserver(sizeDependents, () => {
       this.renderer_.updateSize();
       this.detachRemovedLayers();
-      this.renderer_.beginFrame();
+
       for (const viewport of this.viewports_) {
         viewport.updateSize();
-        this.renderViewport(viewport);
       }
+
+      for (const viewport of this.viewports_) {
+        this.updateViewport(viewport);
+      }
+
+      this.draw();
     });
   }
 
@@ -242,6 +249,7 @@ export class Idetik {
     validateViewport(viewport, this.viewports_);
     viewport.updateSize();
     this.viewports_.push(viewport);
+    this.requestRender();
 
     if (this.running) {
       viewport.events.connect();
@@ -285,6 +293,7 @@ export class Idetik {
         this.attachments_.delete(layer);
       }
     }
+    this.requestRender();
     Logger.info("Idetik", `Removed viewport "${viewport.id}"`);
     return true;
   }
@@ -325,6 +334,13 @@ export class Idetik {
   }
 
   /**
+   * Requests a draw on the next animation frame manually.
+   */
+  public requestRender(): void {
+    this.renderRequested_ = true;
+  }
+
+  /**
    * Starts the render loop and connects input handlers.
    *
    * @returns The instance, for chaining.
@@ -332,9 +348,12 @@ export class Idetik {
   public start() {
     Logger.info("Idetik", "Idetik runtime starting");
     if (!this.running) {
+      this.requestRender();
+
       for (const viewport of this.viewports_) {
         viewport.events.connect();
       }
+
       this.sizeObserver_.connect();
 
       this.lastAnimationId_ = requestAnimationFrame((timestamp) => {
@@ -359,7 +378,40 @@ export class Idetik {
     }
   }
 
-  private renderViewport(viewport: Viewport): void {
+  private animate(timestamp: DOMHighResTimeStamp) {
+    this.stats_?.begin();
+
+    // cap dt to prevent large time-step jumps when resuming from background tabs
+    const dt = Math.min(timestamp - this.lastTimestamp_, 100) / 1000;
+
+    this.lastTimestamp_ = timestamp;
+    this.detachRemovedLayers();
+
+    for (const viewport of this.viewports_) {
+      viewport.cameraControls?.onUpdate(dt);
+    }
+
+    for (const viewport of this.viewports_) {
+      this.updateViewport(viewport);
+    }
+
+    if (this.renderRequested_) {
+      this.draw();
+    }
+
+    this.chunkManager_.update();
+
+    for (const overlay of this.overlays) {
+      overlay.update(this);
+    }
+
+    this.stats_?.end();
+    this.lastAnimationId_ = requestAnimationFrame((timestamp) =>
+      this.animate(timestamp)
+    );
+  }
+
+  private updateViewport(viewport: Viewport): void {
     for (const layer of viewport.layers) {
       if (layer.attached && this.attachments_.get(layer) !== viewport) {
         throw new Error(
@@ -375,34 +427,25 @@ export class Idetik {
       }
     }
 
-    this.renderer_.render(viewport);
+    for (const layer of viewport.layers) {
+      const contentChanged = layer.update(viewport);
+      const presentationChanged = layer.renderStateChanged();
+      if (contentChanged || presentationChanged) {
+        this.requestRender();
+      }
+    }
+
+    if (viewport.renderStateChanged(this.canvas)) {
+      this.requestRender();
+    }
   }
 
-  private animate(timestamp: DOMHighResTimeStamp) {
-    if (this.stats_) this.stats_.begin();
-
-    // cap dt to prevent large time-step jumps when resuming from background tabs
-    const dt = Math.min(timestamp - this.lastTimestamp_, 100) / 1000;
-
-    this.lastTimestamp_ = timestamp;
-    this.detachRemovedLayers();
-
+  private draw(): void {
+    this.renderRequested_ = false;
     this.renderer_.beginFrame();
     for (const viewport of this.viewports_) {
-      viewport.cameraControls?.onUpdate(dt);
-      this.renderViewport(viewport);
+      this.renderer_.render(viewport);
     }
-
-    this.chunkManager_.update();
-
-    for (const overlay of this.overlays) {
-      overlay.update(this);
-    }
-
-    if (this.stats_) this.stats_.end();
-    this.lastAnimationId_ = requestAnimationFrame((timestamp) =>
-      this.animate(timestamp)
-    );
   }
 
   /**

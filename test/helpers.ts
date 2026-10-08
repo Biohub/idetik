@@ -106,7 +106,9 @@ export class TrackingLayer extends Layer {
   public attachCount = 0;
   public detachCount = 0;
 
-  public update() {}
+  public update(): boolean {
+    return true;
+  }
 
   protected attach() {
     this.attachCount++;

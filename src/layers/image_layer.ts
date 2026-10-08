@@ -180,8 +180,8 @@ export class ImageLayer extends Layer implements ChannelsEnabled {
    *
    * @param viewport - The viewport being rendered.
    */
-  public update(viewport?: Viewport) {
-    if (!viewport || !this.chunkStoreView_) return;
+  public update(viewport?: Viewport): boolean {
+    if (!viewport || !this.chunkStoreView_) return true;
 
     const camera = viewport.camera;
 
@@ -203,6 +203,7 @@ export class ImageLayer extends Layer implements ChannelsEnabled {
     for (const [chunk, imageRenderable] of this.visibleChunks_) {
       this.updateSlicePosition(imageRenderable, chunk);
     }
+    return true;
   }
 
   /** The slice plane the layer displays. */

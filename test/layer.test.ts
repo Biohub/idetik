@@ -10,7 +10,9 @@ class TestLayer extends Layer {
   public detachCount = 0;
   public throwOnAttach = false;
 
-  public update() {}
+  public update(): boolean {
+    return true;
+  }
 
   public setStateReady() {
     this.setState("ready");
