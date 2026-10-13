@@ -133,7 +133,7 @@ export abstract class Layer {
     }
 
     this.blendMode_ = value;
-    this.renderStateChanged_ = true;
+    this.invalidate();
   }
 
   /**
@@ -155,7 +155,7 @@ export abstract class Layer {
     }
 
     this.occludes_ = value;
-    this.renderStateChanged_ = true;
+    this.invalidate();
   }
 
   /** The layer's opacity in `[0, 1]`. Values outside are clamped. */
@@ -177,7 +177,7 @@ export abstract class Layer {
     }
 
     this.opacity_ = opacity;
-    this.renderStateChanged_ = true;
+    this.invalidate();
   }
 
   /**
@@ -185,11 +185,22 @@ export abstract class Layer {
    * view. Called automatically once per frame for every layer in a
    * viewport.
    *
-   * Return `true` to request a draw or `false` when no draw is needed.
+   * Return `true` if this update changed the rendered output, otherwise
+   * return `false`. Changes marked by {@link invalidate} are tracked
+   * separately, so returning `false` does not discard them.
    *
    * @param viewport - The viewport being rendered.
    */
   public abstract update(viewport?: Viewport): boolean;
+
+  /**
+   * Marks the layer's rendered output as changed. Call from setters or
+   * asynchronous callbacks when a change happens outside {@link update}.
+   * The runtime checks this flag on its next update.
+   */
+  protected invalidate(): void {
+    this.renderStateChanged_ = true;
+  }
 
   /** @hidden */
   public renderStateChanged(): boolean {
@@ -300,7 +311,7 @@ export abstract class Layer {
     const prevState = this.state_;
     this.state_ = newState;
     if (newState !== prevState) {
-      this.renderStateChanged_ = true;
+      this.invalidate();
     }
 
     this.callbacks_.forEach((callback) => callback(newState, prevState));

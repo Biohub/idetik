@@ -150,7 +150,8 @@ export class Idetik {
 
   private lastAnimationId_?: number;
   private lastTimestamp_: DOMHighResTimeStamp = 0;
-  private renderRequested_ = true;
+  private renderRequested_ = false;
+  private renderInvalidated_ = true;
 
   /**
    * Creates an Idetik runtime for the given canvas.
@@ -246,7 +247,7 @@ export class Idetik {
     validateViewport(viewport, this.viewports_);
     viewport.updateSize();
     this.viewports_.push(viewport);
-    this.requestRender();
+    this.invalidate();
 
     if (this.running) {
       viewport.events.connect();
@@ -290,7 +291,7 @@ export class Idetik {
         this.attachments_.delete(layer);
       }
     }
-    this.requestRender();
+    this.invalidate();
     Logger.info("Idetik", `Removed viewport "${viewport.id}"`);
     return true;
   }
@@ -331,7 +332,8 @@ export class Idetik {
   }
 
   /**
-   * Requests a draw on the next animation frame manually.
+   * Explicitly requests a draw on the next animation frame while running,
+   * even if no internal state has changed.
    */
   public requestRender(): void {
     this.renderRequested_ = true;
@@ -345,7 +347,7 @@ export class Idetik {
   public start() {
     Logger.info("Idetik", "Idetik runtime starting");
     if (!this.running) {
-      this.requestRender();
+      this.invalidate();
 
       for (const viewport of this.viewports_) {
         viewport.events.connect();
@@ -392,7 +394,7 @@ export class Idetik {
       this.updateViewport(viewport);
     }
 
-    if (this.renderRequested_) {
+    if (this.renderRequested_ || this.renderInvalidated_) {
       this.draw();
     }
 
@@ -406,6 +408,10 @@ export class Idetik {
     this.lastAnimationId_ = requestAnimationFrame((timestamp) =>
       this.animate(timestamp)
     );
+  }
+
+  private invalidate(): void {
+    this.renderInvalidated_ = true;
   }
 
   private updateViewport(viewport: Viewport): void {
@@ -426,19 +432,20 @@ export class Idetik {
 
     for (const layer of viewport.layers) {
       const contentChanged = layer.update(viewport);
-      const presentationChanged = layer.renderStateChanged();
-      if (contentChanged || presentationChanged) {
-        this.requestRender();
+      const invalidated = layer.renderStateChanged();
+      if (contentChanged || invalidated) {
+        this.invalidate();
       }
     }
 
     if (viewport.renderStateChanged(this.canvas)) {
-      this.requestRender();
+      this.invalidate();
     }
   }
 
   private draw(): void {
     this.renderRequested_ = false;
+    this.renderInvalidated_ = false;
     this.renderer_.beginFrame();
     for (const viewport of this.viewports_) {
       this.renderer_.render(viewport);
