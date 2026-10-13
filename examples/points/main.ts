@@ -10,6 +10,7 @@ import {
   ImageLayer,
   Color,
   createNoPrefetchPolicy,
+  Viewport,
 } from "@";
 
 import { vec3 } from "gl-matrix";
@@ -151,17 +152,13 @@ const camera = new OrthographicCamera({
   near: -10000,
   far: 10000,
 });
-const app = new Idetik({
-  canvas: document.querySelector<HTMLCanvasElement>("canvas")!,
-  viewports: [
-    {
-      camera,
-      layers: [imageLayer],
-    },
-  ],
-}).start();
-
-const viewport = app.viewports[0];
+const canvas = document.querySelector<HTMLCanvasElement>("canvas")!;
+const viewport = new Viewport({
+  domElement: canvas,
+  camera,
+  layers: [imageLayer],
+});
+new Idetik({ canvas, viewports: [viewport] }).start();
 
 const onFirstImageLoad = (newState: LayerState) => {
   if (newState === "ready") {

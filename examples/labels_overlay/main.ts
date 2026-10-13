@@ -6,6 +6,7 @@ import {
   OrthographicCamera,
   Color,
   PanZoomControls,
+  Viewport,
 } from "@";
 
 // A 3D (z-stack) OME-Zarr image with a matching label segmentation overlaid on
@@ -115,18 +116,14 @@ const camera = new OrthographicCamera({
   top: 0,
   bottom: yStopPoint,
 });
-const idetik = new Idetik({
-  canvas: document.querySelector<HTMLCanvasElement>("canvas")!,
-  viewports: [
-    {
-      camera,
-      cameraControls: new PanZoomControls(camera),
-      layers: [imageLayer, labelsLayer],
-    },
-  ],
+const canvas = document.querySelector<HTMLCanvasElement>("canvas")!;
+const viewport = new Viewport({
+  domElement: canvas,
+  camera,
+  cameraControls: new PanZoomControls(camera),
+  layers: [imageLayer, labelsLayer],
 });
-
-const viewport = idetik.viewports[0];
+const idetik = new Idetik({ canvas, viewports: [viewport] });
 
 outlineToggleEl.addEventListener("click", () => {
   outlineMode = !outlineMode;

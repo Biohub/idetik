@@ -47,7 +47,6 @@ export { ProjectedLineRenderable } from "./objects/renderable/projected_line_ren
 export type { ProjectedLineRenderableProps } from "./objects/renderable/projected_line_renderable";
 export { VolumeRenderable } from "./objects/renderable/volume_renderable";
 export type { VolumeRenderableProps } from "./objects/renderable/volume_renderable";
-
 export { Camera } from "./objects/cameras/camera";
 export type { CameraType } from "./objects/cameras/camera";
 export { OrbitControls } from "./objects/cameras/orbit_controls";

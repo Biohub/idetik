@@ -7,7 +7,6 @@ import { generateID } from "../utilities/id_generator";
 import { Logger } from "../utilities/logger";
 import { EventContext, EventDispatcher } from "./event_dispatcher";
 import { Ray } from "../math/ray";
-import { IdetikContext } from "../idetik";
 
 /**
  * Initialization properties for constructing a viewport.
@@ -15,8 +14,8 @@ import { IdetikContext } from "../idetik";
 export type ViewportProps = {
   /** Unique id. Defaults to the element id or a generated id. */
   id?: string;
-  /** Host element. Defaults to the Idetik canvas. */
-  element?: HTMLElement;
+  /** Host element. */
+  domElement: HTMLElement;
   /** The camera the viewport renders with. */
   camera: Camera;
   /** Layers to render in order. */
@@ -25,18 +24,11 @@ export type ViewportProps = {
   cameraControls?: CameraControls;
 };
 
-interface ResolvedViewportProps extends ViewportProps {
-  id: string;
-  element: HTMLElement;
-  context: IdetikContext;
-}
-
 /**
  * A region of the canvas that renders a stack of layers through a camera.
  *
  * Every viewport draws into the shared canvas through the area of its host
- * element. The element defaults to the canvas itself and must be unique
- * across viewports.
+ * element. The element must be unique across viewports.
  *
  * Viewports also route input. Pointer and wheel events on the host element
  * are enriched with clip and world coordinates and a picking ray, sent to
@@ -44,12 +36,13 @@ interface ResolvedViewportProps extends ViewportProps {
  * propagation.
  *
  * ```ts
- * const idetik = new Idetik({
- *   canvas,
- *   viewports: [{ id: 'main', camera, layers: [imageLayer] }],
+ * const viewport = new Viewport({
+ *   domElement: canvas,
+ *   camera,
+ *   layers: [imageLayer],
  * });
+ * const idetik = new Idetik({ canvas, viewports: [viewport] });
  *
- * const viewport = idetik.getViewport('main')!;
  * viewport.addLayer(labelLayer);
  * ```
  *
@@ -59,7 +52,7 @@ export class Viewport {
   /** The viewport's unique identifier. */
   public readonly id: string;
   /** The host element defining the viewport's area. */
-  public readonly element: HTMLElement;
+  public readonly domElement: HTMLElement;
   /** The camera the viewport renders with. */
   public readonly camera: Camera;
   /** The pointer and wheel event dispatcher for the host element. */
@@ -67,22 +60,15 @@ export class Viewport {
   /** Input controls driving the camera. */
   public cameraControls?: CameraControls;
 
-  // Carried only to relay to `layer.onAttached` / `layer.onDetached`.
-  // To be removed when the chunk-infrastructure refactor folds chunk management
-  // into the source and the attach lifecycle goes away.
-  private readonly context_: IdetikContext;
-
   private layers_: Layer[] = [];
 
-  /** @hidden */
-  constructor(props: ResolvedViewportProps) {
-    this.id = props.id;
-    this.element = props.element;
+  constructor(props: ViewportProps) {
+    this.id = props.id || props.domElement.id || generateID("viewport");
+    this.domElement = props.domElement;
     this.camera = props.camera;
-    this.context_ = props.context;
     this.cameraControls = props.cameraControls;
     this.updateAspectRatio();
-    this.events = new EventDispatcher(this.element);
+    this.events = new EventDispatcher(this.domElement);
     this.events.addEventListener((event: EventContext) => {
       if (
         event.event instanceof PointerEvent ||
@@ -104,9 +90,7 @@ export class Viewport {
       this.cameraControls?.onEvent(event);
     });
 
-    for (const layer of props.layers ?? []) {
-      this.addLayer(layer);
-    }
+    for (const layer of props.layers ?? []) this.addLayer(layer);
   }
 
   /**
@@ -118,12 +102,15 @@ export class Viewport {
   }
 
   /**
-   * Adds a layer to the top of the stack.
+   * Adds a layer to the top of the stack. Throws if the viewport already
+   * contains the layer.
    *
    * @param layer - The layer to add.
    */
   public addLayer(layer: Layer): void {
-    layer.onAttached(this.context_);
+    if (this.layers_.includes(layer)) {
+      throw new Error(`${layer.type} is already in viewport "${this.id}".`);
+    }
     this.layers_.push(layer);
   }
 
@@ -138,14 +125,10 @@ export class Viewport {
       throw new Error(`Layer to remove not found: ${layer}`);
     }
     this.layers_.splice(index, 1);
-    layer.onDetached(this.context_);
   }
 
   /** Removes all layers from the viewport. */
   public removeAllLayers(): void {
-    for (const layer of this.layers_) {
-      layer.onDetached(this.context_);
-    }
     this.layers_ = [];
   }
 
@@ -158,14 +141,16 @@ export class Viewport {
   }
 
   /**
-   * Computes the viewport's box relative to the given canvas in device pixels.
+   * Computes the viewport's box relative to the given element in device
+   * pixels, with `y` flipped to match WebGL's bottom-left origin.
    *
-   * @param canvas - The canvas to compute the box against.
-   * @returns The viewport's box in the canvas's coordinate space.
+   * @param element - The element to compute the box against, typically the
+   *   canvas.
+   * @returns The viewport's box in the element's coordinate space.
    */
-  public getBoxRelativeTo(canvas: HTMLCanvasElement): Box2 {
+  public getBoxRelativeTo(element: HTMLElement): Box2 {
     const viewportRect = this.getBox().toRect();
-    const canvasRect = canvas.getBoundingClientRect();
+    const canvasRect = element.getBoundingClientRect();
     const devicePixelRatio = window.devicePixelRatio || 1;
 
     // convert canvas rect to device pixels
@@ -190,7 +175,8 @@ export class Viewport {
   }
 
   /**
-   * The viewport's rectangle in the drawing buffer in device pixels.
+   * The viewport's size in device pixels. Measured relative to its own host
+   * element, so `x` and `y` are always `0`.
    */
   public getBufferRect(): {
     x: number;
@@ -198,7 +184,7 @@ export class Viewport {
     width: number;
     height: number;
   } {
-    return this.getBoxRelativeTo(this.element as HTMLCanvasElement).toRect();
+    return this.getBoxRelativeTo(this.domElement).toRect();
   }
 
   /**
@@ -210,7 +196,7 @@ export class Viewport {
    */
   public clientToClip(position: vec2, depth: number = 0): vec3 {
     const [x, y] = position;
-    const rect = this.element.getBoundingClientRect();
+    const rect = this.domElement.getBoundingClientRect();
     return vec3.fromValues(
       (2 * (x - rect.x)) / rect.width - 1,
       (2 * (y - rect.y)) / rect.height - 1,
@@ -231,7 +217,7 @@ export class Viewport {
   }
 
   private getBox(): Box2 {
-    const viewportRect = this.element.getBoundingClientRect();
+    const viewportRect = this.domElement.getBoundingClientRect();
     const devicePixelRatio = window.devicePixelRatio || 1;
 
     const x = viewportRect.left * devicePixelRatio;
@@ -257,52 +243,4 @@ export class Viewport {
     const aspectRatio = width / height;
     this.camera.setAspectRatio(aspectRatio);
   }
-}
-
-export function validateNewViewport(
-  viewport: { id: string; element: HTMLElement },
-  existingViewports: { id: string; element: HTMLElement }[]
-): void {
-  for (const existing of existingViewports) {
-    if (existing.id === viewport.id) {
-      throw new Error(
-        `Duplicate viewport ID "${viewport.id}". Each viewport must have a unique ID.`
-      );
-    }
-    if (existing.element === viewport.element) {
-      const elementDescription =
-        viewport.element.tagName.toLowerCase() +
-        (viewport.element.id
-          ? `#${viewport.element.id}`
-          : "[element has no id]");
-      throw new Error(
-        "Multiple viewports cannot share the same HTML element: " +
-          `viewports "${existing.id}" and "${viewport.id}" both use ${elementDescription}`
-      );
-    }
-  }
-}
-
-function validateViewportProps(viewportProps: ResolvedViewportProps[]): void {
-  for (let i = 0; i < viewportProps.length; i++) {
-    validateNewViewport(viewportProps[i], viewportProps.slice(0, i));
-  }
-}
-
-export function parseViewportProps(
-  props: ViewportProps[],
-  canvas: HTMLCanvasElement,
-  context: IdetikContext
-): Viewport[] {
-  const viewportProps: ResolvedViewportProps[] = props.map((config) => {
-    const element = config.element ?? canvas;
-    return {
-      ...config,
-      element,
-      id: config.id ?? element.id ?? generateID("viewport"),
-      context,
-    };
-  });
-  validateViewportProps(viewportProps);
-  return viewportProps.map((props) => new Viewport(props));
 }

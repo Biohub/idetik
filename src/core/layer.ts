@@ -1,9 +1,9 @@
-import { IdetikContext } from "../idetik";
+import type { IdetikContext } from "../idetik";
 import { RenderableObject } from "./renderable_object";
 import { clamp } from "../utilities/clamp";
 import { Logger } from "../utilities/logger";
 import { EventContext } from "./event_dispatcher";
-import { Viewport } from "./viewport";
+import type { Viewport } from "./viewport";
 
 /**
  * The loading lifecycle state of a layer.
@@ -164,6 +164,11 @@ export abstract class Layer {
    * @param _event - The event with clip and world coordinates attached.
    */
   public onEvent(_event: EventContext): void {}
+
+  /** Whether the layer is attached to a viewport. */
+  public get attached(): boolean {
+    return this.attached_;
+  }
 
   /**
    * Lifecycle hook that is called automatically when a layer is

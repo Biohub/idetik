@@ -83,11 +83,12 @@ export type PanZoomControlsProps = {
  *
  * const idetik = new Idetik({
  *   canvas,
- *   viewports: [{
+ *   viewports: [new Viewport({
+ *     domElement: canvas,
  *     camera,
  *     layers: [imageLayer],
  *     cameraControls: new PanZoomControls(camera),
- *   }],
+ *   })],
  * });
  * ```
  *

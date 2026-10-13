@@ -1,5 +1,6 @@
 import type { Chunk } from "../src/data/chunk";
 import { Viewport } from "@/core/viewport";
+import { Layer } from "@/core/layer";
 import { OrthographicCamera } from "@/objects/cameras/orthographic_camera";
 import { ChunkManager } from "@/data/chunk_manager";
 import type { IdetikContext } from "@/idetik";
@@ -100,11 +101,26 @@ export function createTestContext(): IdetikContext {
   return { chunkManager: new ChunkManager() };
 }
 
+export class TrackingLayer extends Layer {
+  public readonly type = "TrackingLayer";
+  public attachCount = 0;
+  public detachCount = 0;
+
+  public update() {}
+
+  protected attach() {
+    this.attachCount++;
+  }
+
+  protected detach() {
+    this.detachCount++;
+  }
+}
+
 export function createTestViewport(id: string = "test-viewport"): Viewport {
   return new Viewport({
     id,
-    element: createTestElement(id),
+    domElement: createTestElement(id),
     camera: createTestCamera(),
-    context: createTestContext(),
   });
 }

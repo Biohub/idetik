@@ -90,7 +90,7 @@ export class WebGLRenderer extends Renderer {
       layer.update(viewport);
     }
 
-    if (getComputedStyle(viewport.element).visibility === "hidden") return;
+    if (getComputedStyle(viewport.domElement).visibility === "hidden") return;
 
     const viewportBox = viewport.getBoxRelativeTo(this.canvas);
     const surfaceBox = new Box2(

@@ -48,7 +48,7 @@ Data is on screen one to two frames after it arrives. The delay is invisible in 
 
 ## Viewports and Input
 
-A viewport is a region of the canvas that renders a stack of layers through a camera. Its region is defined by an HTML element. By default that element is the canvas itself so a single viewport fills it. To place several views on one canvas, the application positions the canvas behind a set of ordinary elements and gives each viewport one of them.
+A viewport is a region of the canvas that renders a stack of layers through a camera. Its region is defined by an HTML element. A single viewport that fills the canvas uses the canvas itself as its element. To place several views on one canvas, the application positions the canvas behind a set of ordinary elements and gives each viewport one of them.
 
 The renderer reads each element's layout box and restricts drawing to it. Viewports can therefore be laid out with CSS grid or flexbox like any other content, and every viewport shares one rendering context and one set of GPU resources.
 
@@ -56,16 +56,16 @@ The renderer reads each element's layout box and restricts drawing to it. Viewpo
 const idetik = new Idetik({
   canvas: document.querySelector<HTMLCanvasElement>('#viewer'),
   viewports: [
-    {
-      element: document.querySelector<HTMLElement>('#top'),
+    new Viewport({
+      domElement: document.querySelector<HTMLElement>('#top')!,
       camera: topCamera,
       layers: [topSlice],
-    },
-    {
-      element: document.querySelector<HTMLElement>('#side'),
+    }),
+    new Viewport({
+      domElement: document.querySelector<HTMLElement>('#side')!,
       camera: sideCamera,
       layers: [sideSlice],
-    },
+    }),
   ],
 });
 ```

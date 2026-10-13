@@ -8,6 +8,7 @@ import {
   PerspectiveCamera,
   VolumeLayer,
   createExplorationPolicy,
+  Viewport,
 } from "@";
 
 const url =
@@ -51,17 +52,19 @@ const volumeLayer = new VolumeLayer({
   channelProps,
 });
 
+const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
 const idetik = new Idetik({
-  canvas: document.querySelector<HTMLCanvasElement>("#canvas")!,
+  canvas,
   viewports: [
-    {
+    new Viewport({
+      domElement: canvas,
       camera,
       cameraControls: new OrbitControls(camera, {
         radius: 100,
         target: vec3.fromValues(40, 40, 10), // Volume center,
       }),
       layers: [volumeLayer],
-    },
+    }),
   ],
   showStats: true,
 });

@@ -38,6 +38,7 @@ onMounted(async () => {
       OmeZarrImageSource,
       OrthographicCamera,
       PanZoomControls,
+      Viewport,
     } = await import("@idetik/core");
 
     const baseUrl = "https://public.czbiohub.org/royerlab/zebrahub/imaging";
@@ -67,11 +68,12 @@ onMounted(async () => {
     idetik = new Idetik({
       canvas: target,
       viewports: [
-        {
+        new Viewport({
+          domElement: target,
           camera,
           cameraControls: new PanZoomControls(camera),
           layers: [layer],
-        },
+        }),
       ],
     }).start();
 

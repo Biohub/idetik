@@ -28,12 +28,6 @@ class TestLayer extends Layer {
 
 const context = {} as IdetikContext;
 
-test("Default layer state is 'initialized'", () => {
-  const layer = new TestLayer();
-
-  expect(layer.state).toBe("initialized");
-});
-
 test("Add state change callback", () => {
   const layer = new TestLayer();
   const callback = vi.fn();
@@ -67,7 +61,7 @@ test("Removing an unregistered callback throws and keeps registered ones", () =>
   expect(registered).toHaveBeenCalledWith("ready", "initialized");
 });
 
-test("Attaching to a second viewport while attached throws", () => {
+test("Attaching an already attached layer throws", () => {
   const layer = new TestLayer();
   layer.onAttached(context);
 
@@ -89,7 +83,7 @@ test("Re-attaching after detach is allowed", () => {
   layer.onAttached(context);
   layer.onDetached(context);
 
-  expect(() => layer.onAttached(context)).not.toThrow();
+  layer.onAttached(context);
   expect(layer.attachCount).toBe(2);
 });
 

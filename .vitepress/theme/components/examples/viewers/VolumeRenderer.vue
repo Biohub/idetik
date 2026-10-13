@@ -26,6 +26,7 @@ const canvas = useIdetikViewer(
       PerspectiveCamera,
       Color,
       VolumeLayer,
+      Viewport,
       createExplorationPolicy,
     },
     target
@@ -55,7 +56,8 @@ const canvas = useIdetikViewer(
     return new Idetik({
       canvas: target,
       viewports: [
-        {
+        new Viewport({
+          domElement: target,
           camera,
           cameraControls: new OrbitControls(camera, {
             radius,
@@ -64,7 +66,7 @@ const canvas = useIdetikViewer(
             dampingFactor: 0.25,
           }),
           layers: [layer],
-        },
+        }),
       ],
     });
   }

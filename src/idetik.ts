@@ -4,13 +4,9 @@ import { ChunkManager } from "./data/chunk_manager";
 import { Renderer } from "./core/renderer";
 import { Stats } from "./core/stats";
 import { createStats, type Stats as StatsMeter } from "./utilities/stats";
-import {
-  parseViewportProps,
-  validateNewViewport,
-  Viewport,
-  ViewportProps,
-} from "./core/viewport";
+import { Viewport } from "./core/viewport";
 import { PixelSizeObserver } from "./utilities/pixel_size_observer";
+import type { Layer } from "./core/layer";
 
 const DEFAULT_MEMORY_LIMIT_MB = 2048;
 
@@ -41,8 +37,8 @@ export type Overlay = {
 export type IdetikProps = {
   /** The canvas element to render into. */
   canvas: HTMLCanvasElement;
-  /** Viewport definitions to create at startup. */
-  viewports?: ViewportProps[];
+  /** Viewports to render at startup. */
+  viewports?: Viewport[];
   /** Overlays to run each frame. */
   overlays?: Overlay[];
   /** Shows an FPS meter. Defaults to `false`. */
@@ -58,6 +54,41 @@ export type IdetikProps = {
 export type IdetikContext = {
   chunkManager: ChunkManager;
 };
+
+function validateViewport(
+  viewport: Viewport,
+  existingViewports: readonly Viewport[]
+): void {
+  for (const existing of existingViewports) {
+    if (existing.id === viewport.id) {
+      throw new Error(
+        `Duplicate viewport ID "${viewport.id}". Each viewport must have a unique ID.`
+      );
+    }
+    if (existing.domElement === viewport.domElement) {
+      const elementDescription =
+        viewport.domElement.tagName.toLowerCase() +
+        (viewport.domElement.id
+          ? `#${viewport.domElement.id}`
+          : "[element has no id]");
+      throw new Error(
+        "Multiple viewports cannot share the same HTML element: " +
+          `viewports "${existing.id}" and "${viewport.id}" both use ${elementDescription}`
+      );
+    }
+  }
+
+  const seenLayers = new Set(
+    existingViewports.flatMap((existing) => existing.layers)
+  );
+  for (const layer of viewport.layers) {
+    if (seenLayers.has(layer)) {
+      throw new Error(
+        `${layer.type} cannot be shared by multiple viewports simultaneously.`
+      );
+    }
+  }
+}
 
 /**
  * The entry point of an Idetik application.
@@ -83,13 +114,15 @@ export type IdetikContext = {
  *   bottom: 1024,
  * });
  *
+ * const canvas = document.querySelector<HTMLCanvasElement>('canvas')!;
  * const idetik = new Idetik({
- *   canvas: document.querySelector('canvas')!,
- *   viewports: [{
+ *   canvas,
+ *   viewports: [new Viewport({
+ *     domElement: canvas,
  *     camera,
  *     layers: [layer],
  *     cameraControls: new PanZoomControls(camera),
- *   }],
+ *   })],
  * });
  *
  * idetik.start();
@@ -111,6 +144,7 @@ export class Idetik {
   private readonly context_: IdetikContext;
   private readonly renderer_: Renderer;
   private readonly viewports_: Viewport[];
+  private readonly attachments_ = new Map<Layer, Viewport>();
   private readonly stats_?: StatsMeter;
   private readonly sizeObserver_: PixelSizeObserver;
 
@@ -140,11 +174,11 @@ export class Idetik {
       chunkManager: this.chunkManager_,
     };
 
-    this.viewports_ = parseViewportProps(
-      params.viewports ?? [],
-      this.canvas,
-      this.context_
-    );
+    this.viewports_ = [];
+    for (const viewport of params.viewports ?? []) {
+      validateViewport(viewport, this.viewports_);
+      this.viewports_.push(viewport);
+    }
 
     this.overlays = [...(params.overlays ?? [])];
 
@@ -153,16 +187,17 @@ export class Idetik {
 
     const sizeDependents: HTMLElement[] = [this.canvas];
     for (const viewport of this.viewports_) {
-      if (viewport.element !== this.canvas) {
-        sizeDependents.push(viewport.element);
+      if (viewport.domElement !== this.canvas) {
+        sizeDependents.push(viewport.domElement);
       }
     }
     this.sizeObserver_ = new PixelSizeObserver(sizeDependents, () => {
       this.renderer_.updateSize();
+      this.detachRemovedLayers();
       this.renderer_.beginFrame();
       for (const viewport of this.viewports_) {
         viewport.updateSize();
-        this.renderer_.render(viewport);
+        this.renderViewport(viewport);
       }
     });
   }
@@ -200,20 +235,18 @@ export class Idetik {
   /**
    * Adds a viewport at runtime.
    *
-   * @param props - The viewport definition. The `element` defaults to the
-   *   canvas and must be unique across viewports.
-   * @returns The created viewport.
+   * @param viewport - The viewport to add.
+   * @returns The added viewport.
    */
-  public addViewport(props: ViewportProps): Viewport {
-    const [viewport] = parseViewportProps([props], this.canvas, this.context_);
-
-    validateNewViewport(viewport, this.viewports_);
+  public addViewport(viewport: Viewport): Viewport {
+    validateViewport(viewport, this.viewports_);
+    viewport.updateSize();
     this.viewports_.push(viewport);
 
     if (this.running) {
       viewport.events.connect();
-      if (viewport.element !== this.canvas) {
-        this.sizeObserver_.observe(viewport.element);
+      if (viewport.domElement !== this.canvas) {
+        this.sizeObserver_.observe(viewport.domElement);
       }
     }
 
@@ -240,12 +273,18 @@ export class Idetik {
 
     if (this.running) {
       viewport.events.disconnect();
-      if (viewport.element !== this.canvas) {
-        this.sizeObserver_.unobserve(viewport.element);
+      if (viewport.domElement !== this.canvas) {
+        this.sizeObserver_.unobserve(viewport.domElement);
       }
     }
 
     this.viewports_.splice(index, 1);
+    for (const [layer, owner] of this.attachments_) {
+      if (owner === viewport) {
+        layer.onDetached(this.context_);
+        this.attachments_.delete(layer);
+      }
+    }
     Logger.info("Idetik", `Removed viewport "${viewport.id}"`);
     return true;
   }
@@ -308,6 +347,37 @@ export class Idetik {
     return this;
   }
 
+  private detachRemovedLayers(): void {
+    for (const [layer, viewport] of this.attachments_) {
+      if (
+        !this.viewports_.includes(viewport) ||
+        !viewport.layers.includes(layer)
+      ) {
+        layer.onDetached(this.context_);
+        this.attachments_.delete(layer);
+      }
+    }
+  }
+
+  private renderViewport(viewport: Viewport): void {
+    for (const layer of viewport.layers) {
+      if (layer.attached && this.attachments_.get(layer) !== viewport) {
+        throw new Error(
+          `${layer.type} is already attached to another viewport or Idetik runtime.`
+        );
+      }
+    }
+
+    for (const layer of viewport.layers) {
+      if (!layer.attached) {
+        layer.onAttached(this.context_);
+        this.attachments_.set(layer, viewport);
+      }
+    }
+
+    this.renderer_.render(viewport);
+  }
+
   private animate(timestamp: DOMHighResTimeStamp) {
     if (this.stats_) this.stats_.begin();
 
@@ -315,11 +385,12 @@ export class Idetik {
     const dt = Math.min(timestamp - this.lastTimestamp_, 100) / 1000;
 
     this.lastTimestamp_ = timestamp;
+    this.detachRemovedLayers();
 
     this.renderer_.beginFrame();
     for (const viewport of this.viewports_) {
       viewport.cameraControls?.onUpdate(dt);
-      this.renderer_.render(viewport);
+      this.renderViewport(viewport);
     }
 
     this.chunkManager_.update();

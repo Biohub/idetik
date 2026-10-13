@@ -10,6 +10,7 @@ import {
   SliceCoordinates,
   createExplorationPolicy,
   createPlaybackPolicy,
+  Viewport,
 } from "@";
 import { ScaleBar } from "./scale_bar";
 import { addDimensionSlider } from "../lil_gui_utils";
@@ -158,34 +159,39 @@ const orbitTarget = vec3.fromValues(
 type Projection = "orthographic" | "perspective";
 
 const layers = [imageLayer];
+const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
 
-function makeViewportProps(projection: Projection) {
-  if (projection === "orthographic") {
-    const camera = new OrthographicCamera({
-      left: xMin,
-      right: xMax,
-      top: yMin,
-      bottom: yMax,
-    });
-    return { camera, cameraControls: new PanZoomControls(camera), layers };
-  }
-
-  const camera = new PerspectiveCamera({
-    fov: FOV_DEGREES,
-    near: orbitRadius / 100,
-    far: orbitRadius * 10,
-  });
-  return {
-    camera,
-    cameraControls: new OrbitControls(camera, {
+const orthographicCamera = new OrthographicCamera({
+  left: xMin,
+  right: xMax,
+  top: yMin,
+  bottom: yMax,
+});
+const perspectiveCamera = new PerspectiveCamera({
+  fov: FOV_DEGREES,
+  near: orbitRadius / 100,
+  far: orbitRadius * 10,
+});
+const viewports = {
+  orthographic: new Viewport({
+    domElement: canvas,
+    camera: orthographicCamera,
+    cameraControls: new PanZoomControls(orthographicCamera),
+    layers,
+  }),
+  perspective: new Viewport({
+    domElement: canvas,
+    camera: perspectiveCamera,
+    cameraControls: new OrbitControls(perspectiveCamera, {
       radius: orbitRadius,
       yaw: 0,
       pitch: 0,
       target: orbitTarget,
     }),
     layers,
-  };
-}
+  }),
+};
+let viewport = viewports.orthographic;
 
 const timePointDiv = document.querySelector<HTMLDivElement>("#time-point")!;
 if (!tLod) timePointDiv.style.display = "none";
@@ -204,8 +210,8 @@ const scaleBar = new ScaleBar({
 });
 
 const idetik = new Idetik({
-  canvas: document.querySelector<HTMLCanvasElement>("#canvas")!,
-  viewports: [makeViewportProps("orthographic")],
+  canvas,
+  viewports: [viewport],
   overlays: [timePointOverlay, scaleBar],
   showStats: true,
 });
@@ -329,10 +335,9 @@ debugFolder
   .add(projectionState, "projection", ["orthographic", "perspective"])
   .name("Projection")
   .onChange((projection: Projection) => {
-    const current = idetik.viewports[0];
-    current.removeAllLayers();
-    idetik.removeViewport(current);
-    idetik.addViewport(makeViewportProps(projection));
+    idetik.removeViewport(viewport);
+    viewport = viewports[projection];
+    idetik.addViewport(viewport);
   });
 
 const debugState = { showWireframes: imageLayer.debugMode };

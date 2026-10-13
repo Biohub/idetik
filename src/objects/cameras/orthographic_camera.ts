@@ -71,13 +71,15 @@ export type OrthographicCameraProps = {
  *  bottom: 1024
  * });
  *
+ * const canvas = document.querySelector<HTMLCanvasElement>('canvas')!;
  * const idetik = new Idetik({
- *   canvas: document.querySelector('canvas')!,
- *   viewports: [{
+ *   canvas,
+ *   viewports: [new Viewport({
+ *     domElement: canvas,
  *     camera,
  *     layers: [imageLayer],
  *     cameraControls: new PanZoomControls(camera),
- *   }],
+ *   })],
  * });
  * ```
  * @group Cameras

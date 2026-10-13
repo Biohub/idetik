@@ -10,6 +10,7 @@ import {
   loadOmeZarrWell,
   ImageLayer,
   createNoPrefetchPolicy,
+  Viewport,
 } from "@";
 
 const plateUrl =
@@ -48,19 +49,16 @@ const camera = new OrthographicCamera({
   bottom: ySize * yScale,
 });
 
-const idetik = new Idetik({
-  canvas: document.querySelector<HTMLCanvasElement>("canvas")!,
-  viewports: [
-    {
-      camera,
-      cameraControls: new PanZoomControls(camera),
-    },
-  ],
+const canvas = document.querySelector<HTMLCanvasElement>("canvas")!;
+const viewport = new Viewport({
+  domElement: canvas,
+  camera,
+  cameraControls: new PanZoomControls(camera),
 });
+const idetik = new Idetik({ canvas, viewports: [viewport] });
 
 idetik.start();
 
-const viewport = idetik.viewports[0];
 const imageSelector = document.querySelector("#image") as HTMLSelectElement;
 
 const onImageChange = async () => {
