@@ -142,7 +142,7 @@ export abstract class Layer {
    * Occluding layers render a depth pass and always draw before
    * non-occluding layers regardless of their order in the viewport. When
    * not set explicitly this value is inferred from `blendMode` at
-   * construction only. Reassigning {@link blendMode} later does not update
+   * construction only. Reassigning {@link blendMode} later does not update it.
    */
   public get occludes() {
     return this.occludes_;

@@ -199,9 +199,6 @@ export class Idetik {
 
       for (const viewport of this.viewports_) {
         viewport.updateSize();
-      }
-
-      for (const viewport of this.viewports_) {
         this.updateViewport(viewport);
       }
 
