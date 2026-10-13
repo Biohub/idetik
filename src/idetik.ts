@@ -1,16 +1,9 @@
 import { WebGLRenderer } from "./renderers/webgl_renderer";
 import { Logger } from "./utilities/logger";
 import { ChunkManager } from "./data/chunk_manager";
-import { ImageLayer } from "./layers/image_layer";
-import { LabelLayer } from "./layers/label_layer";
-import { VolumeLayer } from "./layers/volume_layer";
-import {
-  computeViewportChunkStats,
-  type ChunkStats,
-  type ViewportChunkStats,
-} from "./data/chunk_stats";
 import { Renderer } from "./core/renderer";
-import { createStats, type Stats } from "./utilities/stats";
+import { Stats } from "./core/stats";
+import { createStats, type Stats as StatsMeter } from "./utilities/stats";
 import {
   parseViewportProps,
   validateNewViewport,
@@ -30,7 +23,7 @@ const DEFAULT_MEMORY_LIMIT_MB = 2048;
  * ```ts
  * const chunkReadout: Overlay = {
  *   update(idetik) {
- *     div.textContent = `${idetik.memoryStats.cpuChunkCount} chunks`;
+ *     div.textContent = `${idetik.stats.memory.cpuChunkCount} chunks`;
  *   },
  * };
  *
@@ -64,24 +57,6 @@ export type IdetikProps = {
 
 export type IdetikContext = {
   chunkManager: ChunkManager;
-};
-
-/**
- * A snapshot of the runtime's memory usage.
- */
-export type MemoryStats = {
-  /** Bytes of chunk data held in CPU memory. */
-  cpuChunkBytes: number;
-  /** Number of chunks held in CPU memory. */
-  cpuChunkCount: number;
-  /** Bytes of texture data resident on the GPU. */
-  gpuTextureBytes: number;
-  /** Number of textures resident on the GPU. */
-  gpuTextureCount: number;
-  /** Used JS heap in bytes. */
-  jsHeapUsedBytes?: number;
-  /** JS heap size limit in bytes. */
-  jsHeapLimitBytes?: number;
 };
 
 /**
@@ -129,12 +104,14 @@ export class Idetik {
   public readonly canvas: HTMLCanvasElement;
   /** The registered overlays that update once per frame in order. */
   public readonly overlays: Overlay[];
+  /** Memory, queue, chunk, and rendered-object statistics. */
+  public readonly stats: Stats;
 
   private readonly chunkManager_: ChunkManager;
   private readonly context_: IdetikContext;
   private readonly renderer_: Renderer;
   private readonly viewports_: Viewport[];
-  private readonly stats_?: Stats;
+  private readonly stats_?: StatsMeter;
   private readonly sizeObserver_: PixelSizeObserver;
 
   private lastAnimationId_?: number;
@@ -171,6 +148,7 @@ export class Idetik {
 
     this.overlays = [...(params.overlays ?? [])];
 
+    this.stats = new Stats(this.renderer_, this.chunkManager_, this.viewports_);
     if (params.showStats) this.stats_ = createStats();
 
     const sizeDependents: HTMLElement[] = [this.canvas];
@@ -187,60 +165,6 @@ export class Idetik {
         this.renderer_.render(viewport);
       }
     });
-  }
-
-  /** Counts of queued and in-flight chunk requests. */
-  public get chunkQueueStats() {
-    return this.chunkManager_.queueStats;
-  }
-
-  /**
-   * Chunk demand and GPU residency per source, by timepoint, and loading
-   * progress per viewport. Each read walks every view's chunk states and returns a
-   * new snapshot, so poll it at the rate you need rather than every frame.
-   */
-  public get chunkStats(): ChunkStats {
-    const viewports: ViewportChunkStats[] = [];
-    for (const viewport of this.viewports_) {
-      const views = [];
-      for (const layer of viewport.layers) {
-        // TODO: replace with a generic hook once non-image chunked layers
-        // (e.g. meshes, point clouds) exist
-        if (
-          !(layer instanceof ImageLayer) &&
-          !(layer instanceof LabelLayer) &&
-          !(layer instanceof VolumeLayer)
-        ) {
-          continue;
-        }
-        if (layer.chunkStoreView) views.push(layer.chunkStoreView);
-      }
-      if (views.length === 0) continue;
-      viewports.push(computeViewportChunkStats(viewport.id, views));
-    }
-    return { sources: this.chunkManager_.sourceChunkStats, viewports };
-  }
-
-  /** A snapshot of current CPU/GPU/JS heap memory usage. */
-  public get memoryStats(): MemoryStats {
-    const perf = (
-      performance as Performance & {
-        memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number };
-      }
-    ).memory;
-
-    return {
-      ...this.chunkManager_.memoryStats,
-      gpuTextureBytes: this.renderer_.gpuTextureBytes,
-      gpuTextureCount: this.renderer_.gpuTextureCount,
-      jsHeapUsedBytes: perf?.usedJSHeapSize,
-      jsHeapLimitBytes: perf?.jsHeapSizeLimit,
-    };
-  }
-
-  /** The number of objects drawn in the last rendered frame. */
-  public get renderedObjects() {
-    return this.renderer_.renderedObjects;
   }
 
   /** The width of the rendering surface in pixels. */
