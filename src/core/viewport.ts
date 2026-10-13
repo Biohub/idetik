@@ -90,7 +90,7 @@ export class Viewport {
       this.cameraControls?.onEvent(event);
     });
 
-    this.layers_ = [...(props.layers ?? [])];
+    for (const layer of props.layers ?? []) this.addLayer(layer);
   }
 
   /**
@@ -102,11 +102,15 @@ export class Viewport {
   }
 
   /**
-   * Adds a layer to the top of the stack.
+   * Adds a layer to the top of the stack. Throws if the viewport already
+   * contains the layer.
    *
    * @param layer - The layer to add.
    */
   public addLayer(layer: Layer): void {
+    if (this.layers_.includes(layer)) {
+      throw new Error(`${layer.type} is already in viewport "${this.id}".`);
+    }
     this.layers_.push(layer);
   }
 
@@ -137,14 +141,16 @@ export class Viewport {
   }
 
   /**
-   * Computes the viewport's box relative to the given canvas in device pixels.
+   * Computes the viewport's box relative to the given element in device
+   * pixels, with `y` flipped to match WebGL's bottom-left origin.
    *
-   * @param canvas - The canvas to compute the box against.
-   * @returns The viewport's box in the canvas's coordinate space.
+   * @param element - The element to compute the box against, typically the
+   *   canvas.
+   * @returns The viewport's box in the element's coordinate space.
    */
-  public getBoxRelativeTo(canvas: HTMLCanvasElement): Box2 {
+  public getBoxRelativeTo(element: HTMLElement): Box2 {
     const viewportRect = this.getBox().toRect();
-    const canvasRect = canvas.getBoundingClientRect();
+    const canvasRect = element.getBoundingClientRect();
     const devicePixelRatio = window.devicePixelRatio || 1;
 
     // convert canvas rect to device pixels
@@ -169,7 +175,8 @@ export class Viewport {
   }
 
   /**
-   * The viewport's rectangle in the drawing buffer in device pixels.
+   * The viewport's size in device pixels. Measured relative to its own host
+   * element, so `x` and `y` are always `0`.
    */
   public getBufferRect(): {
     x: number;
@@ -177,7 +184,7 @@ export class Viewport {
     width: number;
     height: number;
   } {
-    return this.getBoxRelativeTo(this.domElement as HTMLCanvasElement).toRect();
+    return this.getBoxRelativeTo(this.domElement).toRect();
   }
 
   /**

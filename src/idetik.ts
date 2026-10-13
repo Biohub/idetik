@@ -78,16 +78,15 @@ function validateViewport(
     }
   }
 
-  const existingLayers = new Set(
+  const seenLayers = new Set(
     existingViewports.flatMap((existing) => existing.layers)
   );
   for (const layer of viewport.layers) {
-    if (existingLayers.has(layer)) {
+    if (seenLayers.has(layer)) {
       throw new Error(
         `${layer.type} cannot be shared by multiple viewports simultaneously.`
       );
     }
-    existingLayers.add(layer);
   }
 }
 
@@ -175,9 +174,10 @@ export class Idetik {
       chunkManager: this.chunkManager_,
     };
 
-    this.viewports_ = [...(params.viewports ?? [])];
-    for (let i = 0; i < this.viewports_.length; i++) {
-      validateViewport(this.viewports_[i], this.viewports_.slice(0, i));
+    this.viewports_ = [];
+    for (const viewport of params.viewports ?? []) {
+      validateViewport(viewport, this.viewports_);
+      this.viewports_.push(viewport);
     }
 
     this.overlays = [...(params.overlays ?? [])];

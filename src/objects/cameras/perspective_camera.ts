@@ -45,7 +45,12 @@ export type PerspectiveCameraProps = {
  * const canvas = document.querySelector<HTMLCanvasElement>('canvas')!;
  * const idetik = new Idetik({
  *   canvas,
- *   viewports: [new Viewport({ domElement: canvas, camera, layers: [volumeLayer], cameraControls: controls })],
+ *   viewports: [new Viewport({
+ *     domElement: canvas,
+ *     camera,
+ *     layers: [volumeLayer],
+ *     cameraControls: controls
+ *   })],
  * });
  * ```
  *

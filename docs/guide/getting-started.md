@@ -99,7 +99,12 @@ import { Idetik, Viewport } from '@idetik/core';
 const canvas = document.querySelector<HTMLCanvasElement>('#viewer')!;
 const idetik = new Idetik({
   canvas,
-  viewports: [new Viewport({ domElement: canvas, camera, cameraControls: controls, layers: [layer] })],
+  viewports: [new Viewport({
+    domElement: canvas,
+    camera,
+    cameraControls: controls,
+    layers: [layer]
+  })],
 });
 
 idetik.start();
@@ -155,7 +160,12 @@ const layer = new ImageLayer({
 const canvas = document.querySelector<HTMLCanvasElement>('#viewer')!;
 const idetik = new Idetik({
   canvas,
-  viewports: [new Viewport({ domElement: canvas, camera, cameraControls: controls, layers: [layer] })],
+  viewports: [new Viewport({
+    domElement: canvas,
+    camera,
+    cameraControls: controls,
+    layers: [layer]
+  })],
 });
 
 idetik.start();

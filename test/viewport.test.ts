@@ -52,3 +52,23 @@ test("Viewport layer mutations do not require a runtime", () => {
   expect(viewport.layers).toEqual([]);
   expect(second.detachCount).toBe(0);
 });
+
+test("Viewport rejects a layer it already contains", () => {
+  const layer = new TrackingLayer();
+  expect(
+    () =>
+      new Viewport({
+        id: "dup",
+        domElement: createTestElement("dup"),
+        camera: createTestCamera(),
+        layers: [layer, layer],
+      })
+  ).toThrow('TrackingLayer is already in viewport "dup".');
+
+  const viewport = createViewport("single");
+  viewport.addLayer(layer);
+  expect(() => viewport.addLayer(layer)).toThrow(
+    'TrackingLayer is already in viewport "single".'
+  );
+  expect(viewport.layers).toEqual([layer]);
+});
