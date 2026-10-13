@@ -13,11 +13,11 @@ export function collectDeclarationFiles(project) {
 
 const ADOPTED_ALIASES = {
   Overlay: "Idetik",
-  MemoryStats: "Idetik",
-  QueueStats: "Idetik",
-  ChunkStats: "Idetik",
-  SourceChunkStats: "Idetik",
-  ViewportChunkStats: "Idetik",
+  MemoryStats: "Stats",
+  QueueStats: "Stats",
+  ChunkStats: "Stats",
+  SourceChunkStats: "Stats",
+  ViewportChunkStats: "Stats",
   ChannelProps: "Layer",
   SliceCoordinates: "Layer",
   SliceOrientation: "Layer",

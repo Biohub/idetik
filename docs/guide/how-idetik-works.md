@@ -123,7 +123,7 @@ Every chunk resident on the GPU counts against one budget, set by [`memoryLimitM
 
 Chunks that fall out of view are not freed. Their textures stay resident, marked as released, so panning back or scrubbing to a recent time point is instant. Only when a new request needs the space does the manager evict, taking the least important chunk first and the longest released among equals.
 
-As a result [`memoryStats`](/api/classes/Idetik.html#memorystats-1) reports GPU usage that climbs toward the budget and stays there. That is the cache working, not a leak. The budget can be changed at any time with [`setMemoryLimitMB`](/api/classes/Idetik.html#setmemorylimitmb). [`chunkQueueStats`](/api/classes/Idetik.html#chunkqueuestats) reports how many requests are waiting and in flight, which is the number to watch when tuning a policy or judging a connection.
+As a result [`stats.memory`](/api/classes/Stats.html#memory) reports GPU usage that climbs toward the budget and stays there. That is the cache working, not a leak. The budget can be changed at any time with [`setMemoryLimitMB`](/api/classes/Idetik.html#setmemorylimitmb). [`stats.queue`](/api/classes/Stats.html#queue) reports how many requests are waiting and in flight, which is the number to watch when tuning a policy or judging a connection.
 
 The budget counts only the textures Idetik uploads. The canvas, other pages, and other applications draw from the same graphics memory, and the browser offers no way to read its size, so the limit has to be chosen for the devices an application targets. The default suits a discrete GPU or a recent laptop. Set it lower for devices with little graphics memory to spare, and raise it only when the hardware is known.
 
