@@ -62,7 +62,9 @@ export class AxesLayer extends Layer {
   }
 
   /** Performs no per-frame work. The axes are built at construction. */
-  public update() {}
+  public update(): boolean {
+    return true;
+  }
 }
 
 function makeAxis(params: {

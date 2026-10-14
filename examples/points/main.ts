@@ -79,12 +79,14 @@ class Particles extends Layer {
     this.needsUpdate_ = true;
   }
 
-  public update() {
+  public update(): boolean {
     if (!this.needsUpdate_) {
-      return;
+      return false;
     }
+
     this.refreshPointsRenderable();
     this.needsUpdate_ = false;
+    return true;
   }
 
   private refreshPointsRenderable() {

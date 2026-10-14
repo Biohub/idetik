@@ -86,10 +86,6 @@ export class WebGLRenderer extends Renderer {
     this.renderedObjectsPerFrame_ = 0;
     this.stencilRef_ = 0;
 
-    for (const layer of viewport.layers) {
-      layer.update(viewport);
-    }
-
     if (getComputedStyle(viewport.domElement).visibility === "hidden") return;
 
     const viewportBox = viewport.getBoxRelativeTo(this.canvas);

@@ -55,7 +55,9 @@ export type PointProps = {
  *     this.setState("ready");
  *   }
  *
- *   public update() {}
+ *   public update(): boolean {
+ *     return true;
+ *   }
  * }
  * ```
  *
