@@ -53,6 +53,7 @@ const canvas = useIdetikViewer(
       OmeZarrImageSource,
       OrthographicCamera,
       PanZoomControls,
+      Viewport,
       createExplorationPolicy,
     },
     target
@@ -84,13 +85,14 @@ const canvas = useIdetikViewer(
     return new Idetik({
       canvas: target,
       viewports: [
-        {
+        new Viewport({
+          domElement: target,
           camera,
           cameraControls: new PanZoomControls(camera, {
             scrollZoom: "modifier",
           }),
           layers: [layer],
-        },
+        }),
       ],
     });
   }

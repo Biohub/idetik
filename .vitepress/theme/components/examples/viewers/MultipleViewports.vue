@@ -41,6 +41,7 @@ const canvas = useIdetikViewer(
       OrthographicCamera,
       PanZoomControls,
       PerspectiveCamera,
+      Viewport,
       VolumeLayer,
       createExplorationPolicy,
     },
@@ -92,13 +93,13 @@ const canvas = useIdetikViewer(
         bottom,
         orientation,
       });
-      return {
+      return new Viewport({
         id: orientation,
-        element,
+        domElement: element,
         camera,
         cameraControls: new PanZoomControls(camera, { scrollZoom: "modifier" }),
         layers: [sliceLayer(orientation)],
-      };
+      });
     }
 
     const camera3D = new PerspectiveCamera();
@@ -116,9 +117,9 @@ const canvas = useIdetikViewer(
       canvas: target,
       viewports: [
         sliceViewport(xy.value!, "XY"),
-        {
+        new Viewport({
           id: "3D",
-          element: view3D.value!,
+          domElement: view3D.value!,
           camera: camera3D,
           cameraControls: new OrbitControls(camera3D, {
             radius: 0.85 * Math.hypot(size("x"), size("y"), size("z")),
@@ -129,7 +130,7 @@ const canvas = useIdetikViewer(
             dampingFactor: 0.25,
           }),
           layers: [volume],
-        },
+        }),
         sliceViewport(xz.value!, "XZ"),
         sliceViewport(yz.value!, "YZ"),
       ],
