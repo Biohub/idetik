@@ -4,6 +4,13 @@ import { RenderableObject } from "./renderable_object";
 import { Viewport } from "./viewport";
 import { Texture } from "../objects/textures/texture";
 
+export type GpuTiming = {
+  supported: boolean;
+  samples: number;
+  totalMs: number;
+  lastSampleAt?: number;
+};
+
 export abstract class Renderer {
   private readonly canvas_: HTMLCanvasElement | null;
   private width_ = 0;
@@ -23,7 +30,13 @@ export abstract class Renderer {
     this.updateRendererSize();
   }
 
-  public beginFrame(): void {}
+  public abstract beginFrame(): void;
+
+  public abstract endFrame(): void;
+
+  public abstract resetGpuTiming(): void;
+
+  public abstract get gpuTiming(): GpuTiming;
 
   public abstract render(viewport: Viewport): void;
 
