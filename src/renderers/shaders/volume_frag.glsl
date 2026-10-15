@@ -27,6 +27,8 @@ uniform sampler3D u_channel3Sampler;
 
 uniform highp vec3 u_cameraPositionModel;
 uniform vec3 u_voxelScale;
+uniform vec3 u_textureOffset;
+uniform vec3 u_textureScale;
 in highp vec3 v_positionModel;
 in highp vec4 v_clipPosition;
 
@@ -55,7 +57,8 @@ uniform mat4 u_mvpInverse;
 float distanceAlongRayAtWindowDepth(float windowDepth, vec3 rayOrigin, vec3 rayDir) {
     vec3 ndc = vec3(v_clipPosition.xy / v_clipPosition.w, windowDepth * 2.0 - 1.0);
     vec4 positionModel = u_mvpInverse * vec4(ndc, 1.0);
-    return dot(positionModel.xyz / positionModel.w - rayOrigin, rayDir);
+    vec3 originalModel = (positionModel.xyz / positionModel.w + 0.5) * u_textureScale + u_textureOffset - 0.5;
+    return dot(originalModel - rayOrigin, rayDir);
 }
 
 vec2 findBoxIntersectionsAlongRay(vec3 rayOrigin, vec3 rayDir, vec3 boxMin, vec3 boxMax) {
@@ -98,9 +101,13 @@ void main() {
     // Step 1 - calculate where the ray enters and exits the volume
 
     // The ray in model space goes from the camera to the point on the back face
-    vec3 RayDirModel = normalize(v_positionModel - u_cameraPositionModel);
-
-    vec2 rayIntersections = findBoxIntersectionsAlongRay(u_cameraPositionModel, RayDirModel, boundingboxMin, boundingboxMax);
+    // Work in the original chunk's model coordinates to preserve its sample grid.
+    vec3 cameraModel = (u_cameraPositionModel + 0.5) * u_textureScale + u_textureOffset - 0.5;
+    vec3 positionModel = (v_positionModel + 0.5) * u_textureScale + u_textureOffset - 0.5;
+    vec3 RayDirModel = normalize(positionModel - cameraModel);
+    vec2 rayIntersections = findBoxIntersectionsAlongRay(cameraModel, RayDirModel, boundingboxMin, boundingboxMax);
+    vec2 tightIntersections = findBoxIntersectionsAlongRay(cameraModel, RayDirModel,
+        u_textureOffset - 0.5, u_textureOffset + u_textureScale - 0.5);
     float tEnter = rayIntersections.x;
     float tExit = rayIntersections.y;
 
@@ -112,15 +119,15 @@ void main() {
     if (u_hasSceneDepth) {
         float sceneWindowDepth = texelFetch(u_sceneDepth, ivec2(gl_FragCoord.xy), 0).r;
         if (sceneWindowDepth < 1.0) {
-            float tScene = distanceAlongRayAtWindowDepth(sceneWindowDepth, u_cameraPositionModel, RayDirModel);
+            float tScene = distanceAlongRayAtWindowDepth(sceneWindowDepth, cameraModel, RayDirModel);
             if (tScene < tEnter) discard;
             tExit = min(tExit, tScene);
         }
     }
 
-    vec3 entryPoint = u_cameraPositionModel + RayDirModel * tEnter;
+    vec3 entryPoint = cameraModel + RayDirModel * tEnter;
     entryPoint = clamp(entryPoint + 0.5, 0.0, 1.0);
-    vec3 exitPoint = u_cameraPositionModel + RayDirModel * tExit;
+    vec3 exitPoint = cameraModel + RayDirModel * tExit;
     exitPoint = clamp(exitPoint + 0.5, 0.0, 1.0);
 
     // Step 2 - calculate the number of samples based on the length of the ray
@@ -132,6 +139,9 @@ void main() {
     float rayLengthInVoxels = length(rayInVoxels);
     int numSamples = max(int(ceil(rayLengthInVoxels / u_relativeStepSize)), 1);
     vec3 stepIncrement = rayWithinModel / float(numSamples);
+    float raySpan = max(tExit - tEnter, 1e-20);
+    int firstSample = max(0, int(ceil((tightIntersections.x - tEnter) / raySpan * float(numSamples))));
+    int lastSample = min(numSamples, int(ceil((tightIntersections.y - tEnter) / raySpan * float(numSamples))));
 
     // Calculate actual world-space step size for opacity correction.
     // This accounts for anisotropic voxels so brightness stays constant regardless
@@ -142,12 +152,12 @@ void main() {
     float intensityScale = u_opacityMultiplier * worldSpaceStepSize;
 
     // Step 3 - perform the ray marching and compositing in front to back order
-    vec3 position = entryPoint;
+    vec3 position = entryPoint + stepIncrement * float(firstSample);
     vec4 accumulatedColor = vec4(0.0);
 
     vec3 sampleColor = vec3(0.0);
     float sampleAlpha, blendedSampleAlpha;
-    for (int i = 0; i < numSamples && accumulatedColor.a < u_earlyTerminationAlpha; i++) {
+    for (int i = firstSample; i < lastSample && accumulatedColor.a < u_earlyTerminationAlpha; i++) {
 
         vec4 sampleValues = sampleChannels(position);
         // Combine color per channel

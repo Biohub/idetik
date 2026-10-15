@@ -79,6 +79,10 @@ without fetching or decoding the chunk again. Nonzero fill values are not treate
 as empty because they can contribute to the image.
 Volume chunk groups with no visible channel above its contrast minimum are
 omitted from drawing. Contrast and visibility changes take effect on the next frame.
+Nonzero bounds shrink volume boxes, with a one-voxel margin for linear filtering.
+Texture offset/scale uniforms map the smaller boxes to the original texture.
+Ray samples stay aligned to the original full-chunk sampling grid and chunk
+sorting uses original centers. Windows where zero contributes retain full boxes.
 
 ## Project Status
 

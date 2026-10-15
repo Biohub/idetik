@@ -39,6 +39,9 @@ export class VolumeRenderable extends RenderableObject {
    * `[1, 1, 1]`.
    */
   public voxelScale: vec3 = vec3.fromValues(1, 1, 1);
+  public readonly textureOffset = vec3.create();
+  public readonly textureScale = vec3.fromValues(1, 1, 1);
+  public readonly sortPosition = vec3.create();
 
   private channels_: Required<Channel>[];
   private loadedChannels_: Set<number> = new Set();
@@ -193,6 +196,8 @@ export class VolumeRenderable extends RenderableObject {
         return uniforms;
       },
       {
+        u_textureOffset: Array.from(this.textureOffset),
+        u_textureScale: Array.from(this.textureScale),
         u_visible: loadedAndVisibleTextures,
         "u_color[0]": colors,
         u_valueOffset: valueOffset,

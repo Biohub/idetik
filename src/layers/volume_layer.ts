@@ -140,6 +140,7 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
    */
   public setChannelProps(channelProps: ChannelProps[]) {
     this.channelProps_ = channelProps;
+    this.lastNumRenderedChannelChunks_ = undefined;
     for (const volume of this.currentVolumes_.values()) {
       volume.setChannelProps(channelProps);
     }
@@ -201,6 +202,7 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
     const existing = this.currentVolumes_.get(key);
     if (existing) {
       for (const chunk of chunks) existing.updateVolumeWithChunk(chunk);
+      this.updateVolumeTransform(existing, chunks);
       return existing;
     }
 
@@ -210,7 +212,7 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
     this.volumeToPoolKey_.set(volume, poolKey);
 
     for (const chunk of chunks) volume.updateVolumeWithChunk(chunk);
-    this.updateVolumeTransform(volume, chunks[0]);
+    this.updateVolumeTransform(volume, chunks);
     return volume;
   }
 
@@ -274,24 +276,39 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
     this.lastNumRenderedChannelChunks_ = chunksToRender.length;
   }
 
-  private updateVolumeTransform(volume: VolumeRenderable, chunk: Chunk) {
-    const worldSize = {
-      x: chunk.shape.x * chunk.scale.x,
-      y: chunk.shape.y * chunk.scale.y,
-      z: chunk.shape.z * chunk.scale.z,
-    };
-    volume.transform.setScale([worldSize.x, worldSize.y, worldSize.z]);
+  private updateVolumeTransform(volume: VolumeRenderable, chunks: Chunk[]) {
+    const chunk = chunks[0];
+    const lower = [0, 0, 0];
+    const upper = [chunk.shape.x, chunk.shape.y, chunk.shape.z];
+    if (this.chunkStoreView_?.zeroIsTransparent && chunks.every((item) => item.content)) {
+      lower.fill(Infinity);
+      upper.fill(-Infinity);
+      for (const item of chunks) {
+        if (item.content!.zero) continue;
+        for (let axis = 0; axis < 3; axis++) {
+          // One voxel of padding also preserves support for linearly filtered textures.
+          lower[axis] = Math.min(lower[axis], item.content!.nonzeroMin[axis] - 1);
+          upper[axis] = Math.max(upper[axis], item.content!.nonzeroMax[axis] + 1);
+        }
+      }
+    }
+    const size = [chunk.shape.x, chunk.shape.y, chunk.shape.z];
+    const scale = [chunk.scale.x, chunk.scale.y, chunk.scale.z];
+    const offset = [chunk.offset.x, chunk.offset.y, chunk.offset.z];
+    const translation = vec3.create();
+    const worldScale = vec3.create();
+    for (let axis = 0; axis < 3; axis++) {
+      const lo = Number.isFinite(lower[axis]) ? Math.max(0, Math.min(size[axis] - 1, lower[axis])) : 0;
+      const hi = Number.isFinite(upper[axis]) ? Math.max(lo + 1, Math.min(size[axis], upper[axis])) : size[axis];
+      volume.textureOffset[axis] = lo / size[axis];
+      volume.textureScale[axis] = (hi - lo) / size[axis];
+      translation[axis] = offset[axis] + (lo + hi) * scale[axis] / 2;
+      worldScale[axis] = (hi - lo) * scale[axis];
+      volume.sortPosition[axis] = offset[axis] + size[axis] * scale[axis] / 2;
+    }
+    volume.transform.setScale(worldScale);
+    volume.transform.setTranslation(translation);
     vec3.set(volume.voxelScale, chunk.scale.x, chunk.scale.y, chunk.scale.z);
-    const originOffset = {
-      x: (chunk.shape.x * chunk.scale.x) / 2,
-      y: (chunk.shape.y * chunk.scale.y) / 2,
-      z: (chunk.shape.z * chunk.scale.z) / 2,
-    };
-    volume.transform.setTranslation([
-      chunk.offset.x + originOffset.x,
-      chunk.offset.y + originOffset.y,
-      chunk.offset.z + originOffset.z,
-    ]);
   }
 
   private releaseAndRemoveVolume(volume: VolumeRenderable) {
@@ -382,7 +399,7 @@ function sortBackToFront(objects: VolumeRenderable[], camera: Camera) {
   const depths = new Map<VolumeRenderable, number>();
 
   for (const object of objects) {
-    const center = object.transform.translation;
+    const center = object.sortPosition;
     depths.set(object, vec3.squaredDistance(cameraPosition, center));
   }
 
