@@ -74,7 +74,7 @@ OME-Zarr decoding computes channel min/max and nonzero bounds in the decoder wor
 All-zero chunks remain resident without GPU textures when every attached volume view
 uses a contrast window where zero is transparent. They count toward loading completion
 but produce no draw. Absent chunks returned as fill-zero data take the same path.
-Image views or negative contrast limits restore ordinary zero textures on demand,
+Image views or negative contrast limits restore ordinary zero textures within the budget,
 without fetching or decoding the chunk again. Nonzero fill values are not treated
 as empty because they can contribute to the image.
 Volume chunk groups with no visible channel above its contrast minimum are
@@ -84,7 +84,7 @@ Texture offset/scale uniforms map the smaller boxes to the original texture.
 Ray samples stay aligned to the original full-chunk sampling grid and chunk
 sorting uses original centers. Windows where zero contributes retain full boxes.
 The renderer reuses matrix scratch space and cached volume uniforms. It computes
-one inverse model-view per draw and shares the inverse projection across a viewport.
+one inverse model-view per draw and shares camera view/inverse projection matrices across a viewport.
 Unchanged cameras and chunk sets keep their sorted volume objects.
 
 ## Project Status

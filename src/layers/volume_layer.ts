@@ -254,8 +254,10 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
     if (!this.chunkStoreView_) return;
     this.chunkStoreView_.zeroIsTransparent =
       this.channelProps_ !== undefined &&
-      this.channelProps_.every((channel) =>
-        channel.visible === false || (channel.contrastLimits?.[0] ?? -Infinity) >= 0
+      this.channelProps_.every(
+        (channel) =>
+          channel.visible === false ||
+          (channel.contrastLimits?.[0] ?? -Infinity) >= 0
       );
     if (this.state !== "ready") this.setState("ready");
 
@@ -264,7 +266,9 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
 
     const needsUpdate =
       this.lastLoadedTime_ !== currentTime ||
-      chunksToRender.some((chunk, index) => chunk !== this.lastChunks_[index]) ||
+      chunksToRender.some(
+        (chunk, index) => chunk !== this.lastChunks_[index]
+      ) ||
       this.lastNumRenderedChannelChunks_ !== chunksToRender.length;
     if (!needsUpdate) return;
     const groupedChunks = groupBySpatialIndex(chunksToRender);
@@ -292,15 +296,24 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
     const chunk = chunks[0];
     const lower = [0, 0, 0];
     const upper = [chunk.shape.x, chunk.shape.y, chunk.shape.z];
-    if (this.chunkStoreView_?.zeroIsTransparent && chunks.every((item) => item.content)) {
+    if (
+      this.chunkStoreView_?.zeroIsTransparent &&
+      chunks.every((item) => item.content)
+    ) {
       lower.fill(Infinity);
       upper.fill(-Infinity);
       for (const item of chunks) {
         if (item.content!.zero) continue;
         for (let axis = 0; axis < 3; axis++) {
           // One voxel of padding also preserves support for linearly filtered textures.
-          lower[axis] = Math.min(lower[axis], item.content!.nonzeroMin[axis] - 1);
-          upper[axis] = Math.max(upper[axis], item.content!.nonzeroMax[axis] + 1);
+          lower[axis] = Math.min(
+            lower[axis],
+            item.content!.nonzeroMin[axis] - 1
+          );
+          upper[axis] = Math.max(
+            upper[axis],
+            item.content!.nonzeroMax[axis] + 1
+          );
         }
       }
     }
@@ -310,13 +323,17 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
     const translation = vec3.create();
     const worldScale = vec3.create();
     for (let axis = 0; axis < 3; axis++) {
-      const lo = Number.isFinite(lower[axis]) ? Math.max(0, Math.min(size[axis] - 1, lower[axis])) : 0;
-      const hi = Number.isFinite(upper[axis]) ? Math.max(lo + 1, Math.min(size[axis], upper[axis])) : size[axis];
+      const lo = Number.isFinite(lower[axis])
+        ? Math.max(0, Math.min(size[axis] - 1, lower[axis]))
+        : 0;
+      const hi = Number.isFinite(upper[axis])
+        ? Math.max(lo + 1, Math.min(size[axis], upper[axis]))
+        : size[axis];
       volume.textureOffset[axis] = lo / size[axis];
       volume.textureScale[axis] = (hi - lo) / size[axis];
-      translation[axis] = offset[axis] + (lo + hi) * scale[axis] / 2;
+      translation[axis] = offset[axis] + ((lo + hi) * scale[axis]) / 2;
       worldScale[axis] = (hi - lo) * scale[axis];
-      volume.sortPosition[axis] = offset[axis] + size[axis] * scale[axis] / 2;
+      volume.sortPosition[axis] = offset[axis] + (size[axis] * scale[axis]) / 2;
     }
     volume.transform.setScale(worldScale);
     volume.transform.setTranslation(translation);
@@ -353,7 +370,11 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
   }
 
   private rebuildObjects(camera: Camera) {
-    if (!this.objectsDirty_ && vec3.exactEquals(this.lastSortPosition_, camera.position)) return;
+    if (
+      !this.objectsDirty_ &&
+      vec3.exactEquals(this.lastSortPosition_, camera.position)
+    )
+      return;
     vec3.copy(this.lastSortPosition_, camera.position);
     this.objectsDirty_ = false;
     const volumes = Array.from(this.currentVolumes_.values());
@@ -372,8 +393,11 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
 
   /** Returns the ray marching uniforms for this layer. */
   public getUniforms(): Record<string, unknown> {
-    this.uniforms_.u_debugShowDegenerateRays = Number(this.debugShowDegenerateRays);
-    this.uniforms_.u_relativeStepSize = this.relativeStepSize * this.interactiveStepSizeScale_;
+    this.uniforms_.u_debugShowDegenerateRays = Number(
+      this.debugShowDegenerateRays
+    );
+    this.uniforms_.u_relativeStepSize =
+      this.relativeStepSize * this.interactiveStepSizeScale_;
     this.uniforms_.u_opacityMultiplier = this.opacityMultiplier;
     this.uniforms_.u_earlyTerminationAlpha = this.earlyTerminationAlpha;
     return this.uniforms_;

@@ -143,8 +143,17 @@ export class VolumeRenderable extends RenderableObject {
     if (this.contributes_ !== undefined) return this.contributes_;
     for (const [channelIndex, textureIndex] of this.channelToTextureIndex_) {
       if (!this.loadedChannels_.has(channelIndex)) continue;
-      const channel = validateChannel(this.textures[textureIndex], this.channels_[channelIndex] || {});
-      if (channel.visible && !((this.channelMax_.get(channelIndex) ?? Infinity) <= channel.contrastLimits[0])) {
+      const channel = validateChannel(
+        this.textures[textureIndex],
+        this.channels_[channelIndex] || {}
+      );
+      if (
+        channel.visible &&
+        !(
+          (this.channelMax_.get(channelIndex) ?? Infinity) <=
+          channel.contrastLimits[0]
+        )
+      ) {
         return (this.contributes_ = true);
       }
     }

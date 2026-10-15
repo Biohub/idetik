@@ -6,13 +6,23 @@ import type { Chunk } from "@/data/chunk";
 
 test("contrast culling tracks threshold and visibility changes", () => {
   const data = new Uint16Array([0, 7]);
-  const volume = new VolumeRenderable({ channelProps: [{ contrastLimits: [7, 10] }] });
+  const volume = new VolumeRenderable({
+    channelProps: [{ contrastLimits: [7, 10] }],
+  });
   const chunk: Chunk = {
-    texture: new Texture3D(data, 2, 1, 1), chunkIndex: { x: 0, y: 0, z: 0, c: 0, t: 0 },
+    texture: new Texture3D(data, 2, 1, 1),
+    chunkIndex: { x: 0, y: 0, z: 0, c: 0, t: 0 },
     content: describeChunk(data, { x: 2, y: 1, z: 1 }),
-    state: "loaded", lod: 0, shape: { x: 2, y: 1, z: 1, c: 1 }, rowAlignmentBytes: 2,
-    scale: { x: 1, y: 1, z: 1 }, offset: { x: 0, y: 0, z: 0 },
-    visible: true, prefetch: false, priority: 0, orderKey: 0,
+    state: "loaded",
+    lod: 0,
+    shape: { x: 2, y: 1, z: 1, c: 1 },
+    rowAlignmentBytes: 2,
+    scale: { x: 1, y: 1, z: 1 },
+    offset: { x: 0, y: 0, z: 0 },
+    visible: true,
+    prefetch: false,
+    priority: 0,
+    orderKey: 0,
   };
   volume.updateVolumeWithChunk(chunk);
   expect(volume.hasVisibleContribution).toBe(false);

@@ -42,6 +42,7 @@ export class WebGLRenderer extends Renderer {
   private currentViewportSize_: [number, number] = [0, 0];
   private currentViewportHasSceneDepth_ = false;
   private readonly modelView_ = mat4.create();
+  private readonly view_ = mat4.create();
   private readonly projection_ = mat4.create();
   private readonly projectionInverse_ = mat4.create();
   private readonly inverseModelView_ = mat4.create();
@@ -91,12 +92,17 @@ export class WebGLRenderer extends Renderer {
     this.renderedObjects_ = 0;
     this.renderedObjectsPerFrame_ = 0;
     this.stencilRef_ = 0;
-    mat4.multiply(this.projection_, axisDirection, viewport.camera.projectionMatrix);
-    mat4.invert(this.projectionInverse_, this.projection_);
 
     for (const layer of viewport.layers) {
       layer.update(viewport);
     }
+    mat4.multiply(
+      this.projection_,
+      axisDirection,
+      viewport.camera.projectionMatrix
+    );
+    mat4.invert(this.projectionInverse_, this.projection_);
+    mat4.copy(this.view_, viewport.camera.viewMatrix);
 
     if (getComputedStyle(viewport.element).visibility === "hidden") return;
 
@@ -142,10 +148,10 @@ export class WebGLRenderer extends Renderer {
       occludingLayers.length > 0 &&
       nonOccludingLayers.some((l) => l.requiresSceneDepth);
 
-    this.primeDepthBuffer(occludingLayers, viewport.camera, frustum);
+    this.primeDepthBuffer(occludingLayers, frustum);
 
     if (this.currentViewportHasSceneDepth_) {
-      this.renderDepthTexture(occludingLayers, viewport.camera, frustum);
+      this.renderDepthTexture(occludingLayers, frustum);
     }
 
     this.state_.setDepthMask(false);
@@ -157,35 +163,31 @@ export class WebGLRenderer extends Renderer {
     this.renderedObjects_ = this.renderedObjectsPerFrame_;
   }
 
-  private primeDepthBuffer(layers: Layer[], camera: Camera, frustum: Frustum) {
+  private primeDepthBuffer(layers: Layer[], frustum: Frustum) {
     this.state_.setColorMask(false);
     this.state_.setDepthFunc(this.gl_.LESS);
     // nudge the depth away from the camera, so that the color passes
     // at the same depth are not rejected
     this.state_.setPolygonOffset(true);
 
-    this.drawDepthOnly(layers, camera, frustum);
+    this.drawDepthOnly(layers, frustum);
 
     this.resetState();
   }
 
-  private renderDepthTexture(
-    layers: Layer[],
-    camera: Camera,
-    frustum: Frustum
-  ) {
+  private renderDepthTexture(layers: Layer[], frustum: Frustum) {
     this.depthTarget_.bind(this.width, this.height);
     this.state_.setDepthMask(true);
     this.state_.setDepthFunc(this.gl_.LESS);
     this.gl_.clear(this.gl_.DEPTH_BUFFER_BIT);
 
-    this.drawDepthOnly(layers, camera, frustum);
+    this.drawDepthOnly(layers, frustum);
 
     this.depthTarget_.unbind();
     this.resetState();
   }
 
-  private drawDepthOnly(layers: Layer[], camera: Camera, frustum: Frustum) {
+  private drawDepthOnly(layers: Layer[], frustum: Frustum) {
     for (const layer of layers) {
       for (const members of layer.coverageGroups.values()) {
         for (const object of members) {
@@ -197,7 +199,7 @@ export class WebGLRenderer extends Renderer {
             this.textures_.bindTexture(texture, index);
           });
           const program = this.programs_.use(object.depthProgramName);
-          this.drawGeometry(object.geometry, object, layer, program, camera);
+          this.drawGeometry(object.geometry, object, layer, program);
         }
       }
     }
@@ -235,7 +237,7 @@ export class WebGLRenderer extends Renderer {
   protected renderObject(
     layer: Layer,
     object: RenderableObject,
-    camera: Camera
+    _camera: Camera
   ) {
     object.popStaleTextures().forEach((texture) => {
       this.textures_.dispose(texture);
@@ -250,7 +252,7 @@ export class WebGLRenderer extends Renderer {
     });
 
     const program = this.programs_.use(object.programName);
-    this.drawGeometry(object.geometry, object, layer, program, camera);
+    this.drawGeometry(object.geometry, object, layer, program);
 
     if (object.wireframeEnabled) {
       const stencilTestEnabled = this.state_.stencilTestEnabled;
@@ -268,8 +270,7 @@ export class WebGLRenderer extends Renderer {
         object.wireframeGeometry,
         object,
         layer,
-        wireframeProgram,
-        camera
+        wireframeProgram
       );
 
       if (blendingMode !== null) this.state_.setBlendingMode(blendingMode);
@@ -281,12 +282,11 @@ export class WebGLRenderer extends Renderer {
     geometry: Geometry,
     object: RenderableObject,
     layer: Layer,
-    program: WebGLShaderProgram,
-    camera: Camera
+    program: WebGLShaderProgram
   ) {
     const modelView = mat4.multiply(
       this.modelView_,
-      camera.viewMatrix,
+      this.view_,
       object.transform.matrix
     );
     const projection = this.projection_;
@@ -330,7 +330,11 @@ export class WebGLRenderer extends Renderer {
             mat4.invert(this.inverseModelView_, modelView);
             inverseModelViewReady = true;
           }
-          mat4.multiply(this.mvpInverse_, this.inverseModelView_, this.projectionInverse_);
+          mat4.multiply(
+            this.mvpInverse_,
+            this.inverseModelView_,
+            this.projectionInverse_
+          );
           program.setUniform(uniformName, this.mvpInverse_);
           break;
         }
@@ -346,8 +350,12 @@ export class WebGLRenderer extends Renderer {
             mat4.invert(this.inverseModelView_, modelView);
             inverseModelViewReady = true;
           }
-          vec3.set(this.cameraPositionModel_,
-            this.inverseModelView_[12], this.inverseModelView_[13], this.inverseModelView_[14]);
+          vec3.set(
+            this.cameraPositionModel_,
+            this.inverseModelView_[12],
+            this.inverseModelView_[13],
+            this.inverseModelView_[14]
+          );
           program.setUniform(uniformName, this.cameraPositionModel_);
           break;
         }
