@@ -42,12 +42,15 @@ export class VolumeRenderable extends RenderableObject {
   public readonly textureOffset = vec3.create();
   public readonly textureScale = vec3.fromValues(1, 1, 1);
   public readonly sortPosition = vec3.create();
+  public sortDepth = 0;
 
   private channels_: Required<Channel>[];
   private loadedChannels_: Set<number> = new Set();
 
   private readonly channelToTextureIndex_: Map<number, number> = new Map();
   private readonly channelMax_: Map<number, number> = new Map();
+  private uniforms_?: Record<string, unknown>;
+  private contributes_?: boolean;
 
   /**
    * Creates an empty volume renderable.
@@ -78,6 +81,8 @@ export class VolumeRenderable extends RenderableObject {
    */
   public updateVolumeWithChunk(chunk: Chunk): void {
     if (!chunk.texture) return;
+    this.uniforms_ = undefined;
+    this.contributes_ = undefined;
 
     const channelIndex = chunk.chunkIndex.c;
 
@@ -117,7 +122,9 @@ export class VolumeRenderable extends RenderableObject {
    * next chunk update. The textures themselves are kept.
    */
   public clearLoadedChannels() {
-    this.loadedChannels_ = new Set();
+    this.loadedChannels_.clear();
+    this.uniforms_ = undefined;
+    this.contributes_ = undefined;
   }
 
   /**
@@ -133,14 +140,15 @@ export class VolumeRenderable extends RenderableObject {
 
   /** Whether any loaded visible channel can contribute at current contrast. */
   public get hasVisibleContribution(): boolean {
+    if (this.contributes_ !== undefined) return this.contributes_;
     for (const [channelIndex, textureIndex] of this.channelToTextureIndex_) {
       if (!this.loadedChannels_.has(channelIndex)) continue;
       const channel = validateChannel(this.textures[textureIndex], this.channels_[channelIndex] || {});
       if (channel.visible && !((this.channelMax_.get(channelIndex) ?? Infinity) <= channel.contrastLimits[0])) {
-        return true;
+        return (this.contributes_ = true);
       }
     }
-    return false;
+    return (this.contributes_ = false);
   }
 
   /**
@@ -148,7 +156,11 @@ export class VolumeRenderable extends RenderableObject {
    * visibility uniforms for up to 4 loaded channels plus the voxel
    * scale.
    */
-  public override getUniforms(): Record<string, number[] | number> {
+  public override getUniforms(): Record<string, unknown> {
+    if (this.uniforms_) {
+      this.uniforms_.u_voxelScale = this.voxelScale;
+      return this.uniforms_;
+    }
     const loadedAndVisibleTextures = [0, 0, 0, 0];
     // prettier-ignore
     const colors = [
@@ -190,26 +202,23 @@ export class VolumeRenderable extends RenderableObject {
       channelOpacity[k] = channel.opacity;
     }
 
-    return samplerUniforms.reduce<Record<string, number[] | number>>(
+    this.uniforms_ = samplerUniforms.reduce<Record<string, unknown>>(
       (uniforms, textureIndex, i) => {
         uniforms[`u_channel${i}Sampler`] = textureIndex;
         return uniforms;
       },
       {
-        u_textureOffset: Array.from(this.textureOffset),
-        u_textureScale: Array.from(this.textureScale),
+        u_textureOffset: this.textureOffset,
+        u_textureScale: this.textureScale,
         u_visible: loadedAndVisibleTextures,
         "u_color[0]": colors,
         u_valueOffset: valueOffset,
         u_valueScale: valueScale,
         u_channelOpacity: channelOpacity,
-        u_voxelScale: [
-          this.voxelScale[0],
-          this.voxelScale[1],
-          this.voxelScale[2],
-        ],
+        u_voxelScale: this.voxelScale,
       }
     );
+    return this.uniforms_;
   }
 
   /**
@@ -235,6 +244,8 @@ export class VolumeRenderable extends RenderableObject {
    * @param channels - The new channel settings.
    */
   public setChannelProps(channels: ChannelProps[]) {
+    this.uniforms_ = undefined;
+    this.contributes_ = undefined;
     this.channels_ = validateChannels(
       this.getAvailableChannelTexture(),
       channels
@@ -263,6 +274,8 @@ export class VolumeRenderable extends RenderableObject {
     );
 
     this.channels_[channelIndex] = newChannel;
+    this.uniforms_ = undefined;
+    this.contributes_ = undefined;
   }
 }
 

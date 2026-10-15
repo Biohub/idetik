@@ -18,8 +18,14 @@ test("contrast culling tracks threshold and visibility changes", () => {
   expect(volume.hasVisibleContribution).toBe(false);
   volume.setChannelProps([{ contrastLimits: [6, 10] }]);
   expect(volume.hasVisibleContribution).toBe(true);
+  const uniforms = volume.getUniforms();
+  expect(volume.getUniforms()).toBe(uniforms);
+  volume.textureOffset[0] = 0.25;
+  expect((uniforms.u_textureOffset as number[])[0]).toBe(0.25);
   volume.setChannelProperty(0, "visible", false);
   expect(volume.hasVisibleContribution).toBe(false);
+  expect(volume.getUniforms()).not.toBe(uniforms);
+  expect(volume.getUniforms().u_visible).toEqual([0, 0, 0, 0]);
   volume.reset();
   expect(volume.hasVisibleContribution).toBe(false);
 });

@@ -16,7 +16,7 @@ import { Viewport } from "../core/viewport";
 import { Camera } from "../objects/cameras/camera";
 import { Texture } from "../objects/textures/texture";
 
-import { mat4, vec2, vec3, vec4 } from "gl-matrix";
+import { mat4, vec2, vec3 } from "gl-matrix";
 import { Frustum } from "../math/frustum";
 
 // Idetik defines screen-space with +Y pointing downward.
@@ -41,6 +41,12 @@ export class WebGLRenderer extends Renderer {
   private stencilRef_ = 0;
   private currentViewportSize_: [number, number] = [0, 0];
   private currentViewportHasSceneDepth_ = false;
+  private readonly modelView_ = mat4.create();
+  private readonly projection_ = mat4.create();
+  private readonly projectionInverse_ = mat4.create();
+  private readonly inverseModelView_ = mat4.create();
+  private readonly mvpInverse_ = mat4.create();
+  private readonly cameraPositionModel_ = vec3.create();
 
   constructor(canvas: HTMLCanvasElement) {
     super(canvas);
@@ -85,6 +91,8 @@ export class WebGLRenderer extends Renderer {
     this.renderedObjects_ = 0;
     this.renderedObjectsPerFrame_ = 0;
     this.stencilRef_ = 0;
+    mat4.multiply(this.projection_, axisDirection, viewport.camera.projectionMatrix);
+    mat4.invert(this.projectionInverse_, this.projection_);
 
     for (const layer of viewport.layers) {
       layer.update(viewport);
@@ -277,15 +285,12 @@ export class WebGLRenderer extends Renderer {
     camera: Camera
   ) {
     const modelView = mat4.multiply(
-      mat4.create(),
+      this.modelView_,
       camera.viewMatrix,
       object.transform.matrix
     );
-    const projection = mat4.multiply(
-      mat4.create(),
-      axisDirection,
-      camera.projectionMatrix
-    );
+    const projection = this.projection_;
+    let inverseModelViewReady = false;
 
     // per-viewport size in pixels — shaders that compute screen-space offsets
     // need the actual rendered region, not the full-canvas dimensions
@@ -293,10 +298,7 @@ export class WebGLRenderer extends Renderer {
 
     const objectUniforms = object.getUniforms();
     const layerUniforms = layer.getUniforms();
-    const allUniforms = {
-      ...layerUniforms,
-      ...objectUniforms,
-    };
+    // Uniform uploads copy values synchronously; scratch matrices are safe to reuse.
 
     for (const uniformName of program.uniformNames) {
       switch (uniformName) {
@@ -324,9 +326,12 @@ export class WebGLRenderer extends Renderer {
           program.setUniform(uniformName, this.depthTarget_.textureUnit);
           break;
         case "u_mvpInverse": {
-          const mvp = mat4.multiply(mat4.create(), projection, modelView);
-          const mvpInverse = mat4.invert(mat4.create(), mvp)!;
-          program.setUniform(uniformName, mvpInverse);
+          if (!inverseModelViewReady) {
+            mat4.invert(this.inverseModelView_, modelView);
+            inverseModelViewReady = true;
+          }
+          mat4.multiply(this.mvpInverse_, this.inverseModelView_, this.projectionInverse_);
+          program.setUniform(uniformName, this.mvpInverse_);
           break;
         }
         case "u_opacity":
@@ -337,26 +342,20 @@ export class WebGLRenderer extends Renderer {
           );
           break;
         case "u_cameraPositionModel": {
-          const inverseModelView = mat4.invert(mat4.create(), modelView)!;
-          const cameraPositionView = vec4.fromValues(0, 0, 0, 1);
-          const cameraPositionModel = vec4.transformMat4(
-            vec4.create(),
-            cameraPositionView,
-            inverseModelView
-          );
-          program.setUniform(
-            uniformName,
-            vec3.fromValues(
-              cameraPositionModel[0],
-              cameraPositionModel[1],
-              cameraPositionModel[2]
-            )
-          );
+          if (!inverseModelViewReady) {
+            mat4.invert(this.inverseModelView_, modelView);
+            inverseModelViewReady = true;
+          }
+          vec3.set(this.cameraPositionModel_,
+            this.inverseModelView_[12], this.inverseModelView_[13], this.inverseModelView_[14]);
+          program.setUniform(uniformName, this.cameraPositionModel_);
           break;
         }
         default:
-          if (uniformName in allUniforms) {
-            program.setUniform(uniformName, allUniforms[uniformName]);
+          if (uniformName in objectUniforms) {
+            program.setUniform(uniformName, objectUniforms[uniformName]);
+          } else if (uniformName in layerUniforms) {
+            program.setUniform(uniformName, layerUniforms[uniformName]);
           }
       }
     }

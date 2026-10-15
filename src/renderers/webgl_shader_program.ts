@@ -8,6 +8,7 @@ export class WebGLShaderProgram {
     string,
     [WebGLUniformLocation, WebGLActiveInfo]
   > = new Map();
+  private readonly uniformNames_: string[] = [];
 
   constructor(
     gl: WebGL2RenderingContext,
@@ -118,6 +119,7 @@ export class WebGLShaderProgram {
         const location = this.gl_.getUniformLocation(this.program_, info.name);
         if (location) {
           this.uniformInfo_.set(info.name, [location, info]);
+          this.uniformNames_.push(info.name);
           Logger.debug(
             "WebGLShaderProgram",
             "Uniform found:",
@@ -164,8 +166,8 @@ export class WebGLShaderProgram {
     return this.gl_.getProgramParameter(this.program_, parameter);
   }
 
-  public get uniformNames(): string[] {
-    return Array.from(this.uniformInfo_.keys());
+  public get uniformNames(): readonly string[] {
+    return this.uniformNames_;
   }
 }
 

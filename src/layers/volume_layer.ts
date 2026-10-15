@@ -96,6 +96,15 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
   private lastLoadedTime_: number | undefined = undefined;
   private lastNumRenderedChannelChunks_: number | undefined = undefined;
   private interactiveStepSizeScale_ = 1.0;
+  private objectsDirty_ = true;
+  private readonly lastSortPosition_ = vec3.fromValues(NaN, NaN, NaN);
+  private lastChunks_: Chunk[] = [];
+  private readonly uniforms_ = {
+    u_debugShowDegenerateRays: 0,
+    u_relativeStepSize: 1,
+    u_opacityMultiplier: 1,
+    u_earlyTerminationAlpha: 0.99,
+  };
 
   // TODO: Make a debug config object to manage debug options
   private debugShowWireframes_ = false;
@@ -141,6 +150,7 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
   public setChannelProps(channelProps: ChannelProps[]) {
     this.channelProps_ = channelProps;
     this.lastNumRenderedChannelChunks_ = undefined;
+    this.objectsDirty_ = true;
     for (const volume of this.currentVolumes_.values()) {
       volume.setChannelProps(channelProps);
     }
@@ -251,13 +261,13 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
 
     const chunksToRender = this.chunkStoreView_.getChunksToRender();
     const currentTime = this.sliceCoords_.t ?? -1;
-    const groupedChunks = groupBySpatialIndex(chunksToRender);
 
     const needsUpdate =
       this.lastLoadedTime_ !== currentTime ||
-      groupedChunks.size !== this.currentVolumes_.size ||
+      chunksToRender.some((chunk, index) => chunk !== this.lastChunks_[index]) ||
       this.lastNumRenderedChannelChunks_ !== chunksToRender.length;
     if (!needsUpdate) return;
+    const groupedChunks = groupBySpatialIndex(chunksToRender);
 
     for (const [key, volume] of this.currentVolumes_) {
       if (!groupedChunks.has(key)) {
@@ -274,6 +284,8 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
 
     this.lastLoadedTime_ = currentTime;
     this.lastNumRenderedChannelChunks_ = chunksToRender.length;
+    this.lastChunks_ = chunksToRender;
+    this.objectsDirty_ = true;
   }
 
   private updateVolumeTransform(volume: VolumeRenderable, chunks: Chunk[]) {
@@ -341,6 +353,9 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
   }
 
   private rebuildObjects(camera: Camera) {
+    if (!this.objectsDirty_ && vec3.exactEquals(this.lastSortPosition_, camera.position)) return;
+    vec3.copy(this.lastSortPosition_, camera.position);
+    this.objectsDirty_ = false;
     const volumes = Array.from(this.currentVolumes_.values());
     sortBackToFront(volumes, camera);
 
@@ -357,13 +372,11 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
 
   /** Returns the ray marching uniforms for this layer. */
   public getUniforms(): Record<string, unknown> {
-    return {
-      u_debugShowDegenerateRays: Number(this.debugShowDegenerateRays),
-      u_relativeStepSize:
-        this.relativeStepSize * this.interactiveStepSizeScale_,
-      u_opacityMultiplier: this.opacityMultiplier,
-      u_earlyTerminationAlpha: this.earlyTerminationAlpha,
-    };
+    this.uniforms_.u_debugShowDegenerateRays = Number(this.debugShowDegenerateRays);
+    this.uniforms_.u_relativeStepSize = this.relativeStepSize * this.interactiveStepSizeScale_;
+    this.uniforms_.u_opacityMultiplier = this.opacityMultiplier;
+    this.uniforms_.u_earlyTerminationAlpha = this.earlyTerminationAlpha;
+    return this.uniforms_;
   }
 }
 
@@ -396,12 +409,11 @@ export function poolKeyForChunk(chunk: Chunk) {
 
 function sortBackToFront(objects: VolumeRenderable[], camera: Camera) {
   const cameraPosition = camera.position;
-  const depths = new Map<VolumeRenderable, number>();
 
   for (const object of objects) {
     const center = object.sortPosition;
-    depths.set(object, vec3.squaredDistance(cameraPosition, center));
+    object.sortDepth = vec3.squaredDistance(cameraPosition, center);
   }
 
-  objects.sort((a, b) => depths.get(b)! - depths.get(a)!);
+  objects.sort((a, b) => b.sortDepth - a.sortDepth);
 }
