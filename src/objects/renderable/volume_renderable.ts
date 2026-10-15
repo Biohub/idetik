@@ -44,6 +44,7 @@ export class VolumeRenderable extends RenderableObject {
   private loadedChannels_: Set<number> = new Set();
 
   private readonly channelToTextureIndex_: Map<number, number> = new Map();
+  private readonly channelMax_: Map<number, number> = new Map();
 
   /**
    * Creates an empty volume renderable.
@@ -85,6 +86,7 @@ export class VolumeRenderable extends RenderableObject {
     }
 
     this.loadedChannels_.add(channelIndex);
+    this.channelMax_.set(channelIndex, chunk.content?.max ?? Infinity);
   }
 
   private addChannelTexture(channelIndex: number, texture: Texture): void {
@@ -122,7 +124,20 @@ export class VolumeRenderable extends RenderableObject {
   public reset() {
     this.clearTextures();
     this.channelToTextureIndex_.clear();
+    this.channelMax_.clear();
     this.clearLoadedChannels();
+  }
+
+  /** Whether any loaded visible channel can contribute at current contrast. */
+  public get hasVisibleContribution(): boolean {
+    for (const [channelIndex, textureIndex] of this.channelToTextureIndex_) {
+      if (!this.loadedChannels_.has(channelIndex)) continue;
+      const channel = validateChannel(this.textures[textureIndex], this.channels_[channelIndex] || {});
+      if (channel.visible && !((this.channelMax_.get(channelIndex) ?? Infinity) <= channel.contrastLimits[0])) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**

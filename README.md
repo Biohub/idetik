@@ -77,6 +77,8 @@ but produce no draw. Absent chunks returned as fill-zero data take the same path
 Image views or negative contrast limits restore ordinary zero textures on demand,
 without fetching or decoding the chunk again. Nonzero fill values are not treated
 as empty because they can contribute to the image.
+Volume chunk groups with no visible channel above its contrast minimum are
+omitted from drawing. Contrast and visibility changes take effect on the next frame.
 
 ## Project Status
 

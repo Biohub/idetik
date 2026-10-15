@@ -329,7 +329,7 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
 
     this.clearObjects();
     for (const volume of volumes) {
-      this.addObject(volume);
+      if (volume.hasVisibleContribution) this.addObject(volume);
     }
   }
 
