@@ -86,6 +86,10 @@ sorting uses original centers. Windows where zero contributes retain full boxes.
 The renderer reuses matrix scratch space and cached volume uniforms. It computes
 one inverse model-view per draw and shares camera view/inverse projection matrices across a viewport.
 Unchanged cameras and chunk sets keep their sorted volume objects.
+Cached volume membership tracks both chunk and texture identity. Each group contains
+only its currently resident channels, and its identity includes LOD. Evicted channels
+are removed before drawing rather than retaining a binding to their disposed texture.
+Detaching a layer invalidates its membership cache so reattachment rebuilds objects.
 
 ## Project Status
 

@@ -16,6 +16,7 @@ import {
   ChannelsEnabled,
   validateChannelPropsCount,
 } from "../core/channel";
+import type { Texture } from "../objects/textures/texture";
 
 /**
  * Initialization properties for constructing a volume layer.
@@ -99,6 +100,7 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
   private objectsDirty_ = true;
   private readonly lastSortPosition_ = vec3.fromValues(NaN, NaN, NaN);
   private lastChunks_: Chunk[] = [];
+  private lastTextures_: Array<Texture | undefined> = [];
   private readonly uniforms_ = {
     u_debugShowDegenerateRays: 0,
     u_relativeStepSize: 1,
@@ -211,6 +213,10 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
   private getOrCreateVolume(key: string, chunks: Chunk[]): VolumeRenderable {
     const existing = this.currentVolumes_.get(key);
     if (existing) {
+      // A chunk group is a snapshot, not an append-only channel collection.
+      // Missing channels may already have been evicted by the chunk manager.
+      existing.reset();
+      existing.setChannelProps(this.channelProps_ ?? []);
       for (const chunk of chunks) existing.updateVolumeWithChunk(chunk);
       this.updateVolumeTransform(existing, chunks);
       return existing;
@@ -248,6 +254,11 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
     this.clearObjects();
     this.chunkStoreView_?.dispose();
     this.chunkStoreView_ = undefined;
+    this.lastChunks_ = [];
+    this.lastTextures_ = [];
+    this.lastLoadedTime_ = undefined;
+    this.lastNumRenderedChannelChunks_ = undefined;
+    this.objectsDirty_ = true;
   }
 
   private updateChunks() {
@@ -267,7 +278,9 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
     const needsUpdate =
       this.lastLoadedTime_ !== currentTime ||
       chunksToRender.some(
-        (chunk, index) => chunk !== this.lastChunks_[index]
+        (chunk, index) =>
+          chunk !== this.lastChunks_[index] ||
+          chunk.texture !== this.lastTextures_[index]
       ) ||
       this.lastNumRenderedChannelChunks_ !== chunksToRender.length;
     if (!needsUpdate) return;
@@ -289,6 +302,7 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
     this.lastLoadedTime_ = currentTime;
     this.lastNumRenderedChannelChunks_ = chunksToRender.length;
     this.lastChunks_ = chunksToRender;
+    this.lastTextures_ = chunksToRender.map((chunk) => chunk.texture);
     this.objectsDirty_ = true;
   }
 
@@ -406,7 +420,7 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
 
 function spatialKey(chunk: Chunk): string {
   const { x, y, z, t } = chunk.chunkIndex;
-  return `${x}:${y}:${z}:${t}`;
+  return `${chunk.lod}:${x}:${y}:${z}:${t}`;
 }
 
 function groupBySpatialIndex(chunks: Chunk[]): Map<string, Chunk[]> {
