@@ -92,7 +92,13 @@ export function computeSourceChunkStats(
       const t = chunk.chunkIndex.t;
       requested += 1;
       timepoints.requested[t] += 1;
-      if (chunk.texture !== undefined || chunk.zeroResident) {
+      const transparentForAllViews =
+        chunk.zeroResident &&
+        views.every((view) => {
+          const demand = view.chunkViewStates.get(chunk);
+          return !demand || demand.priority === null || view.zeroIsTransparent;
+        });
+      if (chunk.texture !== undefined || transparentForAllViews) {
         resident += 1;
         timepoints.resident[t] += 1;
       }
@@ -133,7 +139,9 @@ export function computeViewportChunkStats(
     const currentLOD = view.currentLOD;
     for (const [chunk, state] of view.chunkViewStates) {
       if (state.priority === null) continue;
-      const isResident = chunk.texture !== undefined || chunk.zeroResident === true;
+      const isResident =
+        chunk.texture !== undefined ||
+        (chunk.zeroResident && view.zeroIsTransparent);
       requested += 1;
       if (isResident) resident += 1;
 

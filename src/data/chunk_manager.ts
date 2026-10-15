@@ -103,7 +103,7 @@ export class ChunkManager {
         }
       }
 
-      this.uploadLoadedChunks(store, updatedChunks);
+      this.uploadLoadedChunks(source, store, updatedChunks);
     }
 
     this.enqueueWithinBudget(candidates);
@@ -222,7 +222,11 @@ export class ChunkManager {
     return chunk.shape.x * chunk.shape.y * chunk.shape.z * bytesPerElement;
   }
 
-  private uploadLoadedChunks(store: ChunkStore, chunks: Set<Chunk>) {
+  private uploadLoadedChunks(
+    source: ChunkSource,
+    store: ChunkStore,
+    chunks: Set<Chunk>
+  ) {
     if (!this.uploadTexture_) return;
 
     const pending: Chunk[] = [];
@@ -244,10 +248,25 @@ export class ChunkManager {
     pending.sort(comparePriority);
 
     const limit = Math.min(pending.length, this.maxGpuUploadsPerUpdate_);
+    let restorationVictims:
+      | { store: ChunkStore; chunk: Chunk; drawn: boolean }[]
+      | undefined;
 
     for (let i = 0; i < limit; i++) {
       const chunk = pending[i];
       if (chunk.zeroResident) {
+        const bytes = this.chunkBytes(source, chunk);
+        let committed = this.getGpuResidentBytes_();
+        if (committed + bytes > this.memoryLimitBytes_) {
+          restorationVictims ??= this.evictionCandidates();
+          committed = this.evictWorseChunks(
+            committed,
+            bytes,
+            chunk,
+            restorationVictims
+          );
+        }
+        if (committed + bytes > this.memoryLimitBytes_) continue;
         setChunkData(chunk, createZeroChunkData(chunk));
       }
       const texture = Texture3D.createWithChunk(chunk);

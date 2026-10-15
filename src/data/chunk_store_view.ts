@@ -349,7 +349,11 @@ export class ChunkStoreView {
     for (const [chunk, state] of this.chunkViewStates_) {
       if (!state.visible || chunk.lod !== lod) continue;
       foundAny = true;
-      if (chunk.texture === undefined && !(chunk.zeroResident && this.zeroIsTransparent)) return false;
+      if (
+        chunk.texture === undefined &&
+        !(chunk.zeroResident && this.zeroIsTransparent)
+      )
+        return false;
     }
     return foundAny;
   }

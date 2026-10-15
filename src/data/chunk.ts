@@ -20,7 +20,9 @@ export type ChunkDataConstructor = (typeof chunkDataTypes)[number];
 export type ChunkData = InstanceType<ChunkDataConstructor>;
 
 export function createZeroChunkData(chunk: Chunk): ChunkData {
-  const Constructor = chunkDataTypes.find((type) => type.name === chunk.content?.arrayType);
+  const Constructor = chunkDataTypes.find(
+    (type) => type.name === chunk.content?.arrayType
+  );
   if (!Constructor) throw new Error("Missing zero chunk array type");
   return new Constructor(chunk.shape.x * chunk.shape.y * chunk.shape.z);
 }
