@@ -13,6 +13,7 @@ export function collectDeclarationFiles(project) {
 
 const ADOPTED_ALIASES = {
   Overlay: "Idetik",
+  RuntimeStats: "Stats",
   MemoryStats: "Stats",
   QueueStats: "Stats",
   ChunkStats: "Stats",

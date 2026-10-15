@@ -27,10 +27,35 @@ export type MemoryStats = {
 };
 
 /**
+ * A snapshot of drawing frequency and GPU draw cost.
+ *
+ * Values are averaged over sampling windows of at least one second. A frame
+ * is one canvas draw pass across all viewports including draws during resize.
+ * GPU timings are collected asynchronously and lag draw submission.
+ */
+export type RuntimeStats = {
+  /** Whether GPU timer queries are supported by the current renderer context. */
+  gpuTimingSupported: boolean;
+  /**
+   * Canvas draw passes per second in the latest sampling window.
+   * This value diverges from frames per second when on-demand rendering
+   * is enabled.
+   */
+  renderedFramesPerSecond: number;
+  /**
+   * Mean elapsed GPU timeline time per sampled canvas render pass, in ms.
+   * The interval spans drawing across all viewports, excluding layer updates.
+   * Undefined when no recent valid sample exists.
+   */
+  gpuMsPerFrame?: number;
+};
+
+/**
  * Statistics available through `idetik.stats`.
  *
  * Getters read the current state. Only `chunks` walks chunk states. Reading
- * memory usage, queue counts, or rendered objects does not scan chunks.
+ * runtime rates, memory usage, queue counts, or rendered objects does not
+ * scan chunks.
  *
  * @group Core
  */
@@ -38,6 +63,15 @@ export class Stats {
   private readonly renderer_: Renderer;
   private readonly chunkManager_: ChunkManager;
   private readonly viewports_: readonly Viewport[];
+  private readonly runtime_: RuntimeStats = {
+    gpuTimingSupported: false,
+    renderedFramesPerSecond: 0,
+  };
+
+  private sampleStartedAt_ = performance.now();
+  private draws_ = 0;
+  private gpuSamples_ = 0;
+  private gpuMsAtWindowStart_ = 0;
 
   /** @hidden */
   constructor(
@@ -48,6 +82,25 @@ export class Stats {
     this.renderer_ = renderer;
     this.chunkManager_ = chunkManager;
     this.viewports_ = viewports;
+  }
+
+  /**
+   * Drawing frequency and GPU cost, recalculated on read when at least one
+   * second has passed since the last calculation or reset. Values cover that
+   * entire interval, so less frequent reads produce longer-term averages.
+   */
+  public get runtime(): RuntimeStats {
+    this.sample();
+    const gpu = this.renderer_.gpuTiming;
+    const recentGpuSample =
+      gpu.supported &&
+      gpu.lastSampleAt !== undefined &&
+      performance.now() - gpu.lastSampleAt < 3000;
+    return {
+      ...this.runtime_,
+      gpuTimingSupported: gpu.supported,
+      gpuMsPerFrame: recentGpuSample ? this.runtime_.gpuMsPerFrame : undefined,
+    };
   }
 
   /**
@@ -106,5 +159,46 @@ export class Stats {
   /** Objects reported by the renderer for the last viewport render. */
   public get renderedObjects(): number {
     return this.renderer_.renderedObjects;
+  }
+
+  /** @hidden */
+  public recordDraw(): void {
+    this.draws_ += 1;
+  }
+
+  /** @hidden */
+  private sample(): void {
+    const now = performance.now();
+    const elapsedSeconds = (now - this.sampleStartedAt_) / 1000;
+    if (elapsedSeconds < 1) return;
+
+    this.runtime_.renderedFramesPerSecond = this.draws_ / elapsedSeconds;
+
+    const gpu = this.renderer_.gpuTiming;
+    const gpuSamples = gpu.samples - this.gpuSamples_;
+    if (gpu.supported && gpu.lastSampleAt !== undefined && gpuSamples > 0) {
+      this.runtime_.gpuMsPerFrame =
+        (gpu.totalMs - this.gpuMsAtWindowStart_) / gpuSamples;
+    } else {
+      this.runtime_.gpuMsPerFrame = undefined;
+    }
+
+    this.resetSample(now);
+  }
+
+  /** @hidden */
+  public resetRates(): void {
+    this.renderer_.resetGpuTiming();
+    this.runtime_.renderedFramesPerSecond = 0;
+    this.runtime_.gpuMsPerFrame = undefined;
+    this.resetSample(performance.now());
+  }
+
+  private resetSample(now: number): void {
+    const gpu = this.renderer_.gpuTiming;
+    this.sampleStartedAt_ = now;
+    this.draws_ = 0;
+    this.gpuSamples_ = gpu.samples;
+    this.gpuMsAtWindowStart_ = gpu.totalMs;
   }
 }

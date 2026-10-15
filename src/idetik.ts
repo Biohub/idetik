@@ -137,7 +137,7 @@ export class Idetik {
   public readonly canvas: HTMLCanvasElement;
   /** The registered overlays that update once per frame in order. */
   public readonly overlays: Overlay[];
-  /** Memory, queue, chunk, and rendered-object statistics. */
+  /** Runtime, memory, queue, chunk, and rendered-object statistics. */
   public readonly stats: Stats;
 
   private readonly chunkManager_: ChunkManager;
@@ -348,6 +348,7 @@ export class Idetik {
     Logger.info("Idetik", "Idetik runtime starting");
     if (!this.running) {
       this.invalidate();
+      this.stats.resetRates();
 
       for (const viewport of this.viewports_) {
         viewport.events.connect();
@@ -450,6 +451,8 @@ export class Idetik {
     for (const viewport of this.viewports_) {
       this.renderer_.render(viewport);
     }
+    this.renderer_.endFrame();
+    this.stats.recordDraw();
   }
 
   /**
@@ -467,6 +470,7 @@ export class Idetik {
       // safe non-null assertion: this.running is true, so lastAnimationId_ is defined
       cancelAnimationFrame(this.lastAnimationId_!);
       this.lastAnimationId_ = undefined;
+      this.stats.resetRates();
     }
   }
 }

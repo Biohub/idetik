@@ -78,7 +78,7 @@ export type {
 export type { ChannelProps } from "./core/channel";
 export type { LayerState } from "./core/layer";
 export type { IdetikProps, Overlay } from "./idetik";
-export type { MemoryStats } from "./core/stats";
+export type { MemoryStats, RuntimeStats } from "./core/stats";
 export type { QueueStats } from "./data/chunk_manager";
 export type {
   ChunkStats,

@@ -5,6 +5,7 @@ import { Logger } from "../utilities/logger";
 
 import { WebGLBuffers } from "./webgl_buffers";
 import { WebGLTextures } from "./webgl_textures";
+import { WebGLTimer } from "./webgl_timer";
 
 import { Layer } from "../core/layer";
 import { WebGLState } from "./webgl_state";
@@ -36,6 +37,7 @@ export class WebGLRenderer extends Renderer {
   private readonly programs_: WebGLShaderPrograms;
   private readonly state_: WebGLState;
   private readonly textures_: WebGLTextures;
+  private readonly timer_: WebGLTimer;
 
   private renderedObjectsPerFrame_ = 0;
   private stencilRef_ = 0;
@@ -54,6 +56,7 @@ export class WebGLRenderer extends Renderer {
       throw new Error(`Failed to initialize WebGL2 context`);
     }
     this.gl_ = gl;
+    this.timer_ = new WebGLTimer(gl);
     Logger.info(
       "WebGLRenderer",
       `WebGL version ${gl.getParameter(gl.VERSION)}`
@@ -79,6 +82,22 @@ export class WebGLRenderer extends Renderer {
 
   public get gpuTextureCount() {
     return this.textures_.textureCount;
+  }
+
+  public override beginFrame() {
+    this.timer_.beginFrame();
+  }
+
+  public override endFrame() {
+    this.timer_.endFrame();
+  }
+
+  public override resetGpuTiming() {
+    this.timer_.reset();
+  }
+
+  public override get gpuTiming() {
+    return this.timer_.timing;
   }
 
   public render(viewport: Viewport) {
