@@ -4,6 +4,7 @@ import * as zarr from "zarrita";
 import { openArrayFromParams, ZarrArrayParams } from "../zarr/open";
 import { isChunkData, ChunkData } from "../chunk";
 import { SliceSpec, processChunk } from "./chunk_processing";
+import { describeChunk, type ChunkContent } from "../chunk_content";
 
 type ZarrWorkerMessageType = "getChunk" | "cancel";
 
@@ -28,6 +29,7 @@ export type ZarrWorkerResponse = {
       success: true;
       type: "getChunk";
       data: ChunkData;
+      content: ChunkContent;
     }
   | {
       success: false;
@@ -107,7 +109,8 @@ async function handleGetChunkMessage(
   performance.measure("processChunk", { start: sliceStart });
 
   try {
-    self.postMessage({ id, success: true, type: "getChunk", data }, [
+    const content = describeChunk(data, sliceSpec.targetShape);
+    self.postMessage({ id, success: true, type: "getChunk", data, content }, [
       data.buffer,
     ]);
   } catch (postError) {

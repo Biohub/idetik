@@ -68,6 +68,16 @@ const idetik = new Idetik({
 idetik.start();
 ```
 
+## Local volume performance build
+
+OME-Zarr decoding computes channel min/max and nonzero bounds in the decoder worker.
+All-zero chunks remain resident without GPU textures when every attached volume view
+uses a contrast window where zero is transparent. They count toward loading completion
+but produce no draw. Absent chunks returned as fill-zero data take the same path.
+Image views or negative contrast limits restore ordinary zero textures on demand,
+without fetching or decoding the chunk again. Nonzero fill values are not treated
+as empty because they can contribute to the image.
+
 ## Project Status
 
 This project is under active development. We welcome bug reports and new ideas but are not prepared to review or accept major contributions at this time.

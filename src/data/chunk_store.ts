@@ -137,14 +137,21 @@ export class ChunkStore {
     return this.resident_;
   }
 
+  public markZeroResident(chunk: Chunk): void {
+    chunk.zeroResident = true;
+    this.resident_.add(chunk);
+  }
+
   public setChunkTexture(chunk: Chunk, texture: Texture): void {
     chunk.texture = texture;
+    chunk.zeroResident = false;
     this.resident_.add(chunk);
   }
 
   public clearChunkTexture(chunk: Chunk): Texture | undefined {
     const texture = chunk.texture;
     chunk.texture = undefined;
+    chunk.zeroResident = false;
     this.resident_.delete(chunk);
     return texture;
   }

@@ -3,7 +3,7 @@ import type { ChunkStore } from "./chunk_store";
 import type { ChunkStoreView } from "./chunk_store_view";
 
 /**
- * A snapshot of chunk demand and GPU residency.
+ * A snapshot of chunk demand and residency, including known transparent zeros.
  *
  * Requested counts include prefetch. When the memory limit cannot hold every
  * requested chunk, some are never fetched and `resident` stays below
@@ -25,7 +25,7 @@ export type SourceChunkStats = {
    * requested by several views counts once. The budget may defer fetching.
    */
   requested: number;
-  /** How many of `requested` are on the GPU and drawable. */
+  /** How many of `requested` are on the GPU or known transparent zeros. */
   resident: number;
   /**
    * The same counts by timepoint index, the position along the source's time
@@ -35,7 +35,7 @@ export type SourceChunkStats = {
   timepoints: {
     /** `requested[t]` is the chunks requested at timepoint index `t`. */
     requested: Uint32Array;
-    /** `resident[t]` is how many of `requested[t]` are on the GPU. */
+    /** `resident[t]` includes GPU chunks and known transparent zeros. */
     resident: Uint32Array;
   };
 };
@@ -49,7 +49,7 @@ export type ViewportChunkStats = {
    * drawn while the current one loads.
    */
   requested: number;
-  /** How many of `requested` are on the GPU. */
+  /** How many of `requested` are on the GPU or known transparent zeros. */
   resident: number;
   /**
    * The same counts excluding fallback and prefetch: chunks visible at each
@@ -59,7 +59,7 @@ export type ViewportChunkStats = {
   current: {
     /** Chunks visible at each layer's current LOD and timepoint. */
     requested: number;
-    /** How many of `requested` are on the GPU. */
+    /** How many of `requested` are on the GPU or known transparent zeros. */
     resident: number;
   };
 };
@@ -92,7 +92,7 @@ export function computeSourceChunkStats(
       const t = chunk.chunkIndex.t;
       requested += 1;
       timepoints.requested[t] += 1;
-      if (chunk.texture !== undefined) {
+      if (chunk.texture !== undefined || chunk.zeroResident) {
         resident += 1;
         timepoints.resident[t] += 1;
       }
@@ -133,7 +133,7 @@ export function computeViewportChunkStats(
     const currentLOD = view.currentLOD;
     for (const [chunk, state] of view.chunkViewStates) {
       if (state.priority === null) continue;
-      const isResident = chunk.texture !== undefined;
+      const isResident = chunk.texture !== undefined || chunk.zeroResident === true;
       requested += 1;
       if (isResident) resident += 1;
 

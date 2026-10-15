@@ -1,16 +1,17 @@
 import * as zarr from "zarrita";
 import { Logger } from "../../utilities/logger";
 import { ZarrArrayParams } from "../zarr/open";
-import { isChunkData, ChunkData } from "../chunk";
+import { isChunkData } from "../chunk";
 import { ZarrWorkerRequest, ZarrWorkerResponse } from "./worker_kernel";
 import { SliceSpec, processChunk } from "./chunk_processing";
 // "inline" import to ensure worker code works in dependent projects
 // this is a workaround for a vite limitation when building a library
 // see https://github.com/vitejs/vite/issues/11672
 import WorkerKernel from "./worker_kernel.ts?worker&inline";
+import { describeChunk, type DecodedChunk } from "../chunk_content";
 
 type PendingGetChunkRequest = {
-  resolve: (value: ChunkData) => void;
+  resolve: (value: DecodedChunk) => void;
   reject: (error: Error) => void;
   abortListener?: () => void;
   abortSignal?: AbortSignal;
@@ -79,7 +80,7 @@ function handleWorkerMessage(
   }
 
   if (success && e.data.type === "getChunk") {
-    pending.resolve(e.data.data);
+    pending.resolve({ data: e.data.data, content: e.data.content });
   } else if (!success) {
     pending.reject(new Error(e.data.error || "Unknown worker error"));
   }
@@ -156,7 +157,7 @@ async function fetchAndProcessChunkInWorker(
   chunkIndex: number[],
   sliceSpec: SliceSpec,
   options?: { signal?: AbortSignal }
-): Promise<ChunkData> {
+): Promise<DecodedChunk> {
   return new Promise((resolve, reject) => {
     const workerInstance = getLeastBusyWorker();
 
@@ -238,7 +239,7 @@ export async function fetchAndProcessChunk(
   chunkCoords: number[],
   sliceSpec: SliceSpec,
   options?: { signal?: AbortSignal }
-): Promise<ChunkData> {
+): Promise<DecodedChunk> {
   ensureWorkerPool();
   try {
     return await fetchAndProcessChunkInWorker(
@@ -259,12 +260,13 @@ export async function fetchAndProcessChunk(
         `Unsupported chunk data type: ${rawChunk.data.constructor.name}`
       );
     }
-    return processChunk(
+    const data = processChunk(
       rawChunk.data,
       rawChunk.shape,
       rawChunk.stride,
       sliceSpec
     );
+    return { data, content: describeChunk(data, sliceSpec.targetShape) };
   }
 }
 

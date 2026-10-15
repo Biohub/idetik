@@ -87,6 +87,9 @@ export class ChunkStoreView {
     return this.isDisposed_;
   }
 
+  // Volume layers set this only when zero cannot contribute at current contrast.
+  public zeroIsTransparent = false;
+
   public get lodCount(): number {
     return this.store_.lodCount;
   }
@@ -345,7 +348,7 @@ export class ChunkStoreView {
     for (const [chunk, state] of this.chunkViewStates_) {
       if (!state.visible || chunk.lod !== lod) continue;
       foundAny = true;
-      if (chunk.texture === undefined) return false;
+      if (chunk.texture === undefined && !chunk.zeroResident) return false;
     }
     return foundAny;
   }

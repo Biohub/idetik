@@ -240,6 +240,11 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
 
   private updateChunks() {
     if (!this.chunkStoreView_) return;
+    this.chunkStoreView_.zeroIsTransparent =
+      this.channelProps_ !== undefined &&
+      this.channelProps_.every((channel) =>
+        channel.visible === false || (channel.contrastLimits?.[0] ?? -Infinity) >= 0
+      );
     if (this.state !== "ready") this.setState("ready");
 
     const chunksToRender = this.chunkStoreView_.getChunksToRender();

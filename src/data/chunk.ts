@@ -6,6 +6,7 @@ import { Logger } from "../utilities/logger";
 import { mat4, vec3 } from "gl-matrix";
 import { AxisComponent, SliceAxes } from "../math/axes";
 
+import type { ChunkContent } from "./chunk_content";
 const chunkDataTypes = [
   Int8Array,
   Int16Array,
@@ -17,6 +18,12 @@ const chunkDataTypes = [
 ] as const;
 export type ChunkDataConstructor = (typeof chunkDataTypes)[number];
 export type ChunkData = InstanceType<ChunkDataConstructor>;
+
+export function createZeroChunkData(chunk: Chunk): ChunkData {
+  const Constructor = chunkDataTypes.find((type) => type.name === chunk.content?.arrayType);
+  if (!Constructor) throw new Error("Missing zero chunk array type");
+  return new Constructor(chunk.shape.x * chunk.shape.y * chunk.shape.z);
+}
 
 export function isChunkData(value: unknown): value is ChunkData {
   if (chunkDataTypes.some((ChunkData) => value instanceof ChunkData)) {
@@ -39,6 +46,8 @@ export type ChunkViewState = {
 
 export type Chunk = {
   data?: ChunkData;
+  content?: ChunkContent;
+  zeroResident?: boolean;
   texture?: Texture;
   releasedAt?: DOMHighResTimeStamp;
   state: "unloaded" | "queued" | "loading" | "loaded";

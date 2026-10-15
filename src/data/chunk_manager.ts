@@ -1,7 +1,7 @@
-import { Chunk, ChunkSource } from "./chunk";
+import { createZeroChunkData, type Chunk, type ChunkSource } from "./chunk";
 import { SliceAxes } from "../math/axes";
 import { ChunkQueue, comparePriority } from "./chunk_queue";
-import { chunkMemoryStats, clearChunkData } from "./chunk_memory";
+import { chunkMemoryStats, clearChunkData, setChunkData } from "./chunk_memory";
 import { ChunkStore } from "./chunk_store";
 import { computeSourceChunkStats, SourceChunkStats } from "./chunk_stats";
 import { ChunkStoreView } from "./chunk_store_view";
@@ -124,7 +124,7 @@ export class ChunkManager {
   private releaseChunk(chunk: Chunk) {
     this.queue_.cancel(chunk);
 
-    if (chunk.texture !== undefined) {
+    if (chunk.texture !== undefined || chunk.zeroResident) {
       chunk.releasedAt ??= performance.now();
       return;
     }
@@ -226,9 +226,15 @@ export class ChunkManager {
     if (!this.uploadTexture_) return;
 
     const pending: Chunk[] = [];
+    const skipZeros = store.views.every((view) => view.zeroIsTransparent);
 
     for (const chunk of chunks) {
       if (chunk.state === "loaded" && chunk.texture === undefined) {
+        if (chunk.content?.zero && skipZeros) {
+          store.markZeroResident(chunk);
+          clearChunkData(chunk);
+          continue;
+        }
         pending.push(chunk);
       }
     }
@@ -241,6 +247,9 @@ export class ChunkManager {
 
     for (let i = 0; i < limit; i++) {
       const chunk = pending[i];
+      if (chunk.zeroResident) {
+        setChunkData(chunk, createZeroChunkData(chunk));
+      }
       const texture = Texture3D.createWithChunk(chunk);
       this.uploadTexture_(texture);
       store.setChunkTexture(chunk, texture);
