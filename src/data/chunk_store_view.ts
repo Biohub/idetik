@@ -13,6 +13,7 @@ import { Box2 } from "../math/box2";
 import { Box3 } from "../math/box3";
 import { Logger } from "../utilities/logger";
 import { clamp } from "../utilities/clamp";
+import type { Texture } from "../objects/textures/texture";
 
 /*
 Unique symbol used as a capability token to allow internal modules to update
@@ -43,6 +44,8 @@ export class ChunkStoreView {
 
   private readonly sourceMaxSquareDistance2D_: number;
   private readonly chunkViewStates_: Map<Chunk, ChunkViewState> = new Map();
+  private renderedChunks_: { chunk: Chunk; texture: Texture | undefined }[] =
+    [];
 
   private isDisposed_ = false;
 
@@ -121,6 +124,25 @@ export class ChunkStoreView {
         Math.abs(a.lod - targetLOD) - Math.abs(b.lod - targetLOD) ||
         b.lod - a.lod
     );
+  }
+
+  public updateRenderState(chunks: readonly Chunk[]): boolean {
+    const changed =
+      chunks.length !== this.renderedChunks_.length ||
+      chunks.some(
+        (chunk, index) =>
+          chunk !== this.renderedChunks_[index].chunk ||
+          chunk.texture !== this.renderedChunks_[index].texture
+      );
+
+    if (!changed) return false;
+
+    this.renderedChunks_ = chunks.map((chunk) => ({
+      chunk,
+      texture: chunk.texture,
+    }));
+
+    return true;
   }
 
   private residentChunksMarkedVisible(): Chunk[] {
@@ -368,6 +390,7 @@ export class ChunkStoreView {
 
   public dispose(): void {
     this.isDisposed_ = true;
+    this.renderedChunks_ = [];
     this.mode_ = null;
     this.chunkViewStates_.forEach(resetChunkViewState);
   }

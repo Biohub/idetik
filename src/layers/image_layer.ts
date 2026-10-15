@@ -102,6 +102,7 @@ export class ImageLayer extends Layer implements ChannelsEnabled {
   private readonly onPickValue_?: (info: PointPickingResult) => void;
   private readonly visibleChunks_: Map<Chunk, ImageRenderable> = new Map();
   private orderedChunks_: Chunk[] = [];
+  private lastSliceCoord_?: number;
   private readonly pool_ = new RenderablePool<ImageRenderable>();
   private readonly initialChannelProps_?: ChannelProps[];
   private readonly channelChangeCallbacks_: (() => void)[] = [];
@@ -181,7 +182,7 @@ export class ImageLayer extends Layer implements ChannelsEnabled {
    * @param viewport - The viewport being rendered.
    */
   public update(viewport?: Viewport): boolean {
-    if (!viewport || !this.chunkStoreView_) return true;
+    if (!viewport || !this.chunkStoreView_) return false;
 
     const camera = viewport.camera;
 
@@ -198,12 +199,17 @@ export class ImageLayer extends Layer implements ChannelsEnabled {
       bufferWidthPx: viewport.getBufferRect().width,
     });
 
-    this.updateChunks();
+    const chunksChanged = this.updateChunks();
+    const sliceCoord = this.sliceCoords_[this.axes_.w];
+    const sliceChanged = sliceCoord !== this.lastSliceCoord_;
 
-    for (const [chunk, imageRenderable] of this.visibleChunks_) {
-      this.updateSlicePosition(imageRenderable, chunk);
+    if (sliceChanged) {
+      for (const [chunk, imageRenderable] of this.visibleChunks_) {
+        this.updateSlicePosition(imageRenderable, chunk);
+      }
+      this.lastSliceCoord_ = sliceCoord;
     }
-    return true;
+    return chunksChanged || sliceChanged;
   }
 
   /** The slice plane the layer displays. */
@@ -232,6 +238,7 @@ export class ImageLayer extends Layer implements ChannelsEnabled {
     this.orientation_ = orientation;
     this.axes_ = sliceAxesFor(orientation);
     this.planeRotation_ = orientationRotation(this.axes_);
+    this.invalidate();
 
     if (!this.context_) {
       return;
@@ -244,26 +251,34 @@ export class ImageLayer extends Layer implements ChannelsEnabled {
     );
   }
 
-  private updateChunks() {
-    if (!this.chunkStoreView_) return;
+  private updateChunks(): boolean {
+    if (!this.chunkStoreView_) {
+      return false;
+    }
+
     if (this.state !== "ready") this.setState("ready");
 
     const visibleChunksResident = Array.from(this.visibleChunks_.keys()).every(
       (chunk) => chunk.texture !== undefined
     );
 
-    if (
+    const keepPresentation =
       this.visibleChunks_.size > 0 &&
       visibleChunksResident &&
       !this.chunkStoreView_.hasCompleteVisibleLOD() &&
-      !this.isPresentationStale()
-    ) {
-      return;
-    }
-    this.lastPresentationTimeStamp_ = performance.now();
-    this.lastPresentationTimeCoord_ = this.sliceCoords_.t;
+      !this.isPresentationStale();
 
-    const orderedByLOD = this.chunkStoreView_.getChunksToRender();
+    if (!keepPresentation) {
+      this.lastPresentationTimeStamp_ = performance.now();
+      this.lastPresentationTimeCoord_ = this.sliceCoords_.t;
+    }
+
+    const orderedByLOD = keepPresentation
+      ? this.orderedChunks_
+      : this.chunkStoreView_.getChunksToRender();
+
+    if (!this.chunkStoreView_.updateRenderState(orderedByLOD)) return false;
+
     const current = new Set(orderedByLOD);
     const nonVisibleChunks = Array.from(this.visibleChunks_.keys()).filter(
       (chunk) => !current.has(chunk)
@@ -276,8 +291,11 @@ export class ImageLayer extends Layer implements ChannelsEnabled {
         this.getImageForChunk(chunk, chunk.texture!)
       );
     }
+
     this.orderedChunks_ = orderedByLOD;
     this.rebuildRenderGroups();
+
+    return true;
   }
 
   private rebuildRenderGroups() {
@@ -385,7 +403,10 @@ export class ImageLayer extends Layer implements ChannelsEnabled {
 
   private getImageForChunk(chunk: Chunk, texture: Texture) {
     const existing = this.visibleChunks_.get(chunk);
-    if (existing) return existing;
+    if (existing) {
+      existing.setTexture(0, texture);
+      return existing;
+    }
 
     const pooled = this.pool_.acquire(
       poolKeyForImageRenderable(chunk, this.axes_)
@@ -513,6 +534,7 @@ export class ImageLayer extends Layer implements ChannelsEnabled {
 
   /** @param debug - Whether to draw chunk wireframes. */
   public set debugMode(debug: boolean) {
+    if (debug === this.debugMode_) return;
     this.debugMode_ = debug;
     this.visibleChunks_.forEach((image, chunk) => {
       image.wireframeEnabled = this.debugMode_;
@@ -521,6 +543,7 @@ export class ImageLayer extends Layer implements ChannelsEnabled {
           this.wireframeColors_[chunk.lod % this.wireframeColors_.length];
       }
     });
+    this.invalidate();
   }
 
   /** The current per-channel appearance settings. */
@@ -540,6 +563,7 @@ export class ImageLayer extends Layer implements ChannelsEnabled {
       image.setChannelProps(this.getChannelPropsForChunk(chunk));
     });
     this.rebuildRenderGroups();
+    this.invalidate();
     this.channelChangeCallbacks_.forEach((callback) => {
       callback();
     });

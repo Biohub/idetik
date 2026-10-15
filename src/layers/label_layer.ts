@@ -102,6 +102,8 @@ export class LabelLayer extends Layer {
   private readonly onPickValue_?: (info: PointPickingResult) => void;
   private readonly outlineSelected_: boolean;
   private readonly visibleChunks_: Map<Chunk, LabelImageRenderable> = new Map();
+  private orderedChunks_: Chunk[] = [];
+  private lastSliceCoord_?: number;
   private readonly pool_ = new RenderablePool<LabelImageRenderable>();
   private colorMap_: LabelColorMap;
   private selectedValue_: number | null = null;
@@ -163,6 +165,7 @@ export class LabelLayer extends Layer {
   /** @hidden */
   protected detach(_context: IdetikContext) {
     this.releaseAndRemoveChunks(this.visibleChunks_.keys());
+    this.orderedChunks_ = [];
     this.clearObjects();
     this.chunkStoreView_?.dispose();
     this.chunkStoreView_ = undefined;
@@ -176,7 +179,7 @@ export class LabelLayer extends Layer {
    * @param viewport - The viewport being rendered.
    */
   public update(viewport?: Viewport): boolean {
-    if (!viewport || !this.chunkStoreView_) return true;
+    if (!viewport || !this.chunkStoreView_) return false;
 
     const camera = viewport.camera;
 
@@ -193,12 +196,17 @@ export class LabelLayer extends Layer {
       bufferWidthPx: viewport.getBufferRect().width,
     });
 
-    this.updateChunks();
+    const chunksChanged = this.updateChunks();
+    const sliceCoord = this.sliceCoords_[this.axes_.w];
+    const sliceChanged = sliceCoord !== this.lastSliceCoord_;
 
-    for (const [chunk, labelRenderable] of this.visibleChunks_) {
-      this.updateSlicePosition(labelRenderable, chunk);
+    if (sliceChanged) {
+      for (const [chunk, labelRenderable] of this.visibleChunks_) {
+        this.updateSlicePosition(labelRenderable, chunk);
+      }
+      this.lastSliceCoord_ = sliceCoord;
     }
-    return true;
+    return chunksChanged || sliceChanged;
   }
 
   /** The slice plane the layer displays. */
@@ -219,6 +227,7 @@ export class LabelLayer extends Layer {
     }
 
     this.releaseAndRemoveChunks(this.visibleChunks_.keys());
+    this.orderedChunks_ = [];
     this.clearObjects();
     this.chunkStoreView_?.dispose();
     this.lastPresentationTimeStamp_ = undefined;
@@ -226,6 +235,7 @@ export class LabelLayer extends Layer {
     this.orientation_ = orientation;
     this.axes_ = sliceAxesFor(orientation);
     this.planeRotation_ = orientationRotation(this.axes_);
+    this.invalidate();
 
     if (!this.context_) {
       return;
@@ -238,26 +248,34 @@ export class LabelLayer extends Layer {
     );
   }
 
-  private updateChunks() {
-    if (!this.chunkStoreView_) return;
+  private updateChunks(): boolean {
+    if (!this.chunkStoreView_) {
+      return false;
+    }
+
     if (this.state !== "ready") this.setState("ready");
 
     const visibleChunksResident = Array.from(this.visibleChunks_.keys()).every(
       (chunk) => chunk.texture !== undefined
     );
 
-    if (
+    const keepPresentation =
       this.visibleChunks_.size > 0 &&
       visibleChunksResident &&
       !this.chunkStoreView_.hasCompleteVisibleLOD() &&
-      !this.isPresentationStale()
-    ) {
-      return;
-    }
-    this.lastPresentationTimeStamp_ = performance.now();
-    this.lastPresentationTimeCoord_ = this.sliceCoords_.t;
+      !this.isPresentationStale();
 
-    const orderedByLOD = this.chunkStoreView_.getChunksToRender();
+    if (!keepPresentation) {
+      this.lastPresentationTimeStamp_ = performance.now();
+      this.lastPresentationTimeCoord_ = this.sliceCoords_.t;
+    }
+
+    const orderedByLOD = keepPresentation
+      ? this.orderedChunks_
+      : this.chunkStoreView_.getChunksToRender();
+
+    if (!this.chunkStoreView_.updateRenderState(orderedByLOD)) return false;
+
     const current = new Set(orderedByLOD);
     const nonVisibleChunks = Array.from(this.visibleChunks_.keys()).filter(
       (chunk) => !current.has(chunk)
@@ -265,12 +283,17 @@ export class LabelLayer extends Layer {
     this.releaseAndRemoveChunks(nonVisibleChunks);
 
     this.clearObjects();
+
     // one coverage group; labels are single-channel but may be multi-scale
     for (const chunk of orderedByLOD) {
       const label = this.getLabelForChunk(chunk, chunk.texture!);
       this.visibleChunks_.set(chunk, label);
       this.addObject(label, 0);
     }
+
+    this.orderedChunks_ = orderedByLOD;
+
+    return true;
   }
 
   private isPresentationStale(): boolean {
@@ -338,6 +361,7 @@ export class LabelLayer extends Layer {
     this.visibleChunks_.forEach((label) => {
       label.setColorMap(this.colorMap_);
     });
+    this.invalidate();
   }
 
   /**
@@ -347,10 +371,12 @@ export class LabelLayer extends Layer {
    * @param value - The label value to select.
    */
   public setSelectedValue(value: number | null) {
+    if (value === this.selectedValue_) return;
     this.selectedValue_ = value;
     this.visibleChunks_.forEach((label) => {
       label.setSelectedValue(this.selectedValue_);
     });
+    this.invalidate();
   }
 
   /**
@@ -454,7 +480,10 @@ export class LabelLayer extends Layer {
 
   private getLabelForChunk(chunk: Chunk, texture: Texture) {
     const existing = this.visibleChunks_.get(chunk);
-    if (existing) return existing;
+    if (existing) {
+      existing.setTexture(0, texture);
+      return existing;
+    }
 
     const pooled = this.pool_.acquire(
       poolKeyForImageRenderable(chunk, this.axes_)
