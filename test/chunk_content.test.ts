@@ -5,6 +5,9 @@ import { createNoPrefetchPolicy } from "@/core/image_source_policy";
 import { mat4 } from "gl-matrix";
 import { computeSourceChunkStats } from "@/data/chunk_stats";
 import type { ChunkSource, SourceDimensionMap } from "@/data/chunk";
+import { ChunkManager } from "@/data/chunk_manager";
+import { setChunkData } from "@/data/chunk_memory";
+import type { Texture } from "@/objects/textures/texture";
 
 describe("decoded chunk content", () => {
   test("recognizes absent/fill-zero data", () => {
@@ -25,6 +28,7 @@ describe("decoded chunk content", () => {
     const dimensions: SourceDimensionMap = { x: axis, y: { ...axis, name: "y", index: 1 }, z: { ...axis, name: "z", index: 2 }, numLods: 1 };
     const store = new ChunkStore(dimensions);
     const view = store.addView(createNoPrefetchPolicy({ lod: { min: 0, max: 0 } }));
+    view.zeroIsTransparent = true;
     view.updateChunksForVolume({ t: 0 }, mat4.create());
     const chunks = [...view.chunkViewStates.keys()];
     expect(chunks.length).toBeGreaterThan(0);
@@ -32,5 +36,35 @@ describe("decoded chunk content", () => {
     expect(view.hasCompleteVisibleLOD()).toBe(true);
     expect(view.getChunksToRender()).toHaveLength(0);
     expect(computeSourceChunkStats({} as ChunkSource, store).resident).toBe(chunks.length);
+    view.zeroIsTransparent = false;
+    expect(view.hasCompleteVisibleLOD()).toBe(false);
+  });
+  test("zero chunks restore textures without refetching when zero becomes visible", () => {
+    const axis = { name: "x", index: 0, lods: [{ size: 2, chunkSize: 2, scale: 1, translation: 0 }] };
+    const dimensions: SourceDimensionMap = { x: axis, y: { ...axis, name: "y", index: 1 }, numLods: 1 };
+    const uploads: Texture[] = [];
+    const source: ChunkSource = { loader: {
+      getSourceDimensionMap: () => dimensions,
+      getBytesPerElement: () => 2,
+      loadChunkData: async () => { throw Error("Unexpected refetch"); },
+    } };
+    const manager = new ChunkManager((texture) => uploads.push(texture));
+    const view = manager.addView(source, createNoPrefetchPolicy({ lod: { min: 0, max: 0 } }));
+    view.updateChunksForVolume({ t: 0 }, mat4.create());
+    view.zeroIsTransparent = true;
+    for (const chunk of view.chunkViewStates.keys()) {
+      const data = new Uint16Array(chunk.shape.x * chunk.shape.y * chunk.shape.z);
+      chunk.content = describeChunk(data, chunk.shape);
+      setChunkData(chunk, data);
+      chunk.state = "loaded";
+    }
+    manager.update();
+    expect(uploads).toHaveLength(0);
+    manager.update();
+    expect(uploads).toHaveLength(0);
+    view.zeroIsTransparent = false;
+    manager.update();
+    expect(uploads).toHaveLength(1);
+    expect(view.getChunksToRender()).toHaveLength(1);
   });
 });

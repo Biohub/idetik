@@ -149,6 +149,7 @@ export class ChunkStoreView {
 
     const chunks: Chunk[] = [];
     for (const chunk of this.store_.residentChunks) {
+      if (chunk.texture === undefined) continue;
       if (chunk.lod < minLOD || chunk.lod > maxLOD) continue;
       if (chunk.chunkIndex.t !== timeIndex) continue;
       if (!channels.has(chunk.chunkIndex.c)) continue;
@@ -348,7 +349,7 @@ export class ChunkStoreView {
     for (const [chunk, state] of this.chunkViewStates_) {
       if (!state.visible || chunk.lod !== lod) continue;
       foundAny = true;
-      if (chunk.texture === undefined && !chunk.zeroResident) return false;
+      if (chunk.texture === undefined && !(chunk.zeroResident && this.zeroIsTransparent)) return false;
     }
     return foundAny;
   }
