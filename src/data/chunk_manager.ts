@@ -24,6 +24,7 @@ const DEFAULT_MAX_GPU_UPLOADS_PER_UPDATE = 4;
 
 export class ChunkManager {
   private readonly stores_: { source: ChunkSource; store: ChunkStore }[] = [];
+  private readonly awaitingUpload_ = new Map<Chunk, ChunkStore>();
   private readonly queue_: ChunkQueue;
 
   private readonly uploadTexture_?: (texture: Texture) => void;
@@ -86,8 +87,16 @@ export class ChunkManager {
     return store.addView(policy, axes);
   }
 
+  /**
+   * Gathers what the views asked for, queues requests within the memory
+   * budget, and evicts. Call after the layers update.
+   */
   public update() {
-    const candidates: { source: ChunkSource; chunk: Chunk }[] = [];
+    const candidates: {
+      source: ChunkSource;
+      store: ChunkStore;
+      chunk: Chunk;
+    }[] = [];
 
     for (const { source, store } of this.stores_) {
       const updatedChunks = store.updateAndCollectChunkChanges();
@@ -98,12 +107,10 @@ export class ChunkManager {
         } else {
           chunk.releasedAt = undefined;
           if (chunk.state === "queued") {
-            candidates.push({ source, chunk });
+            candidates.push({ source, store, chunk });
           }
         }
       }
-
-      this.uploadLoadedChunks(store, updatedChunks);
     }
 
     this.enqueueWithinBudget(candidates);
@@ -117,6 +124,9 @@ export class ChunkManager {
         this.disposeChunkTexture(store, chunk);
         chunk.state = "unloaded";
       }
+      for (const [chunk, owner] of this.awaitingUpload_) {
+        if (owner === store) this.releaseChunk(chunk);
+      }
       this.stores_.splice(i, 1);
     }
   }
@@ -129,12 +139,13 @@ export class ChunkManager {
       return;
     }
 
+    this.awaitingUpload_.delete(chunk);
     clearChunkData(chunk);
     if (chunk.state === "loaded") chunk.state = "unloaded";
   }
 
   private enqueueWithinBudget(
-    candidates: { source: ChunkSource; chunk: Chunk }[]
+    candidates: { source: ChunkSource; store: ChunkStore; chunk: Chunk }[]
   ) {
     if (candidates.length === 0) return;
 
@@ -143,7 +154,7 @@ export class ChunkManager {
     let committedBytes = this.getGpuResidentBytes_();
     const victims = this.evictionCandidates();
 
-    for (const { source, chunk } of candidates) {
+    for (const { source, store, chunk } of candidates) {
       const bytes = this.chunkBytes(source, chunk);
 
       // A chunk that can never fit must not trigger eviction. It would drain
@@ -162,9 +173,10 @@ export class ChunkManager {
       if (committedBytes + bytes > this.memoryLimitBytes_) continue;
 
       committedBytes += bytes;
-      this.queue_.enqueue(chunk, (signal) =>
-        source.loader.loadChunkData(chunk, signal)
-      );
+      this.queue_.enqueue(chunk, async (signal) => {
+        await source.loader.loadChunkData(chunk, signal);
+        if (!signal.aborted) this.awaitingUpload_.set(chunk, store);
+      });
     }
   }
 
@@ -222,25 +234,22 @@ export class ChunkManager {
     return chunk.shape.x * chunk.shape.y * chunk.shape.z * bytesPerElement;
   }
 
-  private uploadLoadedChunks(store: ChunkStore, chunks: Set<Chunk>) {
-    if (!this.uploadTexture_) return;
+  /**
+   * Uploads chunks that have finished loading, highest priority first and at
+   * most `maxGpuUploadsPerUpdate` per call. Call before the layers update so
+   * they draw the new textures in the same frame.
+   */
+  public uploadLoadedChunks() {
+    if (!this.uploadTexture_ || this.awaitingUpload_.size === 0) return;
 
-    const pending: Chunk[] = [];
-
-    for (const chunk of chunks) {
-      if (chunk.state === "loaded" && chunk.texture === undefined) {
-        pending.push(chunk);
-      }
-    }
-
-    if (pending.length === 0) return;
-
-    pending.sort(comparePriority);
-
+    const pending = [...this.awaitingUpload_].sort(([a], [b]) =>
+      comparePriority(a, b)
+    );
     const limit = Math.min(pending.length, this.maxGpuUploadsPerUpdate_);
 
     for (let i = 0; i < limit; i++) {
-      const chunk = pending[i];
+      const [chunk, store] = pending[i];
+      this.awaitingUpload_.delete(chunk);
       const texture = Texture3D.createWithChunk(chunk);
       this.uploadTexture_(texture);
       store.setChunkTexture(chunk, texture);

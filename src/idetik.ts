@@ -386,6 +386,7 @@ export class Idetik {
 
     this.lastTimestamp_ = timestamp;
     this.detachRemovedLayers();
+    this.chunkManager_.uploadLoadedChunks();
 
     for (const viewport of this.viewports_) {
       viewport.cameraControls?.onUpdate(dt);

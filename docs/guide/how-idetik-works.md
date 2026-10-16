@@ -34,17 +34,17 @@ The same placement makes slicing cheap. Idetik uploads every chunk to the GPU as
 
 This approach yields a runtime with no invalidation logic and no missed updates but the cost is real: the loop draws every frame even when nothing has changed. Rendering only on change is a candidate for a future release.
 
-A frame proceeds in a fixed order. Each viewport, in order, integrates its camera controls, updates its layers, and draws them. A layer's update is where streaming decisions are made: it inspects the camera, decides which chunks it needs at which resolution, and rebuilds its renderable objects from the chunks that have already arrived.
+A frame proceeds in a fixed order. First the chunk manager uploads a few of the chunks that finished loading since the last frame to the GPU. Then every viewport integrates its camera controls and updates its layers, and the viewports draw. A layer's update is where streaming decisions are made: it inspects the camera, decides which chunks it needs at which resolution, and rebuilds its renderable objects from the chunks that have already arrived.
 
-Once every viewport has drawn, the chunk manager runs. It gathers what all the layers asked for, admits requests against the memory budget, hands them to the loading queue, uploads a few finished chunks to the GPU, and evicts if it must. The overlays run last.
+Once the layers have updated, the chunk manager runs again. It gathers what all the layers asked for, admits requests against the memory budget, hands them to the loading queue, and evicts if it must. The overlays run last.
 
 ![One frame in Idetik, and the path of a chunk through three frames](/diagrams/architecture_diagram_1.png)
 
 _One frame, then the path of a single chunk. Layers request while drawing, the manager acts after every viewport has drawn, and a chunk on screen in frame N+2 was requested in frame N._
 
-The ordering has a consequence the diagram makes visible. Layers declare their needs while drawing, and the manager acts on the aggregate afterwards. A chunk requested in one frame is fetched and decoded off the main thread, arrives during a later frame, is uploaded at the end of that frame, and is ready to be drawn in the frame after that.
+The ordering has a consequence. Layers declare their needs during their update, and the manager acts on the aggregate afterwards. A chunk requested in one frame is fetched and decoded off the main thread and arrives between two later frames. The next frame uploads it before its layers update, so it is drawn in that same frame.
 
-Data is on screen one to two frames after it arrives. The delay is invisible in practice, and the arrangement keeps every frame's work bounded: uploads per frame are capped, so a burst of arriving chunks spreads over several frames instead of stalling one.
+Data is on screen in the frame after it arrives. The delay is invisible in practice, and the arrangement keeps every frame's work bounded: uploads per frame are capped, so a burst of arriving chunks spreads over several frames instead of stalling one.
 
 ## Viewports and Input
 
