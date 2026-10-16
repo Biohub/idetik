@@ -60,3 +60,26 @@ test("uploadLoadedChunks limits uploads per call across all sources", async () =
   manager.uploadLoadedChunks();
   expect(uploaded).toHaveLength(1);
 });
+
+test("uploadLoadedChunks takes a limit that overrides the default", async () => {
+  const uploaded: Texture[] = [];
+  const manager = new ChunkManager(
+    (texture) => uploaded.push(texture),
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    1
+  );
+  for (const source of [createSource(), createSource()]) {
+    requestVisibleChunks(manager.addView(source, createNoPrefetchPolicy()));
+  }
+
+  manager.update();
+  await waitFor(() => manager.queueStats.running === 0);
+  expect(manager.queueStats.awaitingUpload).toBe(2);
+
+  manager.uploadLoadedChunks(Infinity);
+  expect(uploaded).toHaveLength(2);
+  expect(manager.queueStats.awaitingUpload).toBe(0);
+});

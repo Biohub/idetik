@@ -17,6 +17,8 @@ export type QueueStats = {
   pending: number;
   /** Number of requests currently in flight. */
   running: number;
+  /** Number of loaded chunks waiting for GPU upload. */
+  awaitingUpload: number;
 };
 
 const DEFAULT_MAX_CONCURRENT_REQUESTS = 8;
@@ -61,6 +63,7 @@ export class ChunkManager {
     return {
       pending: this.queue_.pendingCount,
       running: this.queue_.runningCount,
+      awaitingUpload: this.awaitingUpload_.size,
     };
   }
 
@@ -235,19 +238,22 @@ export class ChunkManager {
   }
 
   /**
-   * Uploads chunks that have finished loading, highest priority first and at
-   * most `maxGpuUploadsPerUpdate` per call. Call before the layers update so
-   * they draw the new textures in the same frame.
+   * Uploads chunks that have finished loading, highest priority first. Call
+   * before the layers update so they draw the new textures in the same
+   * frame.
+   *
+   * @param limit - Max uploads for this call. Defaults to
+   *   `maxGpuUploadsPerUpdate`.
    */
-  public uploadLoadedChunks() {
+  public uploadLoadedChunks(limit = this.maxGpuUploadsPerUpdate_) {
     if (!this.uploadTexture_ || this.awaitingUpload_.size === 0) return;
 
     const pending = [...this.awaitingUpload_].sort(([a], [b]) =>
       comparePriority(a, b)
     );
-    const limit = Math.min(pending.length, this.maxGpuUploadsPerUpdate_);
+    const count = Math.min(pending.length, limit);
 
-    for (let i = 0; i < limit; i++) {
+    for (let i = 0; i < count; i++) {
       const [chunk, store] = pending[i];
       this.awaitingUpload_.delete(chunk);
       const texture = Texture3D.createWithChunk(chunk);
