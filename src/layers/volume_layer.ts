@@ -3,6 +3,7 @@ import { Layer } from "../core/layer";
 import { Camera } from "../objects/cameras/camera";
 import { Viewport } from "../core/viewport";
 import { VolumeRenderable } from "../objects/renderable/volume_renderable";
+import type { Texture } from "../objects/textures/texture";
 import type { IdetikContext } from "../idetik";
 import { ChunkStoreView, INTERNAL_POLICY_KEY } from "../data/chunk_store_view";
 import {
@@ -85,6 +86,8 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
   private readonly source_: ChunkSource;
   private readonly sliceCoords_: SliceCoordinates;
   private readonly currentVolumes_: Map<string, VolumeRenderable> = new Map();
+  private renderedChunks_: { chunk: Chunk; texture: Texture | undefined }[] =
+    [];
   private readonly volumeToPoolKey_: Map<VolumeRenderable, string> = new Map();
   private readonly pool_ = new RenderablePool<VolumeRenderable>();
   private readonly initialChannelProps_?: ChannelProps[];
@@ -93,9 +96,14 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
   private chunkStoreView_?: ChunkStoreView;
   private channelProps_?: ChannelProps[];
 
-  private lastLoadedTime_: number | undefined = undefined;
-  private lastNumRenderedChannelChunks_: number | undefined = undefined;
   private interactiveStepSizeScale_ = 1.0;
+
+  private previousAppearanceState_ = {
+    debugShowDegenerateRays: this.debugShowDegenerateRays,
+    relativeStepSize: this.relativeStepSize,
+    opacityMultiplier: this.opacityMultiplier,
+    earlyTerminationAlpha: this.earlyTerminationAlpha,
+  };
 
   // TODO: Make a debug config object to manage debug options
   private debugShowWireframes_ = false;
@@ -112,6 +120,7 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
       volume.wireframeEnabled = value;
     }
     this.debugShowWireframes_ = value;
+    this.invalidate();
   }
 
   /**
@@ -143,6 +152,7 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
     for (const volume of this.currentVolumes_.values()) {
       volume.setChannelProps(channelProps);
     }
+    this.invalidate();
     this.channelChangeCallbacks_.forEach((callback) => {
       callback();
     });
@@ -233,25 +243,32 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
       this.releaseAndRemoveVolume(volume);
     }
     this.currentVolumes_.clear();
+    this.renderedChunks_ = [];
     this.clearObjects();
     this.chunkStoreView_?.dispose();
     this.chunkStoreView_ = undefined;
   }
 
-  private updateChunks() {
-    if (!this.chunkStoreView_) return;
+  private updateChunks(): boolean {
+    if (!this.chunkStoreView_) {
+      return false;
+    }
+
     if (this.state !== "ready") this.setState("ready");
 
     const chunksToRender = this.chunkStoreView_.getChunksToRender();
-    const currentTime = this.sliceCoords_.t ?? -1;
+
+    const chunksChanged =
+      chunksToRender.length !== this.renderedChunks_.length ||
+      chunksToRender.some(
+        (chunk, index) =>
+          chunk !== this.renderedChunks_[index].chunk ||
+          chunk.texture !== this.renderedChunks_[index].texture
+      );
+
+    if (!chunksChanged) return false;
+
     const groupedChunks = groupBySpatialIndex(chunksToRender);
-
-    const needsUpdate =
-      this.lastLoadedTime_ !== currentTime ||
-      groupedChunks.size !== this.currentVolumes_.size ||
-      this.lastNumRenderedChannelChunks_ !== chunksToRender.length;
-    if (!needsUpdate) return;
-
     for (const [key, volume] of this.currentVolumes_) {
       if (!groupedChunks.has(key)) {
         this.releaseAndRemoveVolume(volume);
@@ -265,8 +282,12 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
       this.currentVolumes_.set(key, volume);
     }
 
-    this.lastLoadedTime_ = currentTime;
-    this.lastNumRenderedChannelChunks_ = chunksToRender.length;
+    this.renderedChunks_ = chunksToRender.map((chunk) => ({
+      chunk,
+      texture: chunk.texture,
+    }));
+
+    return true;
   }
 
   private updateVolumeTransform(volume: VolumeRenderable, chunk: Chunk) {
@@ -302,7 +323,9 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
    * @param viewport - The viewport being rendered.
    */
   public update(viewport?: Viewport): boolean {
-    if (!viewport || !this.chunkStoreView_) return true;
+    if (!viewport || !this.chunkStoreView_) {
+      return false;
+    }
 
     this.chunkStoreView_.updateChunksForVolume(
       this.sliceCoords_,
@@ -310,23 +333,56 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
     );
 
     const isCameraMoving = viewport.cameraControls?.isMoving ?? false;
-    this.interactiveStepSizeScale_ = isCameraMoving
-      ? INTERACTIVE_STEP_SIZE_SCALE
-      : 1.0;
+    const stepSizeScale = isCameraMoving ? INTERACTIVE_STEP_SIZE_SCALE : 1.0;
+    const stepSizeChanged = stepSizeScale !== this.interactiveStepSizeScale_;
 
-    this.updateChunks();
-    this.rebuildObjects(viewport.camera);
+    this.interactiveStepSizeScale_ = stepSizeScale;
+
+    const chunksChanged = this.updateChunks();
+    const orderChanged = this.rebuildObjects(viewport.camera);
+    const appearanceChanged = this.updateAppearanceState();
+
+    return (
+      chunksChanged || orderChanged || stepSizeChanged || appearanceChanged
+    );
+  }
+
+  private updateAppearanceState(): boolean {
+    const previous = this.previousAppearanceState_;
+
+    const changed =
+      this.debugShowDegenerateRays !== previous.debugShowDegenerateRays ||
+      this.relativeStepSize !== previous.relativeStepSize ||
+      this.opacityMultiplier !== previous.opacityMultiplier ||
+      this.earlyTerminationAlpha !== previous.earlyTerminationAlpha;
+
+    if (!changed) return false;
+
+    this.previousAppearanceState_ = {
+      debugShowDegenerateRays: this.debugShowDegenerateRays,
+      relativeStepSize: this.relativeStepSize,
+      opacityMultiplier: this.opacityMultiplier,
+      earlyTerminationAlpha: this.earlyTerminationAlpha,
+    };
+
     return true;
   }
 
-  private rebuildObjects(camera: Camera) {
+  private rebuildObjects(camera: Camera): boolean {
     const volumes = Array.from(this.currentVolumes_.values());
     sortBackToFront(volumes, camera);
+
+    const previous = this.coverageGroups.get(null) ?? [];
+    const orderChanged =
+      volumes.length !== previous.length ||
+      volumes.some((volume, index) => volume !== previous[index]);
+    if (!orderChanged) return false;
 
     this.clearObjects();
     for (const volume of volumes) {
       this.addObject(volume);
     }
+    return true;
   }
 
   /** @hidden */

@@ -67,7 +67,7 @@ export type LayerProps = {
  *   }
  *
  *   public update(): boolean {
- *     return true;
+ *     return false; // static content, no changes to redraw
  *   }
  * }
  *
