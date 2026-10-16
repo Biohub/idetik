@@ -3,6 +3,7 @@ import { Layer } from "../core/layer";
 import { Camera } from "../objects/cameras/camera";
 import { Viewport } from "../core/viewport";
 import { VolumeRenderable } from "../objects/renderable/volume_renderable";
+import type { Texture } from "../objects/textures/texture";
 import type { IdetikContext } from "../idetik";
 import { ChunkStoreView, INTERNAL_POLICY_KEY } from "../data/chunk_store_view";
 import {
@@ -85,6 +86,8 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
   private readonly source_: ChunkSource;
   private readonly sliceCoords_: SliceCoordinates;
   private readonly currentVolumes_: Map<string, VolumeRenderable> = new Map();
+  private renderedChunks_: { chunk: Chunk; texture: Texture | undefined }[] =
+    [];
   private readonly volumeToPoolKey_: Map<VolumeRenderable, string> = new Map();
   private readonly pool_ = new RenderablePool<VolumeRenderable>();
   private readonly initialChannelProps_?: ChannelProps[];
@@ -95,7 +98,7 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
 
   private interactiveStepSizeScale_ = 1.0;
 
-  private previousState_ = {
+  private previousAppearanceState_ = {
     debugShowDegenerateRays: this.debugShowDegenerateRays,
     relativeStepSize: this.relativeStepSize,
     opacityMultiplier: this.opacityMultiplier,
@@ -240,6 +243,7 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
       this.releaseAndRemoveVolume(volume);
     }
     this.currentVolumes_.clear();
+    this.renderedChunks_ = [];
     this.clearObjects();
     this.chunkStoreView_?.dispose();
     this.chunkStoreView_ = undefined;
@@ -254,7 +258,15 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
 
     const chunksToRender = this.chunkStoreView_.getChunksToRender();
 
-    if (!this.chunkStoreView_.updateRenderState(chunksToRender)) return false;
+    const chunksChanged =
+      chunksToRender.length !== this.renderedChunks_.length ||
+      chunksToRender.some(
+        (chunk, index) =>
+          chunk !== this.renderedChunks_[index].chunk ||
+          chunk.texture !== this.renderedChunks_[index].texture
+      );
+
+    if (!chunksChanged) return false;
 
     const groupedChunks = groupBySpatialIndex(chunksToRender);
     for (const [key, volume] of this.currentVolumes_) {
@@ -269,6 +281,11 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
       volume.wireframeEnabled = this.debugShowWireframes;
       this.currentVolumes_.set(key, volume);
     }
+
+    this.renderedChunks_ = chunksToRender.map((chunk) => ({
+      chunk,
+      texture: chunk.texture,
+    }));
 
     return true;
   }
@@ -323,13 +340,15 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
 
     const chunksChanged = this.updateChunks();
     const orderChanged = this.rebuildObjects(viewport.camera);
-    const stateChanged = this.updateRenderState();
+    const appearanceChanged = this.updateAppearanceState();
 
-    return chunksChanged || orderChanged || stepSizeChanged || stateChanged;
+    return (
+      chunksChanged || orderChanged || stepSizeChanged || appearanceChanged
+    );
   }
 
-  private updateRenderState(): boolean {
-    const previous = this.previousState_;
+  private updateAppearanceState(): boolean {
+    const previous = this.previousAppearanceState_;
 
     const changed =
       this.debugShowDegenerateRays !== previous.debugShowDegenerateRays ||
@@ -339,7 +358,7 @@ export class VolumeLayer extends Layer implements ChannelsEnabled {
 
     if (!changed) return false;
 
-    this.previousState_ = {
+    this.previousAppearanceState_ = {
       debugShowDegenerateRays: this.debugShowDegenerateRays,
       relativeStepSize: this.relativeStepSize,
       opacityMultiplier: this.opacityMultiplier,

@@ -277,7 +277,15 @@ export class ImageLayer extends Layer implements ChannelsEnabled {
       ? this.orderedChunks_
       : this.chunkStoreView_.getChunksToRender();
 
-    if (!this.chunkStoreView_.updateRenderState(orderedByLOD)) return false;
+    const chunksChanged =
+      orderedByLOD.length !== this.orderedChunks_.length ||
+      orderedByLOD.some(
+        (chunk, index) =>
+          chunk !== this.orderedChunks_[index] ||
+          chunk.texture !== this.visibleChunks_.get(chunk)?.textures[0]
+      );
+
+    if (!chunksChanged) return false;
 
     const current = new Set(orderedByLOD);
     const nonVisibleChunks = Array.from(this.visibleChunks_.keys()).filter(
