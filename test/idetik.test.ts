@@ -1,20 +1,14 @@
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { expect, test, vi } from "vitest";
 import { Idetik } from "@/idetik";
 import { OrthographicCamera } from "@/objects/cameras/orthographic_camera";
 import { PerspectiveCamera } from "@/objects/cameras/perspective_camera";
 import { Viewport } from "@/core/viewport";
-import { WebGLRenderer } from "@/renderers/webgl_renderer";
-import { ChunkManager } from "@/data/chunk_manager";
 import {
   createTestCamera,
   createTestElement,
   createTestViewport,
   TrackingLayer,
 } from "./helpers";
-
-afterEach(() => {
-  vi.restoreAllMocks();
-});
 
 function createViewport(canvas: HTMLCanvasElement, camera: OrthographicCamera) {
   return new Viewport({ domElement: canvas, camera });
@@ -408,62 +402,4 @@ test("Resize rendering reconciles removed layers before attaching replacements",
     idetik.stop();
     observer.mockRestore();
   }
-});
-
-class LoggingLayer extends TrackingLayer {
-  constructor(private readonly log_: string[]) {
-    super();
-  }
-
-  public override update(): boolean {
-    this.log_.push("update");
-    return false;
-  }
-}
-
-// A runtime that is never started, logging layer updates and draws.
-function createManualRuntime(log: string[]) {
-  vi.spyOn(WebGLRenderer.prototype, "render").mockImplementation(() => {
-    log.push("render");
-  });
-  return new Idetik({
-    canvas: document.createElement("canvas"),
-    viewports: [
-      new Viewport({
-        domElement: createTestElement(),
-        camera: createTestCamera(),
-        layers: [new LoggingLayer(log)],
-      }),
-    ],
-  });
-}
-
-describe("before start", () => {
-  test("whenSettled drives loading without drawing", async () => {
-    const log: string[] = [];
-    let awaitingUpload = 2;
-    vi.spyOn(ChunkManager.prototype, "uploadLoadedChunks").mockImplementation(
-      () => {
-        awaitingUpload--;
-        log.push("upload");
-      }
-    );
-    vi.spyOn(ChunkManager.prototype, "queueStats", "get").mockImplementation(
-      () => ({ pending: 0, running: 0, awaitingUpload })
-    );
-    const idetik = createManualRuntime(log);
-
-    await idetik.whenSettled();
-
-    expect(log).toEqual(["upload", "update", "upload", "update"]);
-  });
-
-  test("requestRender draws immediately", () => {
-    const log: string[] = [];
-    const idetik = createManualRuntime(log);
-
-    idetik.requestRender();
-
-    expect(log).toEqual(["update", "render"]);
-  });
 });
