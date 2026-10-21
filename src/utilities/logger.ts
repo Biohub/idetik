@@ -26,6 +26,7 @@ type Module =
   | "EventDispatcher"
   | "Idetik"
   | "Layer"
+  | "MeshLayer"
   | "OrbitControls"
   | "PixelSizeObserver"
   | "PointPicking"

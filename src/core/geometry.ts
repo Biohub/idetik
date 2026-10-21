@@ -42,13 +42,17 @@ export class Geometry extends Node {
   protected indexData_: Uint32Array;
 
   constructor(
-    vertexData: number[] = [],
-    indexData: number[] = [],
+    vertexData: number[] | Float32Array = [],
+    indexData: number[] | Uint32Array = [],
     primitive: Primitive = "triangles"
   ) {
     super();
-    this.vertexData_ = new Float32Array(vertexData);
-    this.indexData_ = new Uint32Array(indexData);
+    this.vertexData_ =
+      vertexData instanceof Float32Array
+        ? vertexData
+        : new Float32Array(vertexData);
+    this.indexData_ =
+      indexData instanceof Uint32Array ? indexData : new Uint32Array(indexData);
     this.primitive_ = primitive;
     this.attributes_ = [];
   }

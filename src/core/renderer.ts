@@ -3,6 +3,7 @@ import { Layer } from "./layer";
 import { RenderableObject } from "./renderable_object";
 import { Viewport } from "./viewport";
 import { Texture } from "../objects/textures/texture";
+import { Geometry } from "./geometry";
 
 export type GpuTiming = {
   supported: boolean;
@@ -76,4 +77,6 @@ export abstract class Renderer {
   public abstract uploadTexture(texture: Texture): void;
 
   public abstract disposeTexture(texture: Texture): void;
+
+  public abstract disposeGeometry(geometry: Geometry): void;
 }

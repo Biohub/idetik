@@ -411,6 +411,10 @@ export class WebGLRenderer extends Renderer {
     this.textures_.dispose(texture);
   }
 
+  public override disposeGeometry(geometry: Geometry) {
+    this.bindings_.disposeObject(geometry);
+  }
+
   private glGetPrimitive(type: Primitive) {
     switch (type) {
       case "points":

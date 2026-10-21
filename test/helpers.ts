@@ -98,7 +98,7 @@ export function createTestCamera(): OrthographicCamera {
 }
 
 export function createTestContext(): IdetikContext {
-  return { chunkManager: new ChunkManager() };
+  return { chunkManager: new ChunkManager(), disposeGeometry: () => {} };
 }
 
 export class TrackingLayer extends Layer {

@@ -2,6 +2,8 @@ export { Idetik } from "./idetik";
 export { Viewport } from "./core/viewport";
 export type { ViewportProps } from "./core/viewport";
 
+export { MeshSource } from "./data/mesh/mesh_source";
+export type { MeshSourceProps } from "./data/mesh/mesh_source";
 export { OmeZarrImageSource } from "./data/ome_zarr/image_source";
 export type {
   FileSystemOmeZarrImageSourceProps,
@@ -27,6 +29,8 @@ export { AxesLayer } from "./layers/axes_layer";
 export type { AxesLayerProps } from "./layers/axes_layer";
 export { ImageLayer } from "./layers/image_layer";
 export type { ImageLayerProps } from "./layers/image_layer";
+export { MeshLayer } from "./layers/mesh_layer";
+export type { MeshLayerProps } from "./layers/mesh_layer";
 export { VolumeLayer } from "./layers/volume_layer";
 export type { VolumeLayerProps } from "./layers/volume_layer";
 export { LabelLayer } from "./layers/label_layer";
@@ -37,6 +41,8 @@ export type {
 } from "./objects/renderable/label_image_renderable";
 
 export { RenderableObject } from "./core/renderable_object";
+export { MeshRenderable } from "./objects/renderable/mesh_renderable";
+export type { MeshRenderableProps } from "./objects/renderable/mesh_renderable";
 export { ImageRenderable } from "./objects/renderable/image_renderable";
 export type { ImageRenderableProps } from "./objects/renderable/image_renderable";
 export { LabelImageRenderable } from "./objects/renderable/label_image_renderable";
