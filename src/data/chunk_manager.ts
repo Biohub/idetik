@@ -127,9 +127,6 @@ export class ChunkManager {
         this.disposeChunkTexture(store, chunk);
         chunk.state = "unloaded";
       }
-      for (const [chunk, owner] of this.awaitingUpload_) {
-        if (owner === store) this.releaseChunk(chunk);
-      }
       this.stores_.splice(i, 1);
     }
   }
