@@ -124,6 +124,18 @@ export abstract class RenderableObject extends Node {
     return this.wireframeGeometry_;
   }
 
+  /**
+   * Releases GPU buffers for {@link geometry} and any cached
+   * {@link wireframeGeometry}. Layers call this when discarding a
+   * renderable. CPU geometry data remains available for reuse.
+   *
+   * @param dispose - The runtime callback that releases a geometry's GPU buffers.
+   */
+  public disposeGeometry(dispose: (geometry: Geometry) => void): void {
+    dispose(this.geometry_);
+    if (this.wireframeGeometry_) dispose(this.wireframeGeometry_);
+  }
+
   /** The assigned textures indexed by texture unit. */
   public get textures() {
     return this.textures_;

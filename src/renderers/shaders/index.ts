@@ -1,16 +1,19 @@
-import projectedLineVertexShader from "./projected_line_vert.glsl";
-import projectedLineFragmentShader from "./projected_line_frag.glsl";
-import meshVertexShader from "./mesh_vert.glsl";
-import scalarImageFragmentShader from "./scalar_image_frag.glsl";
-import pointsVertexShader from "./points_vert.glsl";
-import pointsFragmentShader from "./points_frag.glsl";
-import wireframeVertexShader from "./wireframe_vert.glsl";
-import wireframeFragmentShader from "./wireframe_frag.glsl";
-import volumeVertexShader from "./volume_vert.glsl";
-import volumeFragmentShader from "./volume_frag.glsl";
-import labelImage from "./label_image_frag.glsl";
 import depthFragmentShader from "./depth_frag.glsl";
+import depthVertexShader from "./depth_vert.glsl";
+import imageVertexShader from "./image_vert.glsl";
+import labelImage from "./label_image_frag.glsl";
+import meshFragmentShader from "./mesh_frag.glsl";
+import meshVertexShader from "./mesh_vert.glsl";
 import pointsDepthFragmentShader from "./points_depth_frag.glsl";
+import pointsFragmentShader from "./points_frag.glsl";
+import pointsVertexShader from "./points_vert.glsl";
+import projectedLineFragmentShader from "./projected_line_frag.glsl";
+import projectedLineVertexShader from "./projected_line_vert.glsl";
+import scalarImageFragmentShader from "./scalar_image_frag.glsl";
+import volumeFragmentShader from "./volume_frag.glsl";
+import volumeVertexShader from "./volume_vert.glsl";
+import wireframeFragmentShader from "./wireframe_frag.glsl";
+import wireframeVertexShader from "./wireframe_vert.glsl";
 
 export type Shader =
   | "floatScalarImage"
@@ -19,6 +22,7 @@ export type Shader =
   | "intScalarImage"
   | "intVolume"
   | "labelImage"
+  | "mesh"
   | "points"
   | "projectedLine"
   | "uintScalarImage"
@@ -49,25 +53,29 @@ export const shaderCode: Record<Shader, ShaderCode> = {
     fragment: wireframeFragmentShader,
   },
   floatScalarImage: {
-    vertex: meshVertexShader,
+    vertex: imageVertexShader,
     fragment: scalarImageFragmentShader,
   },
   intScalarImage: {
-    vertex: meshVertexShader,
+    vertex: imageVertexShader,
     fragment: scalarImageFragmentShader,
     fragmentDefines: new Map([["TEXTURE_DATA_TYPE_INT", "1"]]),
   },
   uintScalarImage: {
-    vertex: meshVertexShader,
+    vertex: imageVertexShader,
     fragment: scalarImageFragmentShader,
     fragmentDefines: new Map([["TEXTURE_DATA_TYPE_UINT", "1"]]),
   },
   labelImage: {
-    vertex: meshVertexShader,
+    vertex: imageVertexShader,
     fragment: labelImage,
   },
-  intLabelImage: {
+  mesh: {
     vertex: meshVertexShader,
+    fragment: meshFragmentShader,
+  },
+  intLabelImage: {
+    vertex: imageVertexShader,
     fragment: labelImage,
     fragmentDefines: new Map([["TEXTURE_DATA_TYPE_INT", "1"]]),
   },
@@ -86,7 +94,7 @@ export const shaderCode: Record<Shader, ShaderCode> = {
     fragmentDefines: new Map([["TEXTURE_DATA_TYPE_UINT", "1"]]),
   },
   meshDepth: {
-    vertex: meshVertexShader,
+    vertex: depthVertexShader,
     fragment: depthFragmentShader,
   },
   pointsDepth: {

@@ -7,6 +7,7 @@ import { createStats, type Stats as StatsMeter } from "./utilities/stats";
 import { Viewport } from "./core/viewport";
 import { PixelSizeObserver } from "./utilities/pixel_size_observer";
 import type { Layer } from "./core/layer";
+import type { Geometry } from "./core/geometry";
 
 const DEFAULT_MEMORY_LIMIT_MB = 2048;
 
@@ -53,6 +54,7 @@ export type IdetikProps = {
 
 export type IdetikContext = {
   chunkManager: ChunkManager;
+  disposeGeometry: (geometry: Geometry) => void;
 };
 
 function validateViewport(
@@ -174,6 +176,7 @@ export class Idetik {
     );
     this.context_ = {
       chunkManager: this.chunkManager_,
+      disposeGeometry: (geometry) => this.renderer_.disposeGeometry(geometry),
     };
 
     this.viewports_ = [];
