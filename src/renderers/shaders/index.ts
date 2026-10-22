@@ -1,4 +1,5 @@
 import depthFragmentShader from "./depth_frag.glsl";
+import depthVertexShader from "./depth_vert.glsl";
 import imageVertexShader from "./image_vert.glsl";
 import labelImage from "./label_image_frag.glsl";
 import meshFragmentShader from "./mesh_frag.glsl";
@@ -93,7 +94,7 @@ export const shaderCode: Record<Shader, ShaderCode> = {
     fragmentDefines: new Map([["TEXTURE_DATA_TYPE_UINT", "1"]]),
   },
   meshDepth: {
-    vertex: imageVertexShader,
+    vertex: depthVertexShader,
     fragment: depthFragmentShader,
   },
   pointsDepth: {
