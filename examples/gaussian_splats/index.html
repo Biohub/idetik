@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gaussian Splats</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        display: flex;
+        width: 100%;
+        height: 100%;
+        background-color: black;
+        font-family: monospace;
+        font-size: 12px;
+      }
+      #main {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        height: 100%;
+      }
+      #canvas {
+        width: 100%;
+        height: 100%;
+      }
+      #info {
+        position: absolute;
+        bottom: 1em;
+        left: 1em;
+        padding: 1em;
+        color: white;
+        background-color: rgba(0, 0, 0, 0.5);
+      }
+      #info a {
+        color: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="main">
+      <canvas id="canvas"></canvas>
+    </div>
+    <div id="info">
+      <div id="splat-count"></div>
+      <div>
+        <a
+          href="https://github.com/danybittel/splats"
+          target="_blank"
+          rel="noopener"
+          >Cluster fly</a
+        >
+        by
+        <a href="https://www.danybittel.ch" target="_blank" rel="noopener"
+          >Dany Bittel</a
+        >,
+        <a
+          href="https://creativecommons.org/licenses/by/4.0/"
+          target="_blank"
+          rel="noopener"
+          >CC BY 4.0</a
+        >
+      </div>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

@@ -20,6 +20,9 @@ export {
   loadOmeZarrWell,
 } from "./data/ome_zarr/metadata_loaders";
 
+export { GaussianSplatSource } from "./data/gaussian_splat_source";
+export type { GaussianSplatDimension } from "./data/gaussian_splat_source";
+
 export { Layer } from "./core/layer";
 export type { BlendMode, LayerProps, StateChangeCallback } from "./core/layer";
 export type { PointPickingResult } from "./layers/point_picking";
@@ -31,6 +34,8 @@ export { VolumeLayer } from "./layers/volume_layer";
 export type { VolumeLayerProps } from "./layers/volume_layer";
 export { LabelLayer } from "./layers/label_layer";
 export type { LabelLayerProps } from "./layers/label_layer";
+export { GaussianSplatLayer } from "./layers/gaussian_splat_layer";
+export type { GaussianSplatLayerProps } from "./layers/gaussian_splat_layer";
 export type {
   LabelColorMap,
   LabelColorMapProps,

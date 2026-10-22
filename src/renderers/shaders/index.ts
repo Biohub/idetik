@@ -11,10 +11,13 @@ import volumeFragmentShader from "./volume_frag.glsl";
 import labelImage from "./label_image_frag.glsl";
 import depthFragmentShader from "./depth_frag.glsl";
 import pointsDepthFragmentShader from "./points_depth_frag.glsl";
+import gaussianSplatVertexShader from "./gaussian_splat_vert.glsl";
+import gaussianSplatFragmentShader from "./gaussian_splat_frag.glsl";
 
 export type Shader =
   | "floatScalarImage"
   | "floatVolume"
+  | "gaussianSplat"
   | "intLabelImage"
   | "intScalarImage"
   | "intVolume"
@@ -92,6 +95,10 @@ export const shaderCode: Record<Shader, ShaderCode> = {
   pointsDepth: {
     vertex: pointsVertexShader,
     fragment: pointsDepthFragmentShader,
+  },
+  gaussianSplat: {
+    vertex: gaussianSplatVertexShader,
+    fragment: gaussianSplatFragmentShader,
   },
   projectedLineDepth: {
     vertex: projectedLineVertexShader,
