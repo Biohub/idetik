@@ -14,6 +14,8 @@ const chunkDataTypes = [
   Uint16Array,
   Uint32Array,
   Float32Array,
+  // Float16Array is undefined in older browsers; `instanceof undefined` throws.
+  ...(typeof Float16Array === "undefined" ? [] : [Float16Array]),
 ] as const;
 export type ChunkDataConstructor = (typeof chunkDataTypes)[number];
 export type ChunkData = InstanceType<ChunkDataConstructor>;

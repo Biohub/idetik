@@ -143,6 +143,7 @@ function textureToShader(texture: Texture): Shader {
     case "unsigned_int":
       return "uintScalarImage";
     case "float":
+    case "half_float":
       return "floatScalarImage";
   }
 }
