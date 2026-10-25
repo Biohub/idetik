@@ -14,8 +14,12 @@ export type MeshSourceProps = {
  *
  * Geometry is loaded on the first call to {@link load} and retained by the
  * source. Each layer's renderable references the same CPU arrays and uses
- * separate GPU buffers. The loader currently returns placeholder box
- * geometry without fetching the URL.
+ * separate GPU buffers. The loader supports static, uncompressed GLB meshes.
+ * Scene transforms are baked into the geometry and missing normals are
+ * generated for flat shading. Materials, textures, and animation are ignored.
+ * The base geometry is rendered without skinning or morph deformations.
+ * Mesh layers supply their own color and lighting. Instancing and required
+ * glTF extensions are not supported.
  *
  * ```ts
  * const source = new MeshSource({
