@@ -21,7 +21,8 @@ type TextureFormatInfo = {
 export class WebGLTextures {
   private readonly gl_: WebGL2RenderingContext;
   private readonly textures_: Map<Texture, WebGLTexture> = new Map();
-  private currentTexture_: Texture | null = null;
+  // The texture bound to each unit, to skip binding it again.
+  private readonly boundTextures_: (Texture | undefined)[] = [];
   private readonly maxTextureUnits_: number;
   private nextPersistentUnit_: number;
   private gpuTextureBytes_ = 0;
@@ -52,7 +53,7 @@ export class WebGLTextures {
   }
 
   public bindTexture(texture: Texture, index: number) {
-    if (this.alreadyActive(texture)) return;
+    if (this.boundTextures_[index] === texture && !texture.needsUpdate) return;
 
     if (index < 0 || index > this.nextPersistentUnit_) {
       throw new Error(
@@ -69,7 +70,7 @@ export class WebGLTextures {
       this.uploadTexture(texture, index);
     }
 
-    this.currentTexture_ = texture;
+    this.boundTextures_[index] = texture;
   }
 
   public readTexel(texture: Texture, x: number, y: number, z: number): number {
@@ -149,7 +150,7 @@ export class WebGLTextures {
     this.gl_.bindTexture(textureType, textureId);
     this.configureTextureParameters(texture, textureType);
     this.uploadTextureData(texture, info, textureType);
-    this.currentTexture_ = null;
+    this.boundTextures_[index] = texture;
 
     texture.needsUpdate = false;
   }
@@ -175,7 +176,8 @@ export class WebGLTextures {
         );
       }
       gl.bindTexture(textureType, null);
-      this.currentTexture_ = null;
+      // That unbound whichever unit was active.
+      this.boundTextures_.length = 0;
     }
     return this.textures_.get(texture)!;
   }
@@ -186,9 +188,9 @@ export class WebGLTextures {
       this.gl_.deleteTexture(id);
       this.textures_.delete(texture);
       texture.readTexel = undefined;
-      if (this.currentTexture_ === texture) {
-        this.currentTexture_ = null;
-      }
+      this.boundTextures_.forEach((bound, unit) => {
+        if (bound === texture) this.boundTextures_[unit] = undefined;
+      });
 
       const bytes = textureStorageBytes(texture);
       this.gpuTextureBytes_ = Math.max(0, this.gpuTextureBytes_ - bytes);
@@ -202,10 +204,6 @@ export class WebGLTextures {
     }
     this.gpuTextureBytes_ = 0;
     this.textureCount_ = 0;
-  }
-
-  private alreadyActive(texture: Texture) {
-    return this.currentTexture_ === texture && !texture.needsUpdate;
   }
 
   private generateTexture(
