@@ -13,7 +13,8 @@ export type TextureDataType =
   | "unsigned_byte"
   | "unsigned_short"
   | "unsigned_int"
-  | "float";
+  | "float"
+  | "half_float";
 
 export type TextureUnpackRowAlignment = 1 | 2 | 4 | 8;
 
@@ -24,7 +25,8 @@ export type DataTextureTypedArray =
   | Uint8Array
   | Uint16Array
   | Uint32Array
-  | Float32Array;
+  | Float32Array
+  | Float16Array;
 
 export function isTextureUnpackRowAlignment(
   value: number
@@ -49,6 +51,11 @@ export function bufferToDataType(
     return "unsigned_int";
   } else if (buffer instanceof Float32Array) {
     return "float";
+  } else if (
+    typeof Float16Array !== "undefined" &&
+    buffer instanceof Float16Array
+  ) {
+    return "half_float";
   }
   throw new Error("Unsupported buffer type.");
 }
@@ -71,6 +78,7 @@ export function textureBytesPerChannel(texture: Texture) {
       return 1;
     case "short":
     case "unsigned_short":
+    case "half_float":
       return 2;
     case "int":
     case "unsigned_int":
@@ -120,6 +128,7 @@ export function textureDefaultValueRange(texture: Texture): [number, number] {
     case "unsigned_int":
       return [0, 4294967295];
     case "float":
+    case "half_float":
       return [0, 1];
   }
 }

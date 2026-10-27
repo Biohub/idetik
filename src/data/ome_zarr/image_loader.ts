@@ -114,6 +114,7 @@ const BYTES_PER_ELEMENT: Partial<Record<zarr.DataType, number>> = {
   uint16: 2,
   int32: 4,
   uint32: 4,
+  float16: 2,
   float32: 4,
 };
 

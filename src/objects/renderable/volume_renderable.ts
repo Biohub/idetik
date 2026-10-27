@@ -257,6 +257,7 @@ function dataTypeToVolumeShader(dataType: TextureDataType): Shader {
     case "unsigned_int":
       return "uintVolume";
     case "float":
+    case "half_float":
       return "floatVolume";
   }
 }

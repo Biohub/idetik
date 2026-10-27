@@ -120,6 +120,7 @@ export class WebGLTextures {
           out: new Uint32Array(4),
         };
       case "float":
+      case "half_float":
         return { format: gl.RGBA, type: gl.FLOAT, out: new Float32Array(4) };
     }
   }
@@ -245,6 +246,13 @@ export class WebGLTextures {
     // Zero offsets because entire dataset is overwritten.
     const offset = { x: 0, y: 0, z: 0 };
 
+    // WebGL2 requires a Uint16Array for HALF_FLOAT; reinterpret the float16 bits.
+    const source = texture.data;
+    const data =
+      texture.dataType === "half_float" && source
+        ? new Uint16Array(source.buffer, source.byteOffset, source.length)
+        : source;
+
     if (this.isTexture2D(texture)) {
       this.gl_.texSubImage2D(
         type,
@@ -259,7 +267,7 @@ export class WebGLTextures {
         // ArrayBufferView to ensure the correct overload is called. Once we
         // consolidate Texture2D and DataTexture2D, we can remove this cast.
         // https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/texSubImage2D#syntax
-        texture.data as ArrayBufferView
+        data as ArrayBufferView
       );
     } else if (this.isTextureStorage3D(texture)) {
       this.gl_.texSubImage3D(
@@ -273,7 +281,7 @@ export class WebGLTextures {
         texture.depth,
         info.format,
         info.type,
-        texture.data as ArrayBufferView
+        data as ArrayBufferView
       );
     } else {
       throw new Error(
@@ -287,6 +295,7 @@ export class WebGLTextures {
     if (
       dataFormat === "scalar" &&
       dataType !== "float" &&
+      dataType !== "half_float" &&
       filter !== "nearest"
     ) {
       Logger.warn(
@@ -387,6 +396,12 @@ export class WebGLTextures {
             internalFormat: this.gl_.R32F,
             format: this.gl_.RED,
             type: this.gl_.FLOAT,
+          };
+        case "half_float":
+          return {
+            internalFormat: this.gl_.R16F,
+            format: this.gl_.RED,
+            type: this.gl_.HALF_FLOAT,
           };
         default:
           throw new Error(`Unsupported scalar type: ${type}`);
