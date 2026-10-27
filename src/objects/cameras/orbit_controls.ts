@@ -3,7 +3,7 @@ import { EventContext } from "../../core/event_dispatcher";
 import { PerspectiveCamera } from "./perspective_camera";
 import { Spherical } from "../../math/spherical";
 
-import { glMatrix, vec3 } from "gl-matrix";
+import { glMatrix, quat, vec3 } from "gl-matrix";
 import { clamp } from "../../utilities/clamp";
 
 const MOUSE_BUTTON_NONE = -1;
@@ -73,6 +73,7 @@ export class OrbitControls implements CameraControls {
   private readonly scrollZoom_: ScrollZoomMode;
 
   private currMouseButton_ = MOUSE_BUTTON_NONE;
+  private yawSign_ = 1;
 
   /**
    * Creates orbit controls and moves the camera to the initial pose.
@@ -86,7 +87,7 @@ export class OrbitControls implements CameraControls {
     this.currPos_ = new Spherical(
       params?.radius ?? 1,
       params?.yaw ?? 0,
-      params?.pitch ?? 0
+      wrapAngle(params?.pitch ?? 0)
     );
 
     if (params?.target) {
@@ -114,7 +115,7 @@ export class OrbitControls implements CameraControls {
     return this.currPos_.phi;
   }
 
-  /** The current elevation angle in radians. */
+  /** The current elevation angle in radians, wrapped to `[-π, π)`. */
   public get pitch(): number {
     return this.currPos_.theta;
   }
@@ -182,12 +183,7 @@ export class OrbitControls implements CameraControls {
 
     vec3.add(this.currCenter_, this.currCenter_, this.panVelocity_);
 
-    // Prevent the camera from reaching the poles (±π/2), where
-    // the view direction would flip and orbit controls would invert.
-    // We clamp the elevation angle slightly before ±π/2 to maintain
-    // stable rotation and avoid gimbal-like artifacts.
-    const limit = Math.PI / 2 - glMatrix.EPSILON;
-    this.currPos_.theta = clamp(this.currPos_.theta, -limit, limit);
+    this.currPos_.theta = wrapAngle(this.currPos_.theta);
     this.currPos_.radius = Math.max(0.01, this.currPos_.radius);
 
     this.updateCamera();
@@ -204,6 +200,8 @@ export class OrbitControls implements CameraControls {
   private onPointerDown(event: EventContext) {
     const e = event.event as PointerEvent;
     this.currMouseButton_ = e.button;
+    // latch yaw per-drag so it doesn't reverse mid-drag when crossing a pole
+    this.yawSign_ = Math.cos(this.currPos_.theta) < 0 ? -1 : 1;
 
     (e.target as Element)?.setPointerCapture?.(e.pointerId);
   }
@@ -244,7 +242,7 @@ export class OrbitControls implements CameraControls {
   }
 
   private orbit(dx: number, dy: number) {
-    this.orbitVelocity_.phi -= dx * ORBIT_SPEED;
+    this.orbitVelocity_.phi -= this.yawSign_ * dx * ORBIT_SPEED;
     this.orbitVelocity_.theta += dy * ORBIT_SPEED;
   }
 
@@ -266,7 +264,11 @@ export class OrbitControls implements CameraControls {
   private updateCamera() {
     const p = vec3.add(vec3.create(), this.currCenter_, this.currPos_.toVec3());
     this.camera_.transform.setTranslation(p);
-    this.camera_.transform.targetTo(this.currCenter_);
+
+    const q = quat.create();
+    quat.rotateY(q, q, this.currPos_.phi);
+    quat.rotateX(q, q, this.currPos_.theta);
+    this.camera_.transform.setRotation(q);
   }
 
   private cutoffLowVelocity() {
@@ -279,4 +281,8 @@ export class OrbitControls implements CameraControls {
     if (vec3.length(this.panVelocity_) < glMatrix.EPSILON)
       vec3.zero(this.panVelocity_);
   }
+}
+
+function wrapAngle(angle: number) {
+  return angle - 2 * Math.PI * Math.floor((angle + Math.PI) / (2 * Math.PI));
 }
