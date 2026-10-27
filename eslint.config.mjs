@@ -40,5 +40,5 @@ export default [
       'no-console': process.env.NODE_ENV === 'production' ? 'error' : 'warn'
     }
   },
-  { ignores: ["node_modules", "**/coverage", "**/dist", ".vitepress/cache", "docs/api"] },
+  { ignores: ["node_modules", "**/coverage", "**/dist", ".vitepress/cache", "docs/api", "docs/public/examples"] },
 ];

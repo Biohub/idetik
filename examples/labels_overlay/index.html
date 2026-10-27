@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Image Labels Overlay (3D)</title>
+    <link rel="stylesheet" href="../lil_gui_theme.css" />
     <style>
       html,
       body {
@@ -26,42 +27,16 @@
         flex: 1;
         min-height: 0;
       }
-      #controls {
-        margin: 0.5rem 2rem;
-        font-family: sans-serif;
-      }
-      .control-row {
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        margin-bottom: 1rem;
-      }
-      .control-label {
-        width: 120px;
-      }
-      .slider-container {
-        flex: 1;
-        margin: 0 1rem;
-      }
-      .value-label {
-        width: 120px;
-        text-align: right;
-      }
-      input[type="range"] {
-        width: 100%;
-      }
-      input[type="button"],
-      button {
-        margin-left: 0.5rem;
-      }
       #pick-info-box {
         position: absolute;
-        top: 1em;
-        right: 1em;
+        bottom: 1em;
+        left: 1em;
         padding: 0.75em 1em;
-        background-color: rgba(0, 0, 0, 0.75);
-        font-family: monospace;
-        font-size: 0.85em;
+        border: 1px solid rgb(255 255 255 / 0.1);
+        border-radius: 8px;
+        background-color: rgb(17 17 20 / 0.92);
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 0.8em;
         pointer-events: none;
       }
     </style>
@@ -71,27 +46,6 @@
       <canvas id="canvas"></canvas>
       <div id="pick-info-box">
         <div id="pick-info">Click to pick a label value</div>
-      </div>
-      <div id="controls">
-        <div class="control-row">
-          <div class="control-label">Z slice:</div>
-          <div class="slider-container">
-            <input type="range" id="z-slider" />
-          </div>
-          <div class="value-label">
-            <span id="z-index">0</span> / <span id="z-total">0</span>
-          </div>
-        </div>
-        <div class="control-row">
-          <div class="control-label">Pick mode:</div>
-          <button id="outline-toggle">Fill</button>
-        </div>
-        <div class="control-row">
-          <div class="control-label">Color cycle:</div>
-          <input type="button" id="color-cycle-default" value="Default" />
-          <input type="button" id="color-cycle-cmy" value="CMY" />
-          <input type="button" id="color-cycle-rgb" value="RGB" />
-        </div>
       </div>
     </div>
     <script type="module" src="./main.ts"></script>

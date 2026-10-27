@@ -1,0 +1,65 @@
+/*
+ * lil-gui theme matching the docs homepage controls. Each example links this
+ * from its index.html. lil-gui injects its default styles before the first
+ * stylesheet in <head>, so these rules win at equal specificity.
+ */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap");
+
+.lil-gui {
+  --background-color: rgb(17 17 20 / 0.92);
+  --text-color: rgb(235 235 245 / 0.72);
+  --title-background-color: rgb(17 17 20);
+  --title-text-color: rgb(255 255 245 / 0.92);
+  --widget-color: rgb(255 255 255 / 0.08);
+  --hover-color: rgb(255 255 255 / 0.12);
+  --focus-color: rgb(255 255 255 / 0.16);
+  --number-color: #9b85fb;
+  --string-color: #b6a8fc;
+  --font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-size: 12px;
+  --input-font-size: 12px;
+  --padding: 6px;
+  --spacing: 5px;
+  --widget-height: 22px;
+  --widget-border-radius: 4px;
+  --slider-knob-width: 2px;
+}
+
+.lil-gui.autoPlace {
+  top: 12px;
+  right: 12px;
+  max-height: calc(100% - 24px);
+}
+
+.lil-gui.root {
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+  /* Collapse toward the top-right corner: the width shrinks to the title
+     while lil-gui animates the height, using lil-gui's own timing. */
+  transition: width 300ms cubic-bezier(0.2, 0.6, 0.35, 1);
+}
+
+.lil-gui.root.closed {
+  width: 104px;
+}
+
+.lil-gui.root > .title {
+  white-space: nowrap;
+}
+
+/* Keep the controls at full width while the panel narrows, pinned to the
+   right edge so they slide out of view toward the corner. */
+.lil-gui.root > .children {
+  align-self: flex-end;
+  width: var(--width, 245px);
+}
+
+.lil-gui .title {
+  font-weight: 600;
+}
+
+.lil-gui .controller.number .slider .fill {
+  background: rgb(155 133 251 / 0.22);
+}

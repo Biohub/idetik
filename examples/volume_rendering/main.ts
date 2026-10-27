@@ -9,7 +9,7 @@ import {
   VolumeLayer,
   createExplorationPolicy,
   Viewport,
-} from "@";
+} from "@idetik/core";
 
 const url =
   "https://public.czbiohub.org/organelle_box/datasets/A549/organelle_box_crop_v1.zarr/CLTA/PFA/002000/";
@@ -150,7 +150,7 @@ function createChannelControls(
 }
 
 // Add GUI controls to manipulate rendering
-const gui = new GUI({ width: 500 });
+const gui = new GUI({ width: 320, closeFolders: true });
 gui
   .add(controls, "lod", 0, 2, 1)
   .name("Level of Detail (LOD)")
