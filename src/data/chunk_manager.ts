@@ -245,22 +245,18 @@ export class ChunkManager {
   public uploadLoadedChunks(limit = this.maxGpuUploadsPerUpdate_) {
     if (!this.uploadTexture_ || this.awaitingUpload_.size === 0) return;
 
-    const pending = [...this.awaitingUpload_].sort(([a], [b]) =>
-      comparePriority(a, b)
-    );
+    const pending = [...this.awaitingUpload_.keys()].sort(comparePriority);
     const count = Math.min(pending.length, limit);
 
     for (let i = 0; i < count; i++) {
-      const [chunk, source] = pending[i];
+      const chunk = pending[i];
+      const store = this.stores_.get(this.awaitingUpload_.get(chunk)!);
       this.awaitingUpload_.delete(chunk);
-      const store = this.stores_.get(source);
-      if (!store) {
-        clearChunkData(chunk);
-        continue;
+      if (store) {
+        const texture = Texture3D.createWithChunk(chunk);
+        this.uploadTexture_(texture);
+        store.setChunkTexture(chunk, texture);
       }
-      const texture = Texture3D.createWithChunk(chunk);
-      this.uploadTexture_(texture);
-      store.setChunkTexture(chunk, texture);
       clearChunkData(chunk);
     }
   }

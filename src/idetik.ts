@@ -507,8 +507,6 @@ export class Idetik {
   // layers update, so with nothing queued, in flight, or awaiting upload the
   // layers have updated with every resident chunk.
   private resolveIfSettled(): void {
-    if (this.settleWaiters_.size === 0) return;
-
     const queue = this.stats.queue;
     if (queue.pending > 0 || queue.running > 0 || queue.awaitingUpload > 0) {
       return;
