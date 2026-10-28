@@ -60,7 +60,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         run: |
           npm version "0.0.0-dryrun.${GITHUB_RUN_ID}" --no-git-tag-version
-          npm publish --access public --dry-run
+          npm publish --access public --tag dryrun --dry-run
 
       - name: Publish to npm
         if: github.ref_type == 'tag'
