@@ -1,0 +1,7 @@
+---
+aside: false
+---
+
+<ShowcaseExample />
+
+<!-- @content -->

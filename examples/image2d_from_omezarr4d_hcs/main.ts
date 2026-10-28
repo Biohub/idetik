@@ -1,3 +1,4 @@
+import GUI from "lil-gui";
 import {
   Idetik,
   ChannelProps,
@@ -11,7 +12,7 @@ import {
   ImageLayer,
   createNoPrefetchPolicy,
   Viewport,
-} from "@";
+} from "@idetik/core";
 
 const plateUrl =
   "https://public.czbiohub.org/organelle_box/datasets/A549/organelle_box_crop_v1.zarr/";
@@ -31,14 +32,14 @@ if (plate.plate === undefined) {
   throw new Error(`No plate found: ${plate}`);
 }
 const wellPaths = plate.plate.wells.map((well) => well.path);
-const wellSelector = document.querySelector("#well") as HTMLSelectElement;
-wellPaths.forEach((path) => {
-  const option = document.createElement("option");
-  option.value = path;
-  option.text = path;
-  wellSelector.appendChild(option);
-  wellSelector.value = initialWellPath;
-});
+
+const selection = { well: initialWellPath, image: initialImagePath };
+const gui = new GUI({ width: 280 });
+gui.add(selection, "well", wellPaths).name("Well").onChange(onWellChange);
+const imageController = gui
+  .add(selection, "image", [initialImagePath])
+  .name("Image")
+  .onChange(onImageChange);
 
 const policy = createNoPrefetchPolicy();
 
@@ -59,13 +60,9 @@ const idetik = new Idetik({ canvas, viewports: [viewport] });
 
 idetik.start();
 
-const imageSelector = document.querySelector("#image") as HTMLSelectElement;
-
-const onImageChange = async () => {
-  console.debug("onImageChange: ", imageSelector.value);
+async function onImageChange() {
   viewport.removeAllLayers();
-  const imageUrl =
-    plateUrl + "/" + wellSelector.value + "/" + imageSelector.value;
+  const imageUrl = `${plateUrl}/${selection.well}/${selection.image}`;
   const source = await OmeZarrImageSource.fromHttp({ url: imageUrl });
   const omeroDefaults = await loadOmeroDefaults(source);
   const omeroDefaultZ = omeroDefaults?.defaultZ ?? 0;
@@ -98,34 +95,18 @@ const onImageChange = async () => {
     policy,
   });
   viewport.addLayer(layer);
-};
+}
 
-const onWellChange = async () => {
-  console.debug("onWellChange: ", wellSelector.value);
+async function onWellChange() {
   viewport.removeAllLayers();
-  const path = wellSelector.value;
-  const well = await loadOmeZarrWell(plateUrl, path);
-  console.debug("well", well);
+  const well = await loadOmeZarrWell(plateUrl, selection.well);
   if (well.well === undefined) {
-    throw new Error(`No well found: ${well}`);
+    throw new Error(`No well found: ${selection.well}`);
   }
   const imagePaths = well.well.images.map((image) => image.path);
-  imageSelector.innerHTML = "";
-  imagePaths.forEach((path) => {
-    const option = document.createElement("option");
-    option.value = path;
-    option.text = path;
-    imageSelector.appendChild(option);
-    imageSelector.value = initialImagePath;
-  });
+  if (!imagePaths.includes(selection.image)) selection.image = imagePaths[0];
+  imageController.options(imagePaths);
   await onImageChange();
-};
+}
 
-wellSelector.addEventListener("change", onWellChange);
-imageSelector.addEventListener("change", onImageChange);
-
-const loadInitialWell = async () => {
-  await onWellChange();
-};
-
-loadInitialWell();
+await onWellChange();

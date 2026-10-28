@@ -1,4 +1,4 @@
-import { Idetik, OrthographicCamera } from "@";
+import { Idetik, OrthographicCamera } from "@idetik/core";
 
 type ScaleBarProps = {
   boxDiv: HTMLDivElement;

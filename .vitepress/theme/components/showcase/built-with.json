@@ -1,0 +1,14 @@
+[
+  {
+    "title": "DynaCell",
+    "description": "Paper site with a virtual-stain composer and prediction browser.",
+    "url": "https://czbiohub-sf.github.io/dynacell/",
+    "image": "/thumbnails/dynacell.jpg"
+  },
+  {
+    "title": "Try CryoLens",
+    "description": "Find similar particles in cryo-ET tomograms using CryoLens embeddings.",
+    "url": "https://virtualcellmodels.cziscience.com/demo/trycryolens",
+    "image": "/thumbnails/cryolens.jpg"
+  }
+]

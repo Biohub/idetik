@@ -31,7 +31,10 @@ export default defineConfig(({ mode }) => {
       },
     },
     resolve: {
-      alias: { '@': path.resolve(_dirname, 'src') },
+      alias: {
+        '@idetik/core': path.resolve(_dirname, 'src/index.ts'),
+        '@': path.resolve(_dirname, 'src'),
+      },
     },
     server: {
       watch: {
@@ -57,11 +60,17 @@ export default defineConfig(({ mode }) => {
   }
 
   if (mode === 'examples') {
+    // Built into the docs' public dir so the showcase pages can embed them.
     return {
       ...common,
       plugins: [eslint(), glsl(), examplesManifestPlugin()],
       root: 'examples',
       base: './',
+      build: {
+        ...common.build,
+        outDir: path.resolve(_dirname, 'docs/public/examples'),
+        emptyOutDir: true,
+      },
     }
   }
 

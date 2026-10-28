@@ -1,3 +1,4 @@
+import GUI from "lil-gui";
 import {
   Idetik,
   ImageLayer,
@@ -7,7 +8,7 @@ import {
   Color,
   PanZoomControls,
   Viewport,
-} from "@";
+} from "@idetik/core";
 
 // A 3D (z-stack) OME-Zarr image with a matching label segmentation overlaid on
 // top. The image and labels share the same XY/Z geometry, so a single z-slice
@@ -61,6 +62,11 @@ const imageLayer = new ImageLayer({
 });
 
 const pickInfoEl = document.querySelector<HTMLDivElement>("#pick-info")!;
+const controls = {
+  zIndex: zMidIndex,
+  pickMode: "Fill",
+  colorCycle: "Default",
+};
 let outlineMode = false;
 
 function createLabelsLayer() {
@@ -88,28 +94,6 @@ function createLabelsLayer() {
 
 let labelsLayer = createLabelsLayer();
 
-const zSlider = document.querySelector<HTMLInputElement>("#z-slider")!;
-const zIndexEl = document.querySelector<HTMLSpanElement>("#z-index")!;
-const zTotalEl = document.querySelector<HTMLSpanElement>("#z-total")!;
-const outlineToggleEl =
-  document.querySelector<HTMLButtonElement>("#outline-toggle")!;
-
-// Initialize slider
-zSlider.min = "0";
-zSlider.max = `${zSize - 1}`;
-zSlider.value = `${zMidIndex}`;
-zIndexEl.textContent = `${zMidIndex}`;
-zTotalEl.textContent = `${zSize - 1}`;
-
-let debounce: ReturnType<typeof setTimeout>;
-zSlider.addEventListener("input", (event) => {
-  clearTimeout(debounce);
-  const value = (event.target as HTMLInputElement).valueAsNumber;
-  debounce = setTimeout(() => {
-    setZIndex(value);
-  }, 20);
-});
-
 const camera = new OrthographicCamera({
   left: 0,
   right: xStopPoint,
@@ -125,37 +109,41 @@ const viewport = new Viewport({
 });
 const idetik = new Idetik({ canvas, viewports: [viewport] });
 
-outlineToggleEl.addEventListener("click", () => {
-  outlineMode = !outlineMode;
-  outlineToggleEl.textContent = outlineMode ? "Outline" : "Fill";
-  viewport.removeLayer(labelsLayer);
-  labelsLayer = createLabelsLayer();
-  viewport.addLayer(labelsLayer);
-});
-
 function setZIndex(index: number) {
   const z = zTranslation + index * zScale;
   sliceCoords.z = z;
   labelsSliceCoords.z = z;
-  zIndexEl.textContent = `${index}`;
 }
 
-document
-  .querySelector<HTMLButtonElement>("#color-cycle-default")!
-  .addEventListener("click", () => {
-    labelsLayer.setColorMap({});
+const colorCycles: Record<string, Color[] | undefined> = {
+  Default: undefined,
+  CMY: [Color.CYAN, Color.MAGENTA, Color.YELLOW],
+  RGB: [Color.RED, Color.GREEN, Color.BLUE],
+};
+
+function applyColorCycle() {
+  const cycle = colorCycles[controls.colorCycle];
+  labelsLayer.setColorMap(cycle ? { cycle } : {});
+}
+
+const gui = new GUI({ width: 280 });
+gui
+  .add(controls, "zIndex", 0, zSize - 1, 1)
+  .name("Z slice")
+  .onChange(setZIndex);
+gui
+  .add(controls, "pickMode", ["Fill", "Outline"])
+  .name("Pick mode")
+  .onChange((mode: string) => {
+    outlineMode = mode === "Outline";
+    viewport.removeLayer(labelsLayer);
+    labelsLayer = createLabelsLayer();
+    applyColorCycle();
+    viewport.addLayer(labelsLayer);
   });
-document
-  .querySelector<HTMLButtonElement>("#color-cycle-cmy")!
-  .addEventListener("click", () => {
-    labelsLayer.setColorMap({
-      cycle: [Color.CYAN, Color.MAGENTA, Color.YELLOW],
-    });
-  });
-document
-  .querySelector<HTMLButtonElement>("#color-cycle-rgb")!
-  .addEventListener("click", () => {
-    labelsLayer.setColorMap({ cycle: [Color.RED, Color.GREEN, Color.BLUE] });
-  });
+gui
+  .add(controls, "colorCycle", Object.keys(colorCycles))
+  .name("Color cycle")
+  .onChange(applyColorCycle);
 
 idetik.start();

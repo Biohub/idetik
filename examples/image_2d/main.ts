@@ -11,7 +11,7 @@ import {
   createExplorationPolicy,
   createPlaybackPolicy,
   Viewport,
-} from "@";
+} from "@idetik/core";
 import { ScaleBar } from "./scale_bar";
 import { addDimensionSlider } from "../lil_gui_utils";
 import GUI from "lil-gui";

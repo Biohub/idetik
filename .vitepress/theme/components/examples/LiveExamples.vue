@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, type Component } from "vue";
+import { withBase } from "vitepress";
 import ExampleNavigator from "./ExampleNavigator.vue";
 import VolumeRenderer from "./viewers/VolumeRenderer.vue";
 import MultiscaleImage from "./viewers/MultiscaleImage.vue";
@@ -49,6 +50,7 @@ function onWheel(e: WheelEvent) {
           </Transition>
         </div>
       </div>
+      <a class="see-all" :href="withBase('/showcase/')">See all examples →</a>
     </div>
   </section>
 </template>
@@ -76,6 +78,14 @@ function onWheel(e: WheelEvent) {
 .container {
   margin: 0 auto;
   max-width: var(--home-max-width);
+}
+
+.see-all {
+  display: block;
+  margin-top: 16px;
+  text-align: right;
+  font-size: 14px;
+  color: var(--vp-c-brand-1);
 }
 
 .showcase {

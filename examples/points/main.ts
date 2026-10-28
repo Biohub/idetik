@@ -11,9 +11,10 @@ import {
   Color,
   createNoPrefetchPolicy,
   Viewport,
-} from "@";
+} from "@idetik/core";
 
 import { vec3 } from "gl-matrix";
+import GUI from "lil-gui";
 
 const baseUrl =
   "https://files.cryoetdataportal.cziscience.com/10445/TS_100_3/Reconstructions/VoxelSpacing4.990";
@@ -132,11 +133,6 @@ const yLod = dimensions.y!.lods[lowestLod];
 const xExtent = xLod.size * xLod.scale;
 const yExtent = yLod.size * yLod.scale;
 
-const zSlider = document.querySelector<HTMLInputElement>("#z-slider")!;
-zSlider.min = `${zMin}`;
-zSlider.max = `${zMax - 1}`;
-zSlider.value = `${INITIAL_Z_POSITION / IMAGE_SCALE_2}`;
-
 const sliceCoords = { [zDimName]: INITIAL_Z_POSITION };
 
 const imageLayer = new ImageLayer({
@@ -178,15 +174,14 @@ const onFirstImageLoad = (newState: LayerState) => {
 
 imageLayer.addStateChangeCallback(onFirstImageLoad);
 
-let debounce: ReturnType<typeof setTimeout>;
-zSlider.addEventListener("input", (event) => {
-  clearTimeout(debounce);
-  const value = (event.target as HTMLInputElement).valueAsNumber;
-  debounce = setTimeout(() => {
-    const worldZ = value * IMAGE_SCALE_2;
+const controls = { zIndex: Math.round(INITIAL_Z_POSITION / IMAGE_SCALE_2) };
+new GUI({ width: 280 })
+  .add(controls, "zIndex", zMin, zMax - 1, 1)
+  .name("Z slice")
+  .onChange((index: number) => {
+    const worldZ = index * IMAGE_SCALE_2;
     sliceCoords[zDimName] = worldZ;
     ribosomes.setDepth(worldZ);
     ferritin.setDepth(worldZ);
     virusLike.setDepth(worldZ);
-  }, 20);
-});
+  });
