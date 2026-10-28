@@ -4,8 +4,14 @@ on:
   push:
     tags:
       - 'v*'
-  # Manual runs are dry runs: everything except the npm publish and GitHub release.
+  # Manual runs are dry runs unless publish_prerelease is checked, in which case
+  # a prerelease of the next patch version is published under the "next" dist-tag.
   workflow_dispatch:
+    inputs:
+      publish_prerelease:
+        description: 'Publish a prerelease (X.Y.Z-next.<sha>) to npm instead of a dry run'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -56,11 +62,16 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Publish to npm (dry run)
+      - name: Publish prerelease to npm
         if: github.event_name == 'workflow_dispatch'
         run: |
-          npm version "0.0.0-dryrun.${GITHUB_RUN_ID}" --no-git-tag-version
-          npm publish --access public --tag dryrun --dry-run
+          next_patch="$(npm version patch --no-git-tag-version)"
+          npm version "${next_patch#v}-next.$(git rev-parse --short HEAD)" --no-git-tag-version
+          if [ "${{ inputs.publish_prerelease }}" = "true" ]; then
+            npm publish --access public --tag next
+          else
+            npm publish --access public --tag next --dry-run
+          fi
 
       - name: Publish to npm
         if: github.ref_type == 'tag'
