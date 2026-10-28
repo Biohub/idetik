@@ -22,6 +22,7 @@ try {
     name: className,
     type: className,
     withJsdocs: true,
+    zodVersion: 4,
   });
   await writeFile(outputFile, zod);
 } catch (err) {

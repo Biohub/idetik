@@ -22,7 +22,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          # Configure which types are allowed (must match semantic-release config)
+          # Configure which types are allowed (PR titles feed the auto-generated release notes)
           types: |
             feat
             fix
