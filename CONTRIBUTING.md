@@ -6,6 +6,8 @@ Thank you for your interest in contributing to idetik. This project is under act
 
 Releases are cut from `main` by pushing a version tag. The `Release` workflow checks that the tag matches the version in `package.json`, runs the full lint/test/build, publishes to npm via trusted publishing, and creates a GitHub release with auto-generated notes from the merged PR titles.
 
+To rehearse a release without publishing, run the `Release` workflow manually from the Actions tab on any branch. Manual runs skip the npm publish and GitHub release steps.
+
 While Idetik is pre-1.0, breaking changes bump the minor version and everything else bumps the patch version.
 
 ```bash

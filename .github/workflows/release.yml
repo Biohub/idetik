@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'v*'
+  # Manual runs are dry runs: everything except the npm publish and GitHub release.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -26,6 +28,7 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Check tag matches package.json version
+        if: github.ref_type == 'tag'
         run: |
           tag_version="${GITHUB_REF_NAME#v}"
           pkg_version="$(node -p "require('./package.json').version")"
@@ -53,10 +56,16 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Publish to npm (dry run)
+        if: github.event_name == 'workflow_dispatch'
+        run: npm publish --access public --dry-run
+
       - name: Publish to npm
+        if: github.ref_type == 'tag'
         run: npm publish --access public
 
       - name: Create GitHub release
+        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes
