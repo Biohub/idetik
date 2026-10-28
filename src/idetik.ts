@@ -362,8 +362,8 @@ export class Idetik {
    * keeps failing does; pass a timeout to bound the wait.
    *
    * While running, the render loop has drawn every resident chunk once this
-   * resolves. Before {@link start} is called, this drives loading itself
-   * without drawing; follow it with {@link requestRender} to draw the
+   * resolves. Before {@link start} is called, this runs the loop without
+   * drawing until settled; follow it with {@link requestRender} to draw the
    * result.
    *
    * @param options - `timeoutMs` rejects the promise if loading hasn't
@@ -426,46 +426,34 @@ export class Idetik {
     }
   }
 
-  // Before start, frames run only while whenSettled is waiting, and they
-  // update and load without drawing.
   private animate(timestamp: DOMHighResTimeStamp) {
     this.lastAnimationId_ = undefined;
-    const running = this.running;
+    this.stats_?.begin();
 
-    if (running) {
-      this.stats_?.begin();
-      // cap dt to prevent large time-step jumps when resuming from background tabs
-      const dt = Math.min(timestamp - this.lastTimestamp_, 100) / 1000;
-      this.lastTimestamp_ = timestamp;
-      for (const viewport of this.viewports_) {
-        viewport.cameraControls?.onUpdate(dt);
-      }
-    } else {
-      this.updateSize();
-    }
-
+    if (!this.running) this.updateSize();
+    this.updateControls(timestamp);
     this.updateViewports();
-
-    if (running && (this.renderRequested_ || this.renderInvalidated_)) {
+    if (this.running && (this.renderRequested_ || this.renderInvalidated_)) {
       this.draw();
     }
 
     this.chunkManager_.update();
-    if (
-      this.settleWaiters_.size > 0 &&
-      !(running && this.viewports_.some((v) => v.cameraControls?.isMoving))
-    ) {
-      this.resolveIfSettled();
+    this.resolveIfSettled();
+    for (const overlay of this.overlays) {
+      overlay.update(this);
     }
 
-    if (running) {
-      for (const overlay of this.overlays) {
-        overlay.update(this);
-      }
-      this.stats_?.end();
-    }
-
+    this.stats_?.end();
     this.scheduleFrame();
+  }
+
+  private updateControls(timestamp: DOMHighResTimeStamp): void {
+    // cap dt to prevent large time-step jumps when resuming from background tabs
+    const dt = Math.min(timestamp - this.lastTimestamp_, 100) / 1000;
+    this.lastTimestamp_ = timestamp;
+    for (const viewport of this.viewports_) {
+      viewport.cameraControls?.onUpdate(dt);
+    }
   }
 
   private scheduleFrame(): void {
@@ -489,8 +477,6 @@ export class Idetik {
 
   private updateViewports(): void {
     this.detachRemovedLayers();
-    // Nothing is on screen before start, so upload everything loaded at once
-    // rather than spreading it over frames.
     this.chunkManager_.uploadLoadedChunks(this.running ? undefined : Infinity);
     for (const viewport of this.viewports_) {
       this.updateViewport(viewport);
@@ -503,10 +489,10 @@ export class Idetik {
     this.draw();
   }
 
-  // Loads finish only between frames, and each frame uploads before its
-  // layers update, so with nothing queued, in flight, or awaiting upload the
-  // layers have updated with every resident chunk.
   private resolveIfSettled(): void {
+    if (this.settleWaiters_.size === 0) return;
+    if (this.viewports_.some((v) => v.cameraControls?.isMoving)) return;
+
     const queue = this.stats.queue;
     if (queue.pending > 0 || queue.running > 0 || queue.awaitingUpload > 0) {
       return;
@@ -525,7 +511,6 @@ export class Idetik {
     );
   }
 
-  // Resolves every pending whenSettled promise, or rejects them with `error`.
   private settleAll(error?: Error): void {
     const waiters = [...this.settleWaiters_];
     this.settleWaiters_.clear();
