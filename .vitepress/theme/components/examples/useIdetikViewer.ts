@@ -1,7 +1,7 @@
 import { onBeforeUnmount, onMounted, ref } from "vue";
-import type { Idetik } from "@idetik/core";
+import type { Idetik } from "idetik";
 
-type IdetikCore = typeof import("@idetik/core");
+type IdetikCore = typeof import("idetik");
 
 export function useIdetikViewer(
   setup: (core: IdetikCore, canvas: HTMLCanvasElement) => Promise<Idetik>
@@ -21,7 +21,7 @@ export function useIdetikViewer(
     const target = canvas.value;
     if (!target) return;
     try {
-      const instance = await setup(await import("@idetik/core"), target);
+      const instance = await setup(await import("idetik"), target);
       if (unmounted) {
         releaseContext(target);
         return;

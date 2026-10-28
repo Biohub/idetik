@@ -4,7 +4,7 @@ import type {
   SliceOrientation,
   SourceDimension,
   SourceDimensionMap,
-} from "@idetik/core";
+} from "idetik";
 import RangeSlider from "../../RangeSlider.vue";
 import clock from "../../icons/clock.svg?raw";
 import play from "../../icons/play.svg?raw";

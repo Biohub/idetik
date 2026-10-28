@@ -4,10 +4,10 @@ Idetik is a high-performance library for exploring multi-dimensional [OME-Zarr](
 
 ## Installing Idetik
 
-Idetik is published to npm as `@idetik/core`. The package ships ES modules with TypeScript declarations. Its few dependencies are installed with it.
+Idetik is published to npm as `idetik`. The package ships ES modules with TypeScript declarations. Its few dependencies are installed with it.
 
 ```bash
-npm install @idetik/core
+npm install idetik
 ```
 
 ## Adding a Canvas
@@ -29,7 +29,7 @@ This guide uses a light-sheet time-lapse of a developing zebrafish embryo from [
 :::
 
 ```typescript
-import { OmeZarrImageSource } from '@idetik/core';
+import { OmeZarrImageSource } from 'idetik';
 
 const baseUrl = 'https://public.czbiohub.org/royerlab/zebrahub/imaging';
 
@@ -45,7 +45,7 @@ Only metadata has been fetched at this point. The source knows the image's axes,
 A camera defines which part of the world a viewport shows. [`OrthographicCamera`](/api/classes/OrthographicCamera.html) uses a parallel projection that draws every pixel at the same size regardless of depth. That makes it the camera for 2D image viewing. Its constructor takes the extent of the visible frame. The source metadata can be used to set the initial view to frame the whole image.
 
 ```typescript
-import { OrthographicCamera, PanZoomControls } from '@idetik/core';
+import { OrthographicCamera, PanZoomControls } from 'idetik';
 
 const dims = source.getDimensions();
 const x = dims.x.lods[0];
@@ -74,7 +74,7 @@ Slice coordinates select the data in the same world units the camera uses. Ideti
 The image layer shows the XY plane by default. The slice therefore fixes a time point and a z position and lists which channels to load.
 
 ```typescript
-import { ImageLayer } from '@idetik/core';
+import { ImageLayer } from 'idetik';
 
 const layer = new ImageLayer({
   source,
@@ -94,7 +94,7 @@ Which resolution levels to load and how far ahead to fetch are decided by the la
 [`Idetik`](/api/classes/Idetik.html) is the entry point of an application. An instance owns the renderer and the chunk manager and drives the render loop for its viewports. A viewport pairs a camera and its controls with a stack of layers and draws into the canvas. Everything built so far comes together in the constructor.
 
 ```typescript
-import { Idetik, Viewport } from '@idetik/core';
+import { Idetik, Viewport } from 'idetik';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#viewer')!;
 const idetik = new Idetik({
@@ -130,7 +130,7 @@ import {
   OmeZarrImageSource,
   OrthographicCamera,
   PanZoomControls,
-} from '@idetik/core';
+} from 'idetik';
 
 const baseUrl = 'https://public.czbiohub.org/royerlab/zebrahub/imaging';
 

@@ -1,5 +1,5 @@
 {
-  "name": "@idetik/core",
+  "name": "idetik",
   "version": "0.52.0",
   "type": "module",
   "private": false,
