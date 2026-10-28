@@ -130,7 +130,7 @@ export default defineConfig({
     },
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/chanzuckerberg/idetik' },
+      { icon: 'github', link: 'https://github.com/biohub/idetik' },
     ],
 
     footer: {
