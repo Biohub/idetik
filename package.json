@@ -5,7 +5,7 @@
   "private": false,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/chanzuckerberg/idetik.git"
+    "url": "git+https://github.com/Biohub/idetik.git"
   },
   "description": "A layer-based visualization abstraction",
   "main": "./dist/index.umd.cjs",
