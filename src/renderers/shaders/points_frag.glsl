@@ -11,16 +11,20 @@ flat in uint v_marker;
 in float v_fade;
 flat in float v_hollow;
 flat in float v_outlinePixels;
+flat in float v_pointSize;
 
 uniform float u_opacity;
 
 
 void main() {
     // The atlas holds the signed distance to the marker's edge in sprite
-    // units (negative inside); the gradient's length is one screen pixel in
-    // those units, so the edge is antialiased over one pixel at any size.
+    // units (negative inside). The sprite spans v_pointSize pixels, so one
+    // screen pixel is 1 / v_pointSize in those units; the edge is
+    // antialiased over one pixel at any size. (Not derived from screen-space
+    // derivatives: those collapse along the distance field's creases, e.g.
+    // a square's diagonals, and would open gaps in hollow outlines.)
     float dist = texture(u_markerAtlas, vec3(gl_PointCoord, v_marker)).r;
-    float pixel = length(vec2(dFdx(dist), dFdy(dist)));
+    float pixel = 1.0 / v_pointSize;
     float coverage = 1.0 - smoothstep(-0.5 * pixel, 0.5 * pixel, dist);
     if (v_hollow > 0.5) {
         // Keep a band of v_outlinePixels inside the edge: subtract the
