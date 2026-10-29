@@ -4,14 +4,6 @@ on:
   push:
     tags:
       - 'v*'
-  # Manual runs are dry runs unless publish_prerelease is checked, in which case
-  # a prerelease of the next patch version is published under the "next" dist-tag.
-  workflow_dispatch:
-    inputs:
-      publish_prerelease:
-        description: 'Publish a prerelease (X.Y.Z-next.<sha>) to npm instead of a dry run'
-        type: boolean
-        default: false
 
 permissions:
   contents: write
@@ -34,7 +26,6 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Check tag matches package.json version
-        if: github.ref_type == 'tag'
         run: |
           tag_version="${GITHUB_REF_NAME#v}"
           pkg_version="$(node -p "require('./package.json').version")"
@@ -62,23 +53,10 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Publish prerelease to npm
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          next_patch="$(npm version patch --no-git-tag-version)"
-          npm version "${next_patch#v}-next.$(git rev-parse --short HEAD)" --no-git-tag-version
-          if [ "${{ inputs.publish_prerelease }}" = "true" ]; then
-            npm publish --access public --tag next
-          else
-            npm publish --access public --tag next --dry-run
-          fi
-
       - name: Publish to npm
-        if: github.ref_type == 'tag'
         run: npm publish --access public
 
       - name: Create GitHub release
-        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes
