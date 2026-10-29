@@ -60,20 +60,23 @@ const virusLikeLocations = await fetchPositionsFromNDJson(virusLikeUrl);
 
 type Marker = "circle" | "square" | "triangle";
 
-// One slab shared by every particle layer: it follows the image slice, and
-// moving it is a single assignment applied on the next draw. Flattening draws
-// the kept particles on the slice plane so the image doesn't occlude them.
-const slab: PointDepthSlab = {
-  plane: new Plane([0, 0, 1], -INITIAL_Z_POSITION),
+// Each layer's slab follows the image slice: moving it is one assignment,
+// applied on the next draw, with no renderables rebuilt. Flattening draws the
+// kept particles on the slice plane so the image doesn't occlude them, and
+// particles below the slice are drawn as outlines.
+const SLAB_STYLE = {
   thickness: SLAB_THICKNESS,
   flatten: true,
   falloff: "sphere",
-  // Particles below the slice are drawn as outlines.
   behind: "hollow",
-};
+} satisfies Omit<PointDepthSlab, "plane">;
 
 class Particles extends Layer {
   public readonly type = "Particles";
+  private readonly slab_: PointDepthSlab = {
+    ...SLAB_STYLE,
+    plane: new Plane([0, 0, 1], -INITIAL_Z_POSITION),
+  };
 
   /**
    * @param diameter - Marker diameter in world units (Å), so particles are
@@ -100,14 +103,14 @@ class Particles extends Layer {
         outlineWidth: 10,
       }
     );
-    renderable.depthSlab = slab;
+    renderable.depthSlab = this.slab_;
     this.addObject(renderable);
     this.setState("ready");
   }
 
-  /** Move the shared slab to the slice at `z`; no renderables are rebuilt. */
+  /** Center the slab on the slice at `z`; no renderables are rebuilt. */
   public setDepth(z: number) {
-    slab.plane.signedDistance = -z;
+    this.slab_.plane.signedDistance = -z;
     this.invalidate();
   }
 

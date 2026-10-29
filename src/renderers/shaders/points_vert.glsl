@@ -33,30 +33,19 @@ uniform float u_outlineWidth;
 out vec4 v_color;
 flat out uint v_marker;
 out float v_fade;
-flat out float v_hollow;
-flat out float v_outlinePixels;
-flat out float v_pointSize;
+// One screen pixel in sprite units (the sprite spans gl_PointSize pixels).
+flat out float v_pixel;
+// The band inside the marker's edge that is drawn, in sprite units: the
+// outline for hollow points, or past the whole sprite for solid ones.
+flat out float v_band;
 
 
 void main() {
     float dist = dot(a_position, u_slabNormal) + u_slabDistance;
-    if (abs(dist) > u_slabHalfThickness) {
-        // Outside the slab: put the point outside the clip volume so it is
-        // never rasterized.
-        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
-        gl_PointSize = 0.0;
-        v_color = vec4(0.0);
-        v_marker = 0u;
-        v_fade = 0.0;
-        v_hollow = 0.0;
-        v_outlinePixels = 0.0;
-        v_pointSize = 1.0;
-        return;
-    }
-
     vec3 position = a_position;
     if (u_slabFlatten) position -= dist * u_slabNormal;
     gl_Position = u_projection * u_modelView * vec4(position, 1.0);
+
     // Pixels per model unit at this depth. The model-view's second row is
     // the gradient of view-space y over model space, so its length is the
     // model-to-view scale (camera zoom and the renderable's transform, for
@@ -65,8 +54,9 @@ void main() {
     // y scale is negated by the renderer's axis flip, hence abs.
     float modelToView = length(vec3(u_modelView[0][1], u_modelView[1][1], u_modelView[2][1]));
     float pixelsPerUnit = modelToView * abs(u_projection[1][1]) * u_resolution.y * 0.5 / gl_Position.w;
-    float size = a_size * u_sizeScale;
-    if (u_sizeInWorld) size *= pixelsPerUnit;
+    float toPixels = u_sizeInWorld ? pixelsPerUnit : 1.0;
+    float size = a_size * u_sizeScale * toPixels;
+
     // Distance from the mid-plane as a fraction of the half thickness.
     float d = abs(dist) / u_slabHalfThickness;
     float fade = 1.0;
@@ -77,14 +67,16 @@ void main() {
         size *= fade;
     }
     gl_PointSize = clamp(size, u_minPointSize, u_maxPointSize);
-    v_pointSize = gl_PointSize;
+
+    v_pixel = 1.0 / gl_PointSize;
+    // Outlines keep at least a pixel so hollow markers don't vanish.
+    bool hollow = u_slabBehindHollow && dist < 0.0;
+    v_band = hollow ? max(u_outlineWidth * toPixels, 1.0) * v_pixel : 1.0;
     v_fade = fade;
-    v_hollow = (u_slabBehindHollow && dist < 0.0) ? 1.0 : 0.0;
-    // A world-sized outline keeps at least a pixel so hollow markers don't
-    // vanish when zoomed out.
-    v_outlinePixels = u_sizeInWorld
-        ? max(u_outlineWidth * pixelsPerUnit, 1.0)
-        : u_outlineWidth;
     v_color = a_color;
     v_marker = uint(a_marker);
+
+    // Outside the slab: put the point outside the clip volume so it is
+    // never rasterized.
+    if (d > 1.0) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
 }
