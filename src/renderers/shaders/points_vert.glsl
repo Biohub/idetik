@@ -49,11 +49,15 @@ void main() {
     gl_Position = u_projection * u_modelView * vec4(position, 1.0);
     float size = a_size * u_sizeScale;
     if (u_sizeInWorld) {
-        // Pixels per world unit at this depth: the projection's y scale maps
-        // view-space units to NDC (which spans 2 units over the viewport
-        // height), and perspective divides by w. The y scale is negated by
-        // the renderer's axis flip, hence abs.
-        size *= abs(u_projection[1][1]) * u_resolution.y * 0.5 / gl_Position.w;
+        // Pixels per model unit at this depth. The model-view's second row
+        // is the gradient of view-space y over model space, so its length is
+        // the model-to-view scale (camera zoom and the renderable's
+        // transform, for any rotation). The projection's y scale then maps
+        // view units to NDC (2 units over the viewport height), and
+        // perspective divides by w. The y scale is negated by the renderer's
+        // axis flip, hence abs.
+        float modelToView = length(vec3(u_modelView[0][1], u_modelView[1][1], u_modelView[2][1]));
+        size *= modelToView * abs(u_projection[1][1]) * u_resolution.y * 0.5 / gl_Position.w;
     }
     // Distance from the mid-plane as a fraction of the half thickness.
     float d = abs(dist) / u_slabHalfThickness;

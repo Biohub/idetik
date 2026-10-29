@@ -36,9 +36,9 @@ export type PointProps = {
 export type PointsRenderableOptions = {
   /**
    * Units of each point's `size`. `"pixels"` (the default) keeps markers a
-   * fixed size on screen; `"world"` makes `size` a world-space diameter, so
-   * markers grow and shrink with zoom (and with distance in perspective).
-   * World sizes ignore any scale in the renderable's transform.
+   * fixed size on screen; `"world"` makes `size` a diameter in the same
+   * units as the positions, so markers grow and shrink with zoom (and with
+   * distance in perspective) and scale with the renderable's transform.
    */
   sizeUnits?: "pixels" | "world";
   /** Multiplier applied to every point's size. Defaults to `1`. */
