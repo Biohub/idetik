@@ -28,22 +28,39 @@ export const Image = z
                               translation: z.array(z.number()).min(2),
                             }),
                           ];
-                          const errors = schemas.reduce<z.ZodError[]>(
-                            (errors, schema) =>
+
+                          const { errors, failed } = schemas.reduce<{
+                            errors: z.core.$ZodIssue[];
+                            failed: number;
+                          }>(
+                            ({ errors, failed }, schema) =>
                               ((result) =>
                                 result.error
-                                  ? [...errors, result.error]
-                                  : errors)(schema.safeParse(x)),
-                            []
+                                  ? {
+                                      errors: [
+                                        ...errors,
+                                        ...result.error.issues,
+                                      ],
+                                      failed: failed + 1,
+                                    }
+                                  : { errors, failed })(schema.safeParse(x)),
+                            { errors: [], failed: 0 }
                           );
-                          if (schemas.length - errors.length !== 1) {
-                            ctx.addIssue({
-                              path: ctx.path,
-                              code: "invalid_union",
-                              unionErrors: errors,
-                              message:
-                                "Invalid input: Should pass single schema",
-                            });
+                          if (schemas.length - failed !== 1) {
+                            ctx.addIssue(
+                              errors.length
+                                ? {
+                                    code: "invalid_union",
+                                    errors: [errors],
+                                    message:
+                                      "Invalid input: Should pass single schema",
+                                  }
+                                : {
+                                    code: "custom",
+                                    message:
+                                      "Invalid input: Should pass single schema",
+                                  }
+                            );
                           }
                         })
                       )
@@ -73,21 +90,36 @@ export const Image = z
                           .optional(),
                       }),
                     ];
-                    const errors = schemas.reduce<z.ZodError[]>(
-                      (errors, schema) =>
+
+                    const { errors, failed } = schemas.reduce<{
+                      errors: z.core.$ZodIssue[];
+                      failed: number;
+                    }>(
+                      ({ errors, failed }, schema) =>
                         ((result) =>
-                          result.error ? [...errors, result.error] : errors)(
-                          schema.safeParse(x)
-                        ),
-                      []
+                          result.error
+                            ? {
+                                errors: [...errors, ...result.error.issues],
+                                failed: failed + 1,
+                              }
+                            : { errors, failed })(schema.safeParse(x)),
+                      { errors: [], failed: 0 }
                     );
-                    if (schemas.length - errors.length !== 1) {
-                      ctx.addIssue({
-                        path: ctx.path,
-                        code: "invalid_union",
-                        unionErrors: errors,
-                        message: "Invalid input: Should pass single schema",
-                      });
+                    if (schemas.length - failed !== 1) {
+                      ctx.addIssue(
+                        errors.length
+                          ? {
+                              code: "invalid_union",
+                              errors: [errors],
+                              message:
+                                "Invalid input: Should pass single schema",
+                            }
+                          : {
+                              code: "custom",
+                              message:
+                                "Invalid input: Should pass single schema",
+                            }
+                      );
                     }
                   })
                 )
@@ -116,21 +148,36 @@ export const Image = z
                         type: z.literal("identity"),
                       }),
                     ];
-                    const errors = schemas.reduce<z.ZodError[]>(
-                      (errors, schema) =>
+
+                    const { errors, failed } = schemas.reduce<{
+                      errors: z.core.$ZodIssue[];
+                      failed: number;
+                    }>(
+                      ({ errors, failed }, schema) =>
                         ((result) =>
-                          result.error ? [...errors, result.error] : errors)(
-                          schema.safeParse(x)
-                        ),
-                      []
+                          result.error
+                            ? {
+                                errors: [...errors, ...result.error.issues],
+                                failed: failed + 1,
+                              }
+                            : { errors, failed })(schema.safeParse(x)),
+                      { errors: [], failed: 0 }
                     );
-                    if (schemas.length - errors.length !== 1) {
-                      ctx.addIssue({
-                        path: ctx.path,
-                        code: "invalid_union",
-                        unionErrors: errors,
-                        message: "Invalid input: Should pass single schema",
-                      });
+                    if (schemas.length - failed !== 1) {
+                      ctx.addIssue(
+                        errors.length
+                          ? {
+                              code: "invalid_union",
+                              errors: [errors],
+                              message:
+                                "Invalid input: Should pass single schema",
+                            }
+                          : {
+                              code: "custom",
+                              message:
+                                "Invalid input: Should pass single schema",
+                            }
+                      );
                     }
                   })
                 )

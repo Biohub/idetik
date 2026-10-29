@@ -6,7 +6,7 @@ import cursor from "../icons/cursor.svg?raw";
 import copyIcon from "../icons/copy.svg?raw";
 import checkIcon from "../icons/check.svg?raw";
 
-const DOCS_URL = "https://chanzuckerberg.github.io/idetik/";
+const DOCS_URL = "https://biohub.github.io/idetik/";
 const IMAGE_PLACEHOLDER = "{PLACE YOUR IMAGE URL HERE}";
 
 const AGENTS = [
