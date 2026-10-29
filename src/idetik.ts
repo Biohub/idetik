@@ -6,23 +6,10 @@ import { Stats } from "./core/stats";
 import { createStats, type Stats as StatsMeter } from "./utilities/stats";
 import { Viewport } from "./core/viewport";
 import { PixelSizeObserver } from "./utilities/pixel_size_observer";
+import { type Deferred, settle } from "./utilities/deferred";
 import type { Layer } from "./core/layer";
 
 const DEFAULT_MEMORY_LIMIT_MB = 2048;
-
-type Waiter = {
-  resolve: () => void;
-  reject: (error: Error) => void;
-  timeout?: ReturnType<typeof setTimeout>;
-};
-
-function settle(waiters: Iterable<Waiter>, error?: Error): void {
-  for (const { resolve, reject, timeout } of waiters) {
-    clearTimeout(timeout);
-    if (error) reject(error);
-    else resolve();
-  }
-}
 
 /**
  * An object updated once per animation frame after any drawing.
@@ -90,7 +77,7 @@ function validateViewport(
           : "[element has no id]");
       throw new Error(
         "Multiple viewports cannot share the same HTML element: " +
-          `viewports "${existing.id}" and "${viewport.id}" both use ${elementDescription}`
+        `viewports "${existing.id}" and "${viewport.id}" both use ${elementDescription}`
       );
     }
   }
@@ -169,8 +156,8 @@ export class Idetik {
   private lastTimestamp_: DOMHighResTimeStamp = 0;
   private renderInvalidated_ = true;
   private running_ = false;
-  private readonly settleWaiters_ = new Set<Waiter>();
-  private readonly renderWaiters_: Waiter[] = [];
+  private readonly pendingSettles_ = new Set<Deferred>();
+  private readonly pendingRenders_: Deferred[] = [];
 
   /**
    * Creates an Idetik runtime for the given canvas.
@@ -362,7 +349,7 @@ export class Idetik {
    */
   public requestRender(): Promise<void> {
     const drawn = new Promise<void>((resolve, reject) => {
-      this.renderWaiters_.push({ resolve, reject });
+      this.pendingRenders_.push({ resolve, reject });
     });
     this.scheduleFrame();
     return drawn;
@@ -390,14 +377,14 @@ export class Idetik {
   public whenSettled(options?: { timeoutMs?: number }): Promise<void> {
     const timeoutMs = options?.timeoutMs;
     const settled = new Promise<void>((resolve, reject) => {
-      const waiter: Waiter = { resolve, reject };
+      const deferred: Deferred = { resolve, reject };
       if (timeoutMs !== undefined) {
-        waiter.timeout = setTimeout(() => {
-          this.settleWaiters_.delete(waiter);
+        deferred.timeout = setTimeout(() => {
+          this.pendingSettles_.delete(deferred);
           reject(new Error(`Loading did not settle within ${timeoutMs} ms`));
         }, timeoutMs);
       }
-      this.settleWaiters_.add(waiter);
+      this.pendingSettles_.add(deferred);
     });
     this.scheduleFrame();
     return settled;
@@ -477,14 +464,14 @@ export class Idetik {
   }
 
   private get renderRequested(): boolean {
-    return this.renderWaiters_.length > 0;
+    return this.pendingRenders_.length > 0;
   }
 
   private scheduleFrame(): void {
     if (this.lastAnimationId_ !== undefined) return;
     if (
       !this.running &&
-      this.settleWaiters_.size === 0 &&
+      this.pendingSettles_.size === 0 &&
       !this.renderRequested
     ) {
       return;
@@ -512,7 +499,7 @@ export class Idetik {
   }
 
   private resolveIfSettled(): void {
-    if (this.settleWaiters_.size === 0) return;
+    if (this.pendingSettles_.size === 0) return;
     if (this.viewports_.some((v) => v.cameraControls?.isMoving)) return;
 
     const queue = this.stats.queue;
@@ -523,20 +510,21 @@ export class Idetik {
     const incomplete = this.stats.chunks.viewports.filter(
       ({ current }) => current.resident < current.requested
     );
-    this.settleAll(
+
+    const error =
       incomplete.length === 0
         ? undefined
         : new Error(
-            "Loading settled with visible chunks missing in viewport(s) " +
-              incomplete.map((v) => `"${v.viewportId}"`).join(", ")
-          )
-    );
+          "Loading settled with visible chunks missing in viewport(s) " +
+          incomplete.map((v) => `"${v.viewportId}"`).join(", ")
+        )
+    this.settleAll(error);
   }
 
   private settleAll(error?: Error): void {
-    const waiters = [...this.settleWaiters_];
-    this.settleWaiters_.clear();
-    settle(waiters, error);
+    const deferreds = [...this.pendingSettles_];
+    this.pendingSettles_.clear();
+    settle(deferreds, error);
   }
 
   private updateViewport(viewport: Viewport): void {
@@ -576,7 +564,7 @@ export class Idetik {
     }
     this.renderer_.endFrame();
     this.stats.recordDraw();
-    settle(this.renderWaiters_.splice(0));
+    settle(this.pendingRenders_.splice(0));
   }
 
   /**
@@ -585,10 +573,10 @@ export class Idetik {
    */
   public stop() {
     Logger.info("Idetik", "Idetik runtime stopping");
-    const pending = this.settleWaiters_.size > 0 || this.renderRequested;
+    const pending = this.pendingSettles_.size > 0 || this.renderRequested;
     this.settleAll(new Error("Idetik runtime stopped before settling"));
     settle(
-      this.renderWaiters_.splice(0),
+      this.pendingRenders_.splice(0),
       new Error("Idetik runtime stopped before drawing")
     );
     this.cancelFrame();
