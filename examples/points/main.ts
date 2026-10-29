@@ -24,19 +24,18 @@ const ribosomesUrl = `${baseUrl}/Annotations/104/cytosolic_ribosome-1.0_point.nd
 const ferritinUrl = `${baseUrl}/Annotations/101/ferritin_complex-1.0_point.ndjson`;
 const virusLikeUrl = `${baseUrl}/Annotations/106/pp7_vlp-1.0_point.ndjson`;
 
-// image scale for the highest res image --
-// point coordinates are stored in the pixel-space of
-// the highest res image, and need to be scaled
-// by this factor to match our world coordinates
-const IMAGE_SCALE_0 = 4.99; // nm/px
-// image scale for the lowest res --
-// this is the scale of the image we show
-// it is used for scaling of the slice/depth
-const IMAGE_SCALE_2 = 19.96; // nm/px
+// The tomogram's world units are Ångströms (the OME-Zarr axes say so, and the
+// portal's "VoxelSpacing4.990" is in Å). Point coordinates are stored in the
+// voxel space of the highest res image, so scale them by its voxel size to
+// match world coordinates.
+const IMAGE_SCALE_0 = 4.99; // Å per voxel at full resolution
+// voxel size of the lowest res, used for the slice slider's range
+const IMAGE_SCALE_2 = 19.96; // Å per voxel
 const INITIAL_Z_POSITION = 918.16;
-// Particles within this distance (nm) of the shown slice are drawn, shrinking
+// Particles within this distance (Å) of the shown slice are drawn, shrinking
 // and fading toward the slab's faces as if the slice cut through a ball.
-const SLAB_THICKNESS = 400;
+// 500 Å is about one ribosome diameter either side of the slice.
+const SLAB_THICKNESS = 500;
 
 const fetchPositionsFromNDJson = async (url: string) => {
   return await fetch(url).then(async (response) => {
@@ -75,11 +74,9 @@ class Particles extends Layer {
   public readonly type = "Particles";
 
   /**
-   * @param diameter - Marker diameter in world units (nm), so particles are
-   *   drawn at their physical size and scale with zoom. Particles are small
-   *   next to the whole tomogram (a 30 nm ribosome is ~6 CSS px at the
-   *   initial view), so a pixel floor keeps them readable when zoomed out;
-   *   their true relative sizes show once zoomed in past it.
+   * @param diameter - Marker diameter in world units (Å), so particles are
+   *   drawn at their physical size and scale with zoom; a small pixel floor
+   *   keeps them visible as dots when zoomed far out.
    */
   constructor(
     points: vec3[],
@@ -91,7 +88,7 @@ class Particles extends Layer {
     super({ blendMode: "normal" });
     const renderable = new PointsRenderable(
       points.map((position) => ({ position, color, size: diameter, marker })),
-      { sizeUnits: "world", minPixelSize: 10 }
+      { sizeUnits: "world", minPixelSize: 4 }
     );
     renderable.depthSlab = slab;
     this.addObject(renderable);
@@ -108,14 +105,14 @@ class Particles extends Layer {
     return false;
   }
 }
-// Approximate particle diameters, nm.
-const ribosomes = new Particles(ribosomeLocations, Color.RED, "circle", 30);
-const ferritin = new Particles(ferritinLocations, Color.GREEN, "triangle", 12);
+// Approximate particle diameters, Å.
+const ribosomes = new Particles(ribosomeLocations, Color.RED, "circle", 250);
+const ferritin = new Particles(ferritinLocations, Color.GREEN, "triangle", 120);
 const virusLike = new Particles(
   virusLikeLocations,
   new Color(1.0, 0.0, 1.0),
   "square",
-  30
+  280
 );
 
 const imageSource = await OmeZarrImageSource.fromHttp({ url: imageUrl });
