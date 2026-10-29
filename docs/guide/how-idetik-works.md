@@ -30,15 +30,11 @@ The same placement makes slicing cheap. Idetik uploads every chunk to the GPU as
 
 ## The Frame
 
-[`start`](/api/classes/Idetik.html#start) begins a render loop driven by `requestAnimationFrame` and connects input handlers. The loop runs every frame, and nothing tells Idetik that a camera moved or a slice coordinate changed: each frame reads the current state of every object.
-
-Idetik draws only when something changed. A frame in which no camera, layout, or layer changed skips drawing, so an idle view costs only the per-frame updates. Setters that change appearance, such as a layer's opacity or channel settings, mark the layer so the next frame draws it. [`requestRender`](/api/classes/Idetik.html#requestrender) forces a draw on the next frame and returns a promise that resolves once it has happened.
-
-The same frame runs before `start` is called, but only while there is a reason to: [`whenSettled`](/api/classes/Idetik.html#whensettled) keeps it running until loading comes to rest, and `requestRender` runs it once to draw. In those frames nothing draws unless requested, and all loaded chunks upload at once since no one is watching. This is how a thumbnail is rendered without a visible loop.
+[`start`](/api/classes/Idetik.html#start) begins a render loop driven by `requestAnimationFrame` and connects input handlers. The loop runs every frame, and Idetik draws only when something changed, so an idle view costs only the per-frame updates. Setters that change appearance, such as a layer's opacity or channel settings, mark the layer so the next frame draws it. Applications may call [`requestRender`](/api/classes/Idetik.html#requestrender) to force a draw on the next frame.
 
 A frame proceeds in a fixed order. Every viewport first integrates its camera controls. Then the chunk manager uploads finished chunks to the GPU, and every layer updates. A layer's update is where streaming decisions are made: it inspects the camera, decides which chunks it needs at which resolution, and rebuilds its renderable objects from the chunks that have already arrived. If anything changed, all viewports draw.
 
-After that (whether or not the frame drew) the chunk manager runs again. It gathers what all the layers asked for, admits requests against the memory budget, hands them to the loading queue, and evicts if it must. The overlays run last.
+Finally (whether or not the frame drew) the chunk manager runs again. It gathers what all the layers asked for, admits requests against the memory budget, hands them to the loading queue, and evicts if it must. The overlays run last.
 
 ![One frame in Idetik, and the path of a chunk through three frames](/diagrams/architecture_diagram_1.png)
 

@@ -48,10 +48,7 @@ export type IdetikProps = {
   memoryLimitMB?: number;
   /** Max in-flight chunk requests. Defaults to `8`. */
   maxConcurrentRequests?: number;
-  /**
-   * Max GPU texture uploads per frame while running. Before {@link
-   * Idetik.start}, loading uploads without a limit. Defaults to `4`.
-   */
+  /** Max GPU texture uploads per frame while running. Defaults to `4`. */
   maxGpuUploadsPerUpdate?: number;
 };
 
@@ -77,7 +74,7 @@ function validateViewport(
           : "[element has no id]");
       throw new Error(
         "Multiple viewports cannot share the same HTML element: " +
-        `viewports "${existing.id}" and "${viewport.id}" both use ${elementDescription}`
+          `viewports "${existing.id}" and "${viewport.id}" both use ${elementDescription}`
       );
     }
   }
@@ -202,7 +199,8 @@ export class Idetik {
 
     this.sizeObserver_ = new PixelSizeObserver(sizeDependents, () => {
       this.invalidate();
-      this.runFrameNow();
+      this.cancelFrame();
+      this.animate(performance.now());
     });
   }
 
@@ -341,7 +339,7 @@ export class Idetik {
    * ```ts
    * await idetik.whenSettled({ timeoutMs: 10_000 });
    * await idetik.requestRender();
-   * const thumbnail = idetik.canvas.toDataURL();
+   * const imageData = idetik.canvas.toDataURL();
    * ```
    *
    * @returns A promise resolved once the draw has happened. It rejects if
@@ -356,16 +354,11 @@ export class Idetik {
   }
 
   /**
-   * Waits until loading has come to rest: no chunk requests queued or in
+   * Waits until the scene has come to rest: no chunk requests queued or in
    * flight, no loaded chunks awaiting GPU upload, and no camera controls
-   * moving. Chunks that don't fit the memory budget are never requested, so
-   * they don't hold it up, but failed requests are retried, so a chunk that
-   * keeps failing does; pass a timeout to bound the wait.
+   * moving.
    *
-   * While running, the render loop has drawn every resident chunk once this
-   * resolves. Before {@link start} is called, this runs the loop without
-   * drawing until settled; follow it with {@link requestRender} to draw the
-   * result.
+   * Works before {@link start}; call {@link requestRender} to draw the result.
    *
    * @param options - `timeoutMs` rejects the promise if loading hasn't
    *   settled in time. Loading continues regardless.
@@ -487,13 +480,6 @@ export class Idetik {
     this.lastAnimationId_ = undefined;
   }
 
-  // Runs a frame synchronously, e.g. so a resize is drawn before the browser
-  // paints the resized canvas.
-  private runFrameNow(): void {
-    this.cancelFrame();
-    this.animate(performance.now());
-  }
-
   private invalidate(): void {
     this.renderInvalidated_ = true;
   }
@@ -515,9 +501,9 @@ export class Idetik {
       incomplete.length === 0
         ? undefined
         : new Error(
-          "Loading settled with visible chunks missing in viewport(s) " +
-          incomplete.map((v) => `"${v.viewportId}"`).join(", ")
-        )
+            "Loading settled with visible chunks missing in viewport(s) " +
+              incomplete.map((v) => `"${v.viewportId}"`).join(", ")
+          );
     this.settleAll(error);
   }
 
@@ -568,9 +554,8 @@ export class Idetik {
   }
 
   /**
-   * Stops the render loop and disconnects input handlers. Pending
-   * {@link whenSettled} and {@link requestRender} promises reject.
-   */
+  * Stops the render loop and disconnects input handlers.
+  */
   public stop() {
     Logger.info("Idetik", "Idetik runtime stopping");
     const pending = this.pendingSettles_.size > 0 || this.renderRequested;
