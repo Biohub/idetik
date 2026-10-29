@@ -2,6 +2,7 @@ import { mat4, vec3 } from "gl-matrix";
 
 import { Color, ColorLike } from "../../math/color";
 import { RenderableObject } from "../../core/renderable_object";
+import { Texture2D } from "../textures/texture_2d";
 import { Texture2DArray } from "../textures/texture_2d_array";
 import { Geometry } from "../../core/geometry";
 import { Plane } from "../../math/plane";
@@ -80,12 +81,124 @@ export type PointDepthSlab = {
   falloff?: "none" | "linear" | "sphere";
 };
 
+/** A category's appearance in a {@link PointCategoryTable}. */
+export type PointCategoryStyle = {
+  /** Marker color; its alpha multiplies the layer opacity. */
+  color: ColorLike;
+  /** Whether points of this category are drawn. Defaults to `true`. */
+  visible?: boolean;
+};
+
+// Texture rows wrap at this width; 4096 is within every WebGL2 limit.
+const CATEGORY_TABLE_WIDTH = 4096;
+
+/**
+ * Colors and visibility for categorical points: one entry per category,
+ * stored in a small RGBA texture that every {@link PointsRenderable} built
+ * with {@link PointsRenderable.categorical} reads per point. Share one
+ * table across many renderables (e.g. all tiles of a layer): editing it
+ * restyles all of them on the next frame without touching their geometry.
+ *
+ * Categories are just integers; what they mean (genes, particle classes,
+ * annotation labels, ...) is up to the caller.
+ *
+ * @group Renderables
+ */
+export class PointCategoryTable {
+  /** Number of categories; valid indices are `0 .. count - 1`. */
+  public readonly count: number;
+  /** The RGBA texture the shader reads. Bound by categorical renderables. */
+  public readonly texture: Texture2D;
+  private readonly rgba_: Uint8Array;
+  private readonly visible_: Uint8Array;
+  private readonly alpha_: Uint8Array;
+
+  /**
+   * @param count - Number of categories.
+   * @param style - Initial style per category. Defaults to visible white.
+   */
+  constructor(count: number, style?: (category: number) => PointCategoryStyle) {
+    this.count = count;
+    const width = Math.max(1, Math.min(count, CATEGORY_TABLE_WIDTH));
+    const height = Math.max(1, Math.ceil(count / width));
+    this.rgba_ = new Uint8Array(width * height * 4);
+    this.visible_ = new Uint8Array(count).fill(1);
+    this.alpha_ = new Uint8Array(count).fill(255);
+    for (let i = 0; i < count; i++) {
+      const s = style?.(i) ?? { color: Color.WHITE };
+      this.writeColor(i, s.color);
+      this.visible_[i] = s.visible === false ? 0 : 1;
+      this.writeAlpha(i);
+    }
+    this.texture = new Texture2D(this.rgba_, width, height);
+    this.texture.dataFormat = "rgba";
+  }
+
+  /** Whether points of `category` are drawn. */
+  public isVisible(category: number): boolean {
+    return this.visible_[category] === 1;
+  }
+
+  public setVisible(category: number, visible: boolean): void {
+    this.visible_[category] = visible ? 1 : 0;
+    this.writeAlpha(category);
+    this.texture.needsUpdate = true;
+  }
+
+  /** Set every category's visibility at once (one texture upload). */
+  public setVisibility(visible: (category: number) => boolean): void {
+    for (let i = 0; i < this.count; i++) {
+      this.visible_[i] = visible(i) ? 1 : 0;
+      this.writeAlpha(i);
+    }
+    this.texture.needsUpdate = true;
+  }
+
+  public setColor(category: number, color: ColorLike): void {
+    this.writeColor(category, color);
+    this.writeAlpha(category);
+    this.texture.needsUpdate = true;
+  }
+
+  private writeColor(category: number, color: ColorLike) {
+    const c = Color.from(color);
+    const o = category * 4;
+    this.rgba_[o] = Math.round(c.r * 255);
+    this.rgba_[o + 1] = Math.round(c.g * 255);
+    this.rgba_[o + 2] = Math.round(c.b * 255);
+    this.alpha_[category] = Math.round(c.a * 255);
+  }
+
+  // Alpha 0 means hidden: the shader skips those points entirely.
+  private writeAlpha(category: number) {
+    this.rgba_[category * 4 + 3] = this.visible_[category]
+      ? Math.max(1, this.alpha_[category])
+      : 0;
+  }
+}
+
+/**
+ * Input to {@link PointsRenderable.categorical}: typed arrays, so large
+ * point sets avoid building one object per point.
+ */
+export type CategoricalPointsProps = {
+  /** World positions, x/y/z interleaved (3 values per point). */
+  positions: ArrayLike<number>;
+  /** Category index per point, into `table`. */
+  categories: ArrayLike<number>;
+  /** Colors and visibility per category; may be shared. */
+  table: PointCategoryTable;
+  /** Marker size for every point, or one per point (in `sizeUnits`). */
+  size: number | ArrayLike<number>;
+  /** Marker shape for every point. Defaults to `"circle"`. */
+  marker?: Marker;
+};
+
 /**
  * A set of point markers drawn as screen-space sprites.
  *
  * Each point has a world-space position, a color, a size, and a marker
- * shape. Sizes are in screen pixels unless {@link sizeUnits} is `"world"`.
- * All instances share a single marker sprite atlas. The
+ * shape. Sizes are in screen pixels unless {@link sizeUnits} is `"world"`. All instances share a single marker sprite atlas. The
  * point set is fixed at construction, so build a new instance to change
  * it. Construct these directly inside a custom {@link Layer}.
  *
@@ -117,6 +230,51 @@ export type PointDepthSlab = {
  * @group Renderables
  */
 export class PointsRenderable extends RenderableObject {
+  /**
+   * Creates points styled by category: each point's color and visibility
+   * come from a shared {@link PointCategoryTable}, so they can change
+   * without rebuilding geometry. Same layout and program as the
+   * constructor, which builds its own table from the points' colors.
+   *
+   * ```ts
+   * const table = new PointCategoryTable(classes.length, (i) => ({ color: palette[i] }));
+   * const points = PointsRenderable.categorical({ positions, categories, table, size: 4 });
+   * table.setVisible(2, false); // hide class 2 everywhere the table is used
+   * ```
+   *
+   * @param props - Positions, categories, the table, and marker size/shape.
+   * @param options - Size units and scaling, as for the constructor.
+   */
+  public static categorical(
+    props: CategoricalPointsProps,
+    options: PointsRenderableOptions = {}
+  ): PointsRenderable {
+    const { positions, categories, table, size } = props;
+    const n = categories.length;
+    if (positions.length !== n * 3) {
+      throw new Error(
+        `Expected ${n * 3} position values for ${n} points, got ${positions.length}`
+      );
+    }
+    const sizes =
+      typeof size === "number" ? new Float32Array(n).fill(size) : size;
+    const markers = new Float32Array(n).fill(
+      MARKER_INDEX[props.marker ?? "circle"]
+    );
+    const points = new PointsRenderable([], options);
+    points.geometry = buildGeometry(positions, sizes, markers, categories);
+    points.useTable(table);
+    return points;
+  }
+
+  private categoryTable_?: PointCategoryTable;
+
+  /** The category table: the caller's for {@link categorical}, otherwise an
+   *  internal one with an entry per distinct point color. */
+  public get categoryTable(): PointCategoryTable | undefined {
+    return this.categoryTable_;
+  }
+
   /** Units of each point's size. Can be changed without rebuilding. */
   public sizeUnits: "pixels" | "world";
   /** Multiplier applied to every point's size. Can be changed without rebuilding. */
@@ -148,45 +306,42 @@ export class PointsRenderable extends RenderableObject {
     this.programName = "points";
     this.depthProgramName = "pointsDepth";
 
-    const vertexData = points.flatMap((point) => {
+    // Colors go through a lookup table like categorical points: each
+    // distinct color (as RGBA8) becomes one entry, and points store its index.
+    const colors: Color[] = [];
+    const indexOf = new Map<number, number>();
+    const n = points.length;
+    const positions = new Float32Array(n * 3);
+    const sizes = new Float32Array(n);
+    const markers = new Float32Array(n);
+    const categories = new Float32Array(n);
+    points.forEach((point, i) => {
       const color = Color.from(point.color);
-      return [
-        point.position[0],
-        point.position[1],
-        point.position[2],
-        color.r,
-        color.g,
-        color.b,
-        color.a,
-        point.size,
-        MARKER_INDEX[point.marker],
-      ];
+      const key = color.packed;
+      let index = indexOf.get(key);
+      if (index === undefined) {
+        index = colors.length;
+        indexOf.set(key, index);
+        colors.push(color);
+      }
+      positions.set(
+        [point.position[0], point.position[1], point.position[2]],
+        i * 3
+      );
+      sizes[i] = point.size;
+      markers[i] = MARKER_INDEX[point.marker];
+      categories[i] = index;
     });
-    const geometry = new Geometry(vertexData, [], "points");
-
-    geometry.addAttribute({
-      type: "position",
-      itemSize: 3,
-      offset: 0,
-    });
-    geometry.addAttribute({
-      type: "color",
-      itemSize: 4,
-      offset: geometry.strideBytes,
-    });
-    geometry.addAttribute({
-      type: "size",
-      itemSize: 1,
-      offset: geometry.strideBytes,
-    });
-    geometry.addAttribute({
-      type: "marker",
-      itemSize: 1,
-      offset: geometry.strideBytes,
-    });
-
-    this.geometry = geometry;
+    this.useTable(
+      new PointCategoryTable(colors.length, (i) => ({ color: colors[i] }))
+    );
+    this.geometry = buildGeometry(positions, sizes, markers, categories);
     this.setTexture(0, getMarkerAtlas());
+  }
+
+  private useTable(table: PointCategoryTable) {
+    this.categoryTable_ = table;
+    this.setTexture(1, table.texture);
   }
 
   /** World bounds, projected onto the slab plane when the slab flattens
@@ -237,6 +392,7 @@ export class PointsRenderable extends RenderableObject {
       u_sizeInWorld: Number(this.sizeUnits === "world"),
       u_sizeScale: this.sizeScale,
       u_minPointSize: this.minPixelSize,
+      u_categoryTable: 1,
       u_maxPointSize: finiteOr(this.maxPixelSize, GLSL_INFINITY),
     };
   }
@@ -249,6 +405,46 @@ const finiteOr = (value: number, fallback: number) =>
 const DEFAULT_SLAB_NORMAL = vec3.fromValues(0, 0, 1);
 const PROJECT_ONTO_PLANE = mat4.create();
 const SLAB_FALLOFF = { none: 0, linear: 1, sphere: 2 } as const;
+
+/** Interleaved points geometry, 24 bytes per vertex: position (3), size,
+ *  marker and category (an index into the renderable's category table). */
+function buildGeometry(
+  positions: ArrayLike<number>,
+  sizes: ArrayLike<number>,
+  markers: ArrayLike<number>,
+  categories: ArrayLike<number>
+): Geometry {
+  const n = categories.length;
+  const stride = 6;
+  const data = new Float32Array(n * stride);
+  for (let i = 0; i < n; i++) {
+    const o = i * stride;
+    data[o] = positions[i * 3];
+    data[o + 1] = positions[i * 3 + 1];
+    data[o + 2] = positions[i * 3 + 2];
+    data[o + 3] = sizes[i];
+    data[o + 4] = markers[i];
+    data[o + 5] = categories[i];
+  }
+  const geometry = new Geometry(data, [], "points");
+  geometry.addAttribute({ type: "position", itemSize: 3, offset: 0 });
+  geometry.addAttribute({
+    type: "size",
+    itemSize: 1,
+    offset: geometry.strideBytes,
+  });
+  geometry.addAttribute({
+    type: "marker",
+    itemSize: 1,
+    offset: geometry.strideBytes,
+  });
+  geometry.addAttribute({
+    type: "category",
+    itemSize: 1,
+    offset: geometry.strideBytes,
+  });
+  return geometry;
+}
 
 let markerAtlas: Texture2DArray | undefined;
 

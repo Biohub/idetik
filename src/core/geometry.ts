@@ -13,7 +13,8 @@ type GeometryAttributeType =
   | "direction"
   | "color"
   | "size"
-  | "marker";
+  | "marker"
+  | "category";
 
 export const GeometryAttributeIndex: Record<GeometryAttributeType, number> = {
   position: 0,
@@ -25,6 +26,7 @@ export const GeometryAttributeIndex: Record<GeometryAttributeType, number> = {
   color: 6,
   size: 7,
   marker: 8,
+  category: 9,
 };
 
 type GeometryAttribute = {

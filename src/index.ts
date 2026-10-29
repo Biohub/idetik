@@ -47,8 +47,13 @@ export { ImageRenderable } from "./objects/renderable/image_renderable";
 export type { ImageRenderableProps } from "./objects/renderable/image_renderable";
 export { LabelImageRenderable } from "./objects/renderable/label_image_renderable";
 export type { LabelImageRenderableProps } from "./objects/renderable/label_image_renderable";
-export { PointsRenderable } from "./objects/renderable/points_renderable";
+export {
+  PointCategoryTable,
+  PointsRenderable,
+} from "./objects/renderable/points_renderable";
 export type {
+  CategoricalPointsProps,
+  PointCategoryStyle,
   PointDepthSlab,
   PointProps,
   PointsRenderableOptions,

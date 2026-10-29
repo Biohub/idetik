@@ -2,10 +2,17 @@
 
 precision highp float;
 
+// Point markers. Each point has a category index; its color (and
+// visibility: alpha 0 = hidden) comes from a category table
+// (PointCategoryTable), one RGBA8 texel per category, row-major. Plain
+// renderables build a table from their points' colors; categorical ones share
+// a caller's table, so editing it restyles them without touching geometry.
+
 layout (location = 0) in vec3 a_position;
-layout (location = 6) in vec4 a_color;
 layout (location = 7) in float a_size;
 layout (location = 8) in float a_marker;
+layout (location = 9) in float a_category;
+uniform highp sampler2D u_categoryTable;
 
 uniform mat4 u_projection;
 uniform mat4 u_modelView;
@@ -35,6 +42,10 @@ flat out float v_pixel;
 
 void main() {
     float dist = dot(a_position, u_slabNormal) + u_slabDistance;
+    int width = textureSize(u_categoryTable, 0).x;
+    int category = int(a_category + 0.5);
+    vec4 color = texelFetch(u_categoryTable, ivec2(category % width, category / width), 0);
+
     vec3 position = a_position;
     if (u_slabFlatten) position -= dist * u_slabNormal;
     gl_Position = u_projection * u_modelView * vec4(position, 1.0);
@@ -63,10 +74,10 @@ void main() {
 
     v_pixel = 1.0 / gl_PointSize;
     v_fade = fade;
-    v_color = a_color;
+    v_color = color;
     v_marker = uint(a_marker);
 
-    // Outside the slab: put the point outside the clip volume so it is
-    // never rasterized.
-    if (d > 1.0) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    // Outside the slab, or a hidden category: put the point outside the
+    // clip volume so it is never rasterized.
+    if (d > 1.0 || color.a == 0.0) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
 }
