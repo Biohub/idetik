@@ -8,6 +8,7 @@ export { OmeZarrImageSource } from "./data/ome_zarr/image_source";
 export type {
   FileSystemOmeZarrImageSourceProps,
   HttpOmeZarrImageSourceProps,
+  StoreOmeZarrImageSourceProps,
 } from "./data/ome_zarr/image_source";
 export type {
   SourceDimension,

@@ -234,11 +234,20 @@ function ensureWorkerPool(): void {
 
 export async function fetchAndProcessChunk(
   array: zarr.Array<zarr.DataType, zarr.Readable>,
-  arrayParams: ZarrArrayParams,
+  arrayParams: ZarrArrayParams | null,
   chunkCoords: number[],
   sliceSpec: SliceSpec,
   options?: { signal?: AbortSignal }
 ): Promise<ChunkData> {
+  // Stores a worker can't open (see createZarrArrayParams) read here.
+  if (arrayParams === null) {
+    return fetchAndProcessChunkOnMainThread(
+      array,
+      chunkCoords,
+      sliceSpec,
+      options
+    );
+  }
   ensureWorkerPool();
   try {
     return await fetchAndProcessChunkInWorker(
@@ -253,19 +262,33 @@ export async function fetchAndProcessChunk(
     }
 
     Logger.warn("ZarrWorker", "Falling back to main thread", error);
-    const rawChunk = await array.getChunk(chunkCoords, options);
-    if (!isChunkData(rawChunk.data)) {
-      throw new Error(
-        `Unsupported chunk data type: ${rawChunk.data.constructor.name}`
-      );
-    }
-    return processChunk(
-      rawChunk.data,
-      rawChunk.shape,
-      rawChunk.stride,
-      sliceSpec
+    return fetchAndProcessChunkOnMainThread(
+      array,
+      chunkCoords,
+      sliceSpec,
+      options
     );
   }
+}
+
+async function fetchAndProcessChunkOnMainThread(
+  array: zarr.Array<zarr.DataType, zarr.Readable>,
+  chunkCoords: number[],
+  sliceSpec: SliceSpec,
+  options?: { signal?: AbortSignal }
+): Promise<ChunkData> {
+  const rawChunk = await array.getChunk(chunkCoords, options);
+  if (!isChunkData(rawChunk.data)) {
+    throw new Error(
+      `Unsupported chunk data type: ${rawChunk.data.constructor.name}`
+    );
+  }
+  return processChunk(
+    rawChunk.data,
+    rawChunk.shape,
+    rawChunk.stride,
+    sliceSpec
+  );
 }
 
 export function terminateWorkerPool(): void {
