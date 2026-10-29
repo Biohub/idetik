@@ -9,9 +9,12 @@ uniform mediump sampler2DArray u_markerAtlas;
 in vec4 v_color;
 flat in uint v_marker;
 in float v_fade;
+flat in float v_hollow;
 
 uniform float u_opacity;
 uniform bool u_premultiplyAlpha;
+// Outline width of hollow markers, in pixels.
+uniform float u_outlinePixels;
 
 
 void main() {
@@ -21,6 +24,12 @@ void main() {
     float dist = texture(u_markerAtlas, vec3(gl_PointCoord, v_marker)).r;
     float pixel = length(vec2(dFdx(dist), dFdy(dist)));
     float coverage = 1.0 - smoothstep(-0.5 * pixel, 0.5 * pixel, dist);
+    if (v_hollow > 0.5) {
+        // Keep a band of u_outlinePixels inside the edge: subtract the
+        // coverage of the marker shrunk by that width.
+        float band = u_outlinePixels * pixel;
+        coverage -= 1.0 - smoothstep(-0.5 * pixel, 0.5 * pixel, dist + band);
+    }
     if (coverage < 1e-2) {
         discard;
     }

@@ -25,10 +25,13 @@ uniform bool u_slabFlatten;
 // 0: no fade. 1: opacity falls linearly to 0 at the slab faces. 2: size and
 // opacity follow the cross-section of a ball spanning the slab.
 uniform int u_slabFalloff;
+// Draw points on the far side of the plane (against its normal) hollow.
+uniform bool u_slabBehindHollow;
 
 out vec4 v_color;
 flat out uint v_marker;
 out float v_fade;
+flat out float v_hollow;
 
 
 void main() {
@@ -41,6 +44,7 @@ void main() {
         v_color = vec4(0.0);
         v_marker = 0u;
         v_fade = 0.0;
+        v_hollow = 0.0;
         return;
     }
 
@@ -70,6 +74,7 @@ void main() {
     }
     gl_PointSize = clamp(size, u_minPointSize, u_maxPointSize);
     v_fade = fade;
+    v_hollow = (u_slabBehindHollow && dist < 0.0) ? 1.0 : 0.0;
     v_color = a_color;
     v_marker = uint(a_marker);
 }
