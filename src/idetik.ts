@@ -554,8 +554,8 @@ export class Idetik {
   }
 
   /**
-  * Stops the render loop and disconnects input handlers.
-  */
+   * Stops the render loop and disconnects input handlers.
+   */
   public stop() {
     Logger.info("Idetik", "Idetik runtime stopping");
     const pending = this.pendingSettles_.size > 0 || this.renderRequested;
