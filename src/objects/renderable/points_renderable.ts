@@ -202,8 +202,8 @@ export class PointsRenderable extends RenderableObject {
       u_slabHalfThickness: Number.isFinite(halfThickness)
         ? halfThickness
         : NO_SLAB_LIMIT,
-      u_slabFlatten: slab?.flatten ? 1 : 0,
-      u_sizeInWorld: this.sizeUnits === "world" ? 1 : 0,
+      u_slabFlatten: Number(slab?.flatten ?? false),
+      u_sizeInWorld: Number(this.sizeUnits === "world"),
       u_sizeScale: this.sizeScale,
       u_minPointSize: this.minPixelSize,
       // GLSL has no infinity literal; any value past the GPU cap is no limit.
