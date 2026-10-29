@@ -43,7 +43,6 @@
     "format-check": "prettier --check './**/*.{ts,tsx,vue,html,json}'",
     "lint": "eslint .",
     "pub": "npm run build; npm publish --access=public",
-    "version": "node scripts/changelog-release.mjs",
     "docs:api": "typedoc",
     "docs:dev": "npm run docs:api && vitepress dev",
     "docs:build": "npm run docs:api && vitepress build",
