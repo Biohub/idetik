@@ -75,9 +75,11 @@ class Particles extends Layer {
   public readonly type = "Particles";
 
   constructor(points: vec3[], color: ColorLike, marker: Marker) {
-    super();
+    // Blend so the slab falloff can fade particles, not just shrink them.
+    super({ blendMode: "normal" });
     const renderable = new PointsRenderable(
-      points.map((position) => ({ position, color, size: 20, marker }))
+      points.map((position) => ({ position, color, size: 20, marker })),
+      { sizeUnits: "pixels" }
     );
     renderable.depthSlab = slab;
     this.addObject(renderable);
