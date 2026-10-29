@@ -1,5 +1,6 @@
 import { Location, Readable, FetchStore } from "zarrita";
 import {
+  openArray,
   openArrayFromParams,
   openGroup,
   createZarrArrayParams,
@@ -17,6 +18,19 @@ type OmeZarrImageSourceProps = {
   location: Location<Readable>;
   version?: OmeZarrVersion;
   loader: OmeZarrImageLoader;
+};
+
+/**
+ * Input to {@link OmeZarrImageSource.fromStore}.
+ */
+export type StoreOmeZarrImageSourceProps = {
+  /** Any zarrita store, e.g. one that generates chunks on demand. Chunks
+   *  from custom stores are read on the main thread. */
+  store: Readable;
+  /** OME-Zarr version. Detected from metadata when omitted. */
+  version?: OmeZarrVersion;
+  /** Image path within the store. Defaults to the root. */
+  path?: `/${string}`;
 };
 
 /**
@@ -103,7 +117,11 @@ export class OmeZarrImageSource {
       createZarrArrayParams(location, d.path, zarrVersion)
     );
     const arrays = await Promise.all(
-      arrayParams.map((params) => openArrayFromParams(params))
+      arrayParams.map((params, i) =>
+        params
+          ? openArrayFromParams(params)
+          : openArray(location.resolve(metadata.datasets[i].path), zarrVersion)
+      )
     );
 
     const shape = arrays[0].shape;
@@ -149,6 +167,18 @@ export class OmeZarrImageSource {
     props: HttpOmeZarrImageSourceProps
   ): Promise<OmeZarrImageSource> {
     const location = new Location(new FetchStore(props.url));
+    const loader = await OmeZarrImageSource.openLoader(location, props.version);
+    return new OmeZarrImageSource({ location, version: props.version, loader });
+  }
+
+  /**
+   * Opens an OME-Zarr image from an arbitrary zarrita store, such as one
+   * that synthesizes chunks on demand.
+   */
+  public static async fromStore(
+    props: StoreOmeZarrImageSourceProps
+  ): Promise<OmeZarrImageSource> {
+    const location = new Location(props.store, props.path);
     const loader = await OmeZarrImageSource.openLoader(location, props.version);
     return new OmeZarrImageSource({ location, version: props.version, loader });
   }

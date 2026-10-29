@@ -100,11 +100,16 @@ export async function openArrayFromParams(
   return openArray(arrayLocation, params.zarrVersion);
 }
 
+/**
+ * Parameters for opening an array inside a worker, or `null` for stores a
+ * worker can't reconstruct (custom in-memory stores); those are read on the
+ * main thread.
+ */
 export function createZarrArrayParams(
   location: Location<Readable>,
   arrayPath: string,
   zarrVersion: Version | undefined
-): ZarrArrayParams {
+): ZarrArrayParams | null {
   if (location.store instanceof FetchStore) {
     return {
       type: "fetch",
@@ -120,9 +125,6 @@ export function createZarrArrayParams(
       directoryHandle: location.store.directoryHandle,
       path: location.path,
     };
-  } else {
-    throw new Error(
-      `Unsupported store type: ${location.store.constructor.name}`
-    );
   }
+  return null;
 }
