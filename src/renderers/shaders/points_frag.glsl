@@ -8,6 +8,7 @@ uniform mediump sampler2DArray u_markerAtlas;
 
 in vec4 v_color;
 flat in uint v_marker;
+in float v_fade;
 
 uniform float u_opacity;
 uniform bool u_premultiplyAlpha;
@@ -19,7 +20,7 @@ void main() {
     if (alpha < alpha_threshold) {
         discard;
     }
-    fragColor = vec4(v_color.rgb, u_opacity * alpha * v_color.a);
+    fragColor = vec4(v_color.rgb, u_opacity * alpha * v_color.a * v_fade);
     if (u_premultiplyAlpha) fragColor.rgb *= fragColor.a;
 }
 

@@ -103,5 +103,6 @@ export { Color } from "./math/color";
 export type { ColorLike } from "./math/color";
 export { Box2 } from "./math/box2";
 export { Box3 } from "./math/box3";
+export { Plane } from "./math/plane";
 export { Frustum } from "./math/frustum";
 export { TrsTransform } from "./math/transforms";
