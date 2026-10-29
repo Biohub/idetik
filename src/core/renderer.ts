@@ -3,6 +3,7 @@ import { Layer } from "./layer";
 import { RenderableObject } from "./renderable_object";
 import { Viewport } from "./viewport";
 import { Texture } from "../objects/textures/texture";
+import type { GeneratedTexture3D } from "../objects/textures/generated_texture_3d";
 import { Geometry } from "./geometry";
 
 export type GpuTiming = {
@@ -75,6 +76,15 @@ export abstract class Renderer {
   public abstract get gpuTextureCount(): number;
 
   public abstract uploadTexture(texture: Texture): void;
+
+  /**
+   * Fills a generated texture by running its passes on the GPU. Renderers
+   * do this before drawing any object that holds one, so calling it is
+   * only needed to fill one outside of drawing.
+   *
+   * @param texture - The texture to fill.
+   */
+  public abstract generateTexture(texture: GeneratedTexture3D): void;
 
   public abstract disposeTexture(texture: Texture): void;
 

@@ -154,6 +154,32 @@ export class WebGLTextures {
     texture.needsUpdate = false;
   }
 
+  /**
+   * Allocates storage for a texture filled on the GPU rather than from CPU
+   * data, and returns its handle. Leaves no texture bound.
+   */
+  public allocate(texture: Texture): WebGLTexture {
+    const gl = this.gl_;
+    const textureType = this.getTextureType(texture);
+    if (!this.textures_.has(texture)) {
+      const info = this.getDataFormatInfo(texture.dataFormat, texture.dataType);
+      this.generateTexture(texture, info, textureType);
+      const id = this.textures_.get(texture)!;
+      gl.bindTexture(textureType, id);
+      this.configureTextureParameters(texture, textureType);
+      if (texture.mipmapLevels > 1 && texture.minFilter === "nearest") {
+        gl.texParameteri(
+          textureType,
+          gl.TEXTURE_MIN_FILTER,
+          gl.NEAREST_MIPMAP_NEAREST
+        );
+      }
+      gl.bindTexture(textureType, null);
+      this.currentTexture_ = null;
+    }
+    return this.textures_.get(texture)!;
+  }
+
   public dispose(texture: Texture) {
     const id = this.textures_.get(texture);
     if (id) {

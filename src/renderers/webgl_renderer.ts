@@ -6,6 +6,7 @@ import { Logger } from "../utilities/logger";
 import { WebGLBuffers } from "./webgl_buffers";
 import { WebGLTextures } from "./webgl_textures";
 import { WebGLTimer } from "./webgl_timer";
+import { WebGLTextureGenerator } from "./webgl_texture_generator";
 
 import { Layer } from "../core/layer";
 import { WebGLState } from "./webgl_state";
@@ -16,6 +17,7 @@ import { Box2 } from "../math/box2";
 import { Viewport } from "../core/viewport";
 import { Camera } from "../objects/cameras/camera";
 import { Texture } from "../objects/textures/texture";
+import { GeneratedTexture3D } from "../objects/textures/generated_texture_3d";
 
 import { mat4, vec2, vec3, vec4 } from "gl-matrix";
 import { Frustum } from "../math/frustum";
@@ -38,6 +40,7 @@ export class WebGLRenderer extends Renderer {
   private readonly state_: WebGLState;
   private readonly textures_: WebGLTextures;
   private readonly timer_: WebGLTimer;
+  private readonly textureGenerator_: WebGLTextureGenerator;
 
   private renderedObjectsPerFrame_ = 0;
   private stencilRef_ = 0;
@@ -73,6 +76,13 @@ export class WebGLRenderer extends Renderer {
       gl,
       this.textures_.reservePersistentUnit()
     );
+    this.textureGenerator_ = new WebGLTextureGenerator(
+      gl,
+      this.textures_,
+      this.programs_,
+      this.state_,
+      this.bindings_
+    );
     this.resize(this.canvas.width, this.canvas.height);
   }
 
@@ -106,6 +116,8 @@ export class WebGLRenderer extends Renderer {
     this.stencilRef_ = 0;
 
     if (getComputedStyle(viewport.domElement).visibility === "hidden") return;
+
+    this.generatePendingTextures(viewport.layers);
 
     const viewportBox = viewport.getBoxRelativeTo(this.canvas);
     const surfaceBox = new Box2(
@@ -400,6 +412,27 @@ export class WebGLRenderer extends Renderer {
       this.gl_.drawElements(primitive, index.length, this.gl_.UNSIGNED_INT, 0);
     } else {
       this.gl_.drawArrays(primitive, 0, geometry.vertexCount);
+    }
+  }
+
+  public override generateTexture(texture: GeneratedTexture3D) {
+    this.textureGenerator_.generate(texture);
+    this.resetState();
+  }
+
+  // Generated textures are filled before the passes that draw them, which
+  // leaves the viewport and other state for render to set.
+  private generatePendingTextures(layers: ReadonlyArray<Layer>) {
+    for (const layer of layers) {
+      for (const members of layer.coverageGroups.values()) {
+        for (const object of members) {
+          for (const texture of object.textures) {
+            if (texture instanceof GeneratedTexture3D && texture.needsUpdate) {
+              this.textureGenerator_.generate(texture);
+            }
+          }
+        }
+      }
     }
   }
 
