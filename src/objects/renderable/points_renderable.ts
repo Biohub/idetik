@@ -1,11 +1,11 @@
-import { vec3 } from "gl-matrix";
+import { mat4, vec3 } from "gl-matrix";
 
 import { Color, ColorLike } from "../../math/color";
 import { RenderableObject } from "../../core/renderable_object";
 import { Texture2DArray } from "../textures/texture_2d_array";
 import { Geometry } from "../../core/geometry";
-import { Box3 } from "../../math/box3";
 import { Plane } from "../../math/plane";
+import { clamp } from "../../utilities/clamp";
 
 type Marker = "circle" | "square" | "triangle";
 
@@ -154,7 +154,7 @@ export class PointsRenderable extends RenderableObject {
    * Creates a renderable drawing one marker per entry.
    *
    * @param points - The points to draw.
-   * @param options - Size units and scaling.
+   * @param options - Size units and scaling, and the hollow outline width.
    */
   constructor(points: PointProps[], options: PointsRenderableOptions = {}) {
     super();
@@ -212,23 +212,28 @@ export class PointsRenderable extends RenderableObject {
   public override get boundingBox() {
     const slab = this.depthSlab;
     const local = this.geometry.boundingBox;
-    // A geometry with no points has an inverted box; leave it alone.
+    // A geometry with no points has an inverted box; leave it alone. (Not
+    // `isEmpty()`: a flat set of points is a zero-thickness box, which is
+    // exactly the case to project.)
     if (!slab?.flatten || local.min[0] > local.max[0]) return super.boundingBox;
-    const { normal, signedDistance } = slab.plane;
-    const box = new Box3();
-    const corner = vec3.create();
-    for (let i = 0; i < 8; i++) {
-      vec3.set(
-        corner,
-        (i & 1 ? local.max : local.min)[0],
-        (i & 2 ? local.max : local.min)[1],
-        (i & 4 ? local.max : local.min)[2]
-      );
-      const dist = vec3.dot(corner, normal) + signedDistance;
-      vec3.scaleAndAdd(corner, corner, normal, -dist);
-      box.expandWithPoint(corner);
-    }
-    box.applyTransform(this.transform.matrix);
+    // Projecting onto the plane is affine, p - (n . p + d) n, so compose it
+    // with the transform and let Box3 take the corners.
+    const [nx, ny, nz] = slab.plane.normal;
+    const d = slab.plane.signedDistance;
+    // prettier-ignore
+    mat4.set(PROJECT_ONTO_PLANE,
+      1 - nx * nx, -ny * nx, -nz * nx, 0,
+      -nx * ny, 1 - ny * ny, -nz * ny, 0,
+      -nx * nz, -ny * nz, 1 - nz * nz, 0,
+      -d * nx, -d * ny, -d * nz, 1);
+    const box = local.clone();
+    box.applyTransform(
+      mat4.multiply(
+        PROJECT_ONTO_PLANE,
+        this.transform.matrix,
+        PROJECT_ONTO_PLANE
+      )
+    );
     return box;
   }
 
@@ -244,9 +249,7 @@ export class PointsRenderable extends RenderableObject {
     return {
       u_slabNormal: slab?.plane.normal ?? DEFAULT_SLAB_NORMAL,
       u_slabDistance: slab?.plane.signedDistance ?? 0,
-      u_slabHalfThickness: Number.isFinite(halfThickness)
-        ? halfThickness
-        : NO_SLAB_LIMIT,
+      u_slabHalfThickness: finiteOr(halfThickness, GLSL_INFINITY),
       u_slabFlatten: Number(slab?.flatten ?? false),
       u_slabFalloff: SLAB_FALLOFF[slab?.falloff ?? "none"],
       u_slabBehindHollow: Number(slab?.behind === "hollow"),
@@ -254,18 +257,17 @@ export class PointsRenderable extends RenderableObject {
       u_sizeInWorld: Number(this.sizeUnits === "world"),
       u_sizeScale: this.sizeScale,
       u_minPointSize: this.minPixelSize,
-      // GLSL has no infinity literal; any value past the GPU cap is no limit.
-      u_maxPointSize: Number.isFinite(this.maxPixelSize)
-        ? this.maxPixelSize
-        : NO_MAX_POINT_SIZE,
+      u_maxPointSize: finiteOr(this.maxPixelSize, GLSL_INFINITY),
     };
   }
 }
 
-const NO_MAX_POINT_SIZE = 1e6;
-// Larger than any coordinate (and inf where mediump overflows, which also keeps every point).
-const NO_SLAB_LIMIT = 1e30;
+// GLSL has no infinity literal; this stands in for "no limit" in highp.
+const GLSL_INFINITY = 1e30;
+const finiteOr = (value: number, fallback: number) =>
+  Number.isFinite(value) ? value : fallback;
 const DEFAULT_SLAB_NORMAL = vec3.fromValues(0, 0, 1);
+const PROJECT_ONTO_PLANE = mat4.create();
 const SLAB_FALLOFF = { none: 0, linear: 1, sphere: 2 } as const;
 
 let markerAtlas: Texture2DArray | undefined;
@@ -290,14 +292,14 @@ type Sdf = (x: number, y: number) => number;
 // Circle of diameter 1 at the sprite center.
 const circleSdf: Sdf = (x, y) => Math.hypot(x - 0.5, y - 0.5) - 0.5;
 
-// Axis-aligned unit square (exact outside the corners too).
-const squareSdf: Sdf = (x, y) => {
-  const qx = Math.abs(x - 0.5) - 0.5;
-  const qy = Math.abs(y - 0.5) - 0.5;
-  return (
-    Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0)
-  );
-};
+// Unit square filling the sprite.
+const SQUARE: [number, number][] = [
+  [0, 0],
+  [1, 0],
+  [1, 1],
+  [0, 1],
+];
+const squareSdf: Sdf = (x, y) => polygonSdf(SQUARE, x, y);
 
 // Isosceles triangle: apex at the top center, base along the bottom edge.
 const TRIANGLE: [number, number][] = [
@@ -316,9 +318,10 @@ function polygonSdf(vertices: [number, number][], x: number, y: number) {
     const [bx, by] = vertices[i];
     const ex = bx - ax;
     const ey = by - ay;
-    const t = Math.max(
+    const t = clamp(
+      ((x - ax) * ex + (y - ay) * ey) / (ex * ex + ey * ey),
       0,
-      Math.min(1, ((x - ax) * ex + (y - ay) * ey) / (ex * ex + ey * ey))
+      1
     );
     const dx = x - (ax + t * ex);
     const dy = y - (ay + t * ey);
