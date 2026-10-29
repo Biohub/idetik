@@ -10,8 +10,8 @@ layout (location = 8) in float a_marker;
 uniform mat4 u_projection;
 uniform mat4 u_modelView;
 uniform vec2 u_resolution;
-// 1.0 when a_size is in world units, 0.0 when in screen pixels
-uniform float u_sizeInWorld;
+// true when a_size is in world units, false when in screen pixels
+uniform bool u_sizeInWorld;
 uniform float u_sizeScale;
 uniform float u_minPointSize;
 uniform float u_maxPointSize;
@@ -20,7 +20,7 @@ uniform float u_maxPointSize;
 // z = u_slabCenter. A huge half thickness keeps every point.
 uniform float u_slabCenter;
 uniform float u_slabHalfThickness;
-uniform float u_slabFlatten;
+uniform bool u_slabFlatten;
 
 out vec4 v_color;
 flat out uint v_marker;
@@ -38,10 +38,10 @@ void main() {
     }
 
     vec3 position = a_position;
-    if (u_slabFlatten > 0.5) position.z = u_slabCenter;
+    if (u_slabFlatten) position.z = u_slabCenter;
     gl_Position = u_projection * u_modelView * vec4(position, 1.0);
     float size = a_size * u_sizeScale;
-    if (u_sizeInWorld > 0.5) {
+    if (u_sizeInWorld) {
         // Pixels per world unit at this depth: the projection's y scale maps
         // view-space units to NDC (which spans 2 units over the viewport
         // height), and perspective divides by w. The y scale is negated by
