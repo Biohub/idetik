@@ -76,8 +76,10 @@ class Particles extends Layer {
 
   /**
    * @param diameter - Marker diameter in world units (nm), so particles are
-   *   drawn at their physical size and scale with zoom; a pixel floor keeps
-   *   them visible as dots when zoomed out.
+   *   drawn at their physical size and scale with zoom. Particles are small
+   *   next to the whole tomogram (a 30 nm ribosome is ~6 CSS px at the
+   *   initial view), so a pixel floor keeps them readable when zoomed out;
+   *   their true relative sizes show once zoomed in past it.
    */
   constructor(
     points: vec3[],
@@ -89,7 +91,7 @@ class Particles extends Layer {
     super({ blendMode: "normal" });
     const renderable = new PointsRenderable(
       points.map((position) => ({ position, color, size: diameter, marker })),
-      { sizeUnits: "world", minPixelSize: 4 }
+      { sizeUnits: "world", minPixelSize: 10 }
     );
     renderable.depthSlab = slab;
     this.addObject(renderable);
