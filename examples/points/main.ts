@@ -84,8 +84,10 @@ class Particles extends Layer {
     marker: Marker,
     diameter: number
   ) {
-    // Blend so the slab falloff can fade particles, not just shrink them.
+    // Blend so the slab falloff can fade particles, not just shrink them,
+    // and keep the layer translucent so the tomogram shows through.
     super({ blendMode: "normal" });
+    this.opacity = 0.7;
     const renderable = new PointsRenderable(
       points.map((position) => ({ position, color, size: diameter, marker })),
       { sizeUnits: "world", minPixelSize: 4 }
@@ -106,13 +108,13 @@ class Particles extends Layer {
   }
 }
 // Approximate particle diameters, Å.
-const ribosomes = new Particles(ribosomeLocations, Color.RED, "circle", 250);
-const ferritin = new Particles(ferritinLocations, Color.GREEN, "triangle", 120);
+const ribosomes = new Particles(ribosomeLocations, Color.RED, "circle", 200);
+const ferritin = new Particles(ferritinLocations, Color.GREEN, "triangle", 100);
 const virusLike = new Particles(
   virusLikeLocations,
   new Color(1.0, 0.0, 1.0),
   "square",
-  280
+  240
 );
 
 const imageSource = await OmeZarrImageSource.fromHttp({ url: imageUrl });
