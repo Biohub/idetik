@@ -78,6 +78,14 @@ export type PointDepthSlab = {
    * them and shrink away toward the faces.
    */
   falloff?: "none" | "linear" | "sphere";
+  /**
+   * How points on the far side of the plane (against its normal) are drawn.
+   * `"solid"` (the default) draws them like the rest; `"hollow"` draws only
+   * their outline ({@link PointsRenderable.outlinePixels} wide), so the
+   * slice reads as lying in front of them. Orient the normal toward the
+   * viewer.
+   */
+  behind?: "solid" | "hollow";
 };
 
 /**
@@ -132,6 +140,8 @@ export class PointsRenderable extends RenderableObject {
    * `null` (the default) draws every point where it is.
    */
   public depthSlab: PointDepthSlab | null = null;
+  /** Outline width of hollow markers, in screen pixels. Defaults to `2.5`. */
+  public outlinePixels = 2.5;
 
   /**
    * Creates a renderable drawing one marker per entry.
@@ -231,6 +241,8 @@ export class PointsRenderable extends RenderableObject {
         : NO_SLAB_LIMIT,
       u_slabFlatten: Number(slab?.flatten ?? false),
       u_slabFalloff: SLAB_FALLOFF[slab?.falloff ?? "none"],
+      u_slabBehindHollow: Number(slab?.behind === "hollow"),
+      u_outlinePixels: this.outlinePixels,
       u_sizeInWorld: Number(this.sizeUnits === "world"),
       u_sizeScale: this.sizeScale,
       u_minPointSize: this.minPixelSize,

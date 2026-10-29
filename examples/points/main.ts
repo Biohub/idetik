@@ -68,6 +68,8 @@ const slab: PointDepthSlab = {
   thickness: SLAB_THICKNESS,
   flatten: true,
   falloff: "sphere",
+  // Particles below the slice are drawn as outlines.
+  behind: "hollow",
 };
 
 class Particles extends Layer {
