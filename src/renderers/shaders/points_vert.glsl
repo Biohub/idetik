@@ -25,13 +25,16 @@ uniform bool u_slabFlatten;
 // 0: no fade. 1: opacity falls linearly to 0 at the slab faces. 2: size and
 // opacity follow the cross-section of a ball spanning the slab.
 uniform int u_slabFalloff;
-// Draw points on the far side of the plane (against its normal) hollow.
+// Draw points on the far side of the plane (against its normal) hollow,
+// with an outline u_outlineWidth wide (in the same units as a_size).
 uniform bool u_slabBehindHollow;
+uniform float u_outlineWidth;
 
 out vec4 v_color;
 flat out uint v_marker;
 out float v_fade;
 flat out float v_hollow;
+flat out float v_outlinePixels;
 
 
 void main() {
@@ -45,24 +48,23 @@ void main() {
         v_marker = 0u;
         v_fade = 0.0;
         v_hollow = 0.0;
+        v_outlinePixels = 0.0;
         return;
     }
 
     vec3 position = a_position;
     if (u_slabFlatten) position -= dist * u_slabNormal;
     gl_Position = u_projection * u_modelView * vec4(position, 1.0);
+    // Pixels per model unit at this depth. The model-view's second row is
+    // the gradient of view-space y over model space, so its length is the
+    // model-to-view scale (camera zoom and the renderable's transform, for
+    // any rotation). The projection's y scale then maps view units to NDC
+    // (2 units over the viewport height), and perspective divides by w. The
+    // y scale is negated by the renderer's axis flip, hence abs.
+    float modelToView = length(vec3(u_modelView[0][1], u_modelView[1][1], u_modelView[2][1]));
+    float pixelsPerUnit = modelToView * abs(u_projection[1][1]) * u_resolution.y * 0.5 / gl_Position.w;
     float size = a_size * u_sizeScale;
-    if (u_sizeInWorld) {
-        // Pixels per model unit at this depth. The model-view's second row
-        // is the gradient of view-space y over model space, so its length is
-        // the model-to-view scale (camera zoom and the renderable's
-        // transform, for any rotation). The projection's y scale then maps
-        // view units to NDC (2 units over the viewport height), and
-        // perspective divides by w. The y scale is negated by the renderer's
-        // axis flip, hence abs.
-        float modelToView = length(vec3(u_modelView[0][1], u_modelView[1][1], u_modelView[2][1]));
-        size *= modelToView * abs(u_projection[1][1]) * u_resolution.y * 0.5 / gl_Position.w;
-    }
+    if (u_sizeInWorld) size *= pixelsPerUnit;
     // Distance from the mid-plane as a fraction of the half thickness.
     float d = abs(dist) / u_slabHalfThickness;
     float fade = 1.0;
@@ -75,6 +77,11 @@ void main() {
     gl_PointSize = clamp(size, u_minPointSize, u_maxPointSize);
     v_fade = fade;
     v_hollow = (u_slabBehindHollow && dist < 0.0) ? 1.0 : 0.0;
+    // A world-sized outline keeps at least a pixel so hollow markers don't
+    // vanish when zoomed out.
+    v_outlinePixels = u_sizeInWorld
+        ? max(u_outlineWidth * pixelsPerUnit, 1.0)
+        : u_outlineWidth;
     v_color = a_color;
     v_marker = uint(a_marker);
 }
