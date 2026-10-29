@@ -92,7 +92,13 @@ class Particles extends Layer {
     this.opacity = 0.7;
     const renderable = new PointsRenderable(
       points.map((position) => ({ position, color, size: diameter, marker })),
-      { sizeUnits: "world", minPixelSize: 4 }
+      {
+        sizeUnits: "world",
+        minPixelSize: 4,
+        // Outlines of particles below the slice, 10 Å wide (world units,
+        // like the size), so they scale with the particles.
+        outlineWidth: 10,
+      }
     );
     renderable.depthSlab = slab;
     this.addObject(renderable);
