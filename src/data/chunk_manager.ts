@@ -26,18 +26,18 @@ const DEFAULT_MAX_GPU_UPLOADS_PER_UPDATE = 4;
 
 export class ChunkManager {
   private readonly stores_ = new Map<ChunkSource, ChunkStore>();
-  private readonly awaitingUpload_ = new Map<Chunk, ChunkSource>();
+  private readonly awaitingUpload_ = new Map<Chunk, ChunkStore>();
   private readonly queue_: ChunkQueue;
 
-  private readonly uploadTexture_?: (texture: Texture) => void;
-  private readonly disposeTexture_?: (texture: Texture) => void;
+  private readonly uploadTexture_: (texture: Texture) => void;
+  private readonly disposeTexture_: (texture: Texture) => void;
   private readonly getGpuResidentBytes_: () => number;
   private memoryLimitBytes_: number;
   private readonly maxGpuUploadsPerUpdate_: number;
 
   constructor(
-    uploadTexture?: (texture: Texture) => void,
-    disposeTexture?: (texture: Texture) => void,
+    uploadTexture: (texture: Texture) => void = () => {},
+    disposeTexture: (texture: Texture) => void = () => {},
     getGpuResidentBytes: () => number = () => 0,
     memoryLimitBytes: number = Infinity,
     maxConcurrentRequests: number = DEFAULT_MAX_CONCURRENT_REQUESTS,
@@ -128,6 +128,12 @@ export class ChunkManager {
         this.disposeChunkTexture(store, chunk);
         chunk.state = "unloaded";
       }
+      for (const [chunk, owner] of this.awaitingUpload_) {
+        if (owner !== store) continue;
+        this.awaitingUpload_.delete(chunk);
+        clearChunkData(chunk);
+        chunk.state = "unloaded";
+      }
       this.stores_.delete(source);
     }
   }
@@ -156,6 +162,7 @@ export class ChunkManager {
     const victims = this.evictionCandidates();
 
     for (const { source, chunk } of candidates) {
+      const store = this.stores_.get(source)!;
       const bytes = this.chunkBytes(source, chunk);
 
       // A chunk that can never fit must not trigger eviction. It would drain
@@ -176,7 +183,7 @@ export class ChunkManager {
       committedBytes += bytes;
       this.queue_.enqueue(chunk, async (signal) => {
         await source.loader.loadChunkData(chunk, signal);
-        if (!signal.aborted) this.awaitingUpload_.set(chunk, source);
+        if (!signal.aborted) this.awaitingUpload_.set(chunk, store);
       });
     }
   }
@@ -243,26 +250,24 @@ export class ChunkManager {
    * @param limit - Max uploads for this call.
    */
   public uploadLoadedChunks(limit = this.maxGpuUploadsPerUpdate_) {
-    if (!this.uploadTexture_ || this.awaitingUpload_.size === 0) return;
+    if (this.awaitingUpload_.size === 0) return;
 
     const pending = [...this.awaitingUpload_.keys()].sort(comparePriority);
     const count = Math.min(pending.length, limit);
 
     for (let i = 0; i < count; i++) {
       const chunk = pending[i];
-      const store = this.stores_.get(this.awaitingUpload_.get(chunk)!);
+      const store = this.awaitingUpload_.get(chunk)!;
       this.awaitingUpload_.delete(chunk);
-      if (store) {
-        const texture = Texture3D.createWithChunk(chunk);
-        this.uploadTexture_(texture);
-        store.setChunkTexture(chunk, texture);
-      }
+      const texture = Texture3D.createWithChunk(chunk);
+      this.uploadTexture_(texture);
+      store.setChunkTexture(chunk, texture);
       clearChunkData(chunk);
     }
   }
 
   private disposeChunkTexture(store: ChunkStore, chunk: Chunk) {
     const texture = store.clearChunkTexture(chunk);
-    if (texture !== undefined) this.disposeTexture_?.(texture);
+    if (texture !== undefined) this.disposeTexture_(texture);
   }
 }

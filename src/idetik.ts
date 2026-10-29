@@ -10,11 +10,19 @@ import type { Layer } from "./core/layer";
 
 const DEFAULT_MEMORY_LIMIT_MB = 2048;
 
-type SettleWaiter = {
+type Waiter = {
   resolve: () => void;
   reject: (error: Error) => void;
   timeout?: ReturnType<typeof setTimeout>;
 };
+
+function settle(waiters: Iterable<Waiter>, error?: Error): void {
+  for (const { resolve, reject, timeout } of waiters) {
+    clearTimeout(timeout);
+    if (error) reject(error);
+    else resolve();
+  }
+}
 
 /**
  * An object updated once per animation frame after any drawing.
@@ -159,10 +167,10 @@ export class Idetik {
 
   private lastAnimationId_?: number;
   private lastTimestamp_: DOMHighResTimeStamp = 0;
-  private renderRequested_ = false;
   private renderInvalidated_ = true;
   private running_ = false;
-  private readonly settleWaiters_ = new Set<SettleWaiter>();
+  private readonly settleWaiters_ = new Set<Waiter>();
+  private readonly renderWaiters_: Waiter[] = [];
 
   /**
    * Creates an Idetik runtime for the given canvas.
@@ -205,9 +213,10 @@ export class Idetik {
       }
     }
 
-    this.sizeObserver_ = new PixelSizeObserver(sizeDependents, () =>
-      this.updateAndDraw()
-    );
+    this.sizeObserver_ = new PixelSizeObserver(sizeDependents, () => {
+      this.invalidate();
+      this.runFrameNow();
+    });
   }
 
   /** The width of the rendering surface in pixels. */
@@ -335,23 +344,28 @@ export class Idetik {
   }
 
   /**
-   * Requests a draw even if no internal state has changed. While running,
-   * the draw happens on the next animation frame. Otherwise the runtime
-   * updates its layers and draws immediately, which is the only way it
-   * draws before {@link start} is called.
+   * Requests a draw on the next animation frame even if no internal state
+   * has changed. This is the only way the runtime draws before {@link start}
+   * is called.
+   *
+   * The returned promise resolves right after the draw, before the browser
+   * composites the frame, so the canvas can be read back immediately:
    *
    * ```ts
    * await idetik.whenSettled({ timeoutMs: 10_000 });
-   * idetik.requestRender();
+   * await idetik.requestRender();
    * const thumbnail = idetik.canvas.toDataURL();
    * ```
+   *
+   * @returns A promise resolved once the draw has happened. It rejects if
+   *   {@link stop} is called first.
    */
-  public requestRender(): void {
-    if (this.running) {
-      this.renderRequested_ = true;
-      return;
-    }
-    this.updateAndDraw();
+  public requestRender(): Promise<void> {
+    const drawn = new Promise<void>((resolve, reject) => {
+      this.renderWaiters_.push({ resolve, reject });
+    });
+    this.scheduleFrame();
+    return drawn;
   }
 
   /**
@@ -376,7 +390,7 @@ export class Idetik {
   public whenSettled(options?: { timeoutMs?: number }): Promise<void> {
     const timeoutMs = options?.timeoutMs;
     const settled = new Promise<void>((resolve, reject) => {
-      const waiter: SettleWaiter = { resolve, reject };
+      const waiter: Waiter = { resolve, reject };
       if (timeoutMs !== undefined) {
         waiter.timeout = setTimeout(() => {
           this.settleWaiters_.delete(waiter);
@@ -406,7 +420,6 @@ export class Idetik {
       }
 
       this.sizeObserver_.connect();
-      this.lastTimestamp_ = performance.now();
       this.scheduleFrame();
     } else {
       Logger.warn("Idetik", "Idetik runtime already started");
@@ -430,10 +443,17 @@ export class Idetik {
     this.lastAnimationId_ = undefined;
     this.stats_?.begin();
 
-    if (!this.running) this.updateSize();
+    this.renderer_.updateSize();
+    for (const viewport of this.viewports_) {
+      viewport.updateSize();
+    }
     this.updateControls(timestamp);
-    this.updateViewports();
-    if (this.running && (this.renderRequested_ || this.renderInvalidated_)) {
+    this.detachRemovedLayers();
+    this.chunkManager_.uploadLoadedChunks(this.running ? undefined : Infinity);
+    for (const viewport of this.viewports_) {
+      this.updateViewport(viewport);
+    }
+    if (this.renderRequested || (this.running && this.renderInvalidated_)) {
       this.draw();
     }
 
@@ -456,37 +476,39 @@ export class Idetik {
     }
   }
 
+  private get renderRequested(): boolean {
+    return this.renderWaiters_.length > 0;
+  }
+
   private scheduleFrame(): void {
     if (this.lastAnimationId_ !== undefined) return;
-    if (!this.running && this.settleWaiters_.size === 0) return;
+    if (
+      !this.running &&
+      this.settleWaiters_.size === 0 &&
+      !this.renderRequested
+    ) {
+      return;
+    }
     this.lastAnimationId_ = requestAnimationFrame((timestamp) =>
       this.animate(timestamp)
     );
   }
 
+  private cancelFrame(): void {
+    if (this.lastAnimationId_ === undefined) return;
+    cancelAnimationFrame(this.lastAnimationId_);
+    this.lastAnimationId_ = undefined;
+  }
+
+  // Runs a frame synchronously, e.g. so a resize is drawn before the browser
+  // paints the resized canvas.
+  private runFrameNow(): void {
+    this.cancelFrame();
+    this.animate(performance.now());
+  }
+
   private invalidate(): void {
     this.renderInvalidated_ = true;
-  }
-
-  private updateSize(): void {
-    this.renderer_.updateSize();
-    for (const viewport of this.viewports_) {
-      viewport.updateSize();
-    }
-  }
-
-  private updateViewports(): void {
-    this.detachRemovedLayers();
-    this.chunkManager_.uploadLoadedChunks(this.running ? undefined : Infinity);
-    for (const viewport of this.viewports_) {
-      this.updateViewport(viewport);
-    }
-  }
-
-  private updateAndDraw(): void {
-    this.updateSize();
-    this.updateViewports();
-    this.draw();
   }
 
   private resolveIfSettled(): void {
@@ -514,11 +536,7 @@ export class Idetik {
   private settleAll(error?: Error): void {
     const waiters = [...this.settleWaiters_];
     this.settleWaiters_.clear();
-    for (const { resolve, reject, timeout } of waiters) {
-      clearTimeout(timeout);
-      if (error) reject(error);
-      else resolve();
-    }
+    settle(waiters, error);
   }
 
   private updateViewport(viewport: Viewport): void {
@@ -551,7 +569,6 @@ export class Idetik {
   }
 
   private draw(): void {
-    this.renderRequested_ = false;
     this.renderInvalidated_ = false;
     this.renderer_.beginFrame();
     for (const viewport of this.viewports_) {
@@ -559,30 +576,32 @@ export class Idetik {
     }
     this.renderer_.endFrame();
     this.stats.recordDraw();
+    settle(this.renderWaiters_.splice(0));
   }
 
   /**
    * Stops the render loop and disconnects input handlers. Pending
-   * {@link whenSettled} promises reject.
+   * {@link whenSettled} and {@link requestRender} promises reject.
    */
   public stop() {
     Logger.info("Idetik", "Idetik runtime stopping");
-    const settling = this.settleWaiters_.size > 0;
+    const pending = this.settleWaiters_.size > 0 || this.renderRequested;
     this.settleAll(new Error("Idetik runtime stopped before settling"));
-    if (this.lastAnimationId_ !== undefined) {
-      cancelAnimationFrame(this.lastAnimationId_);
-      this.lastAnimationId_ = undefined;
-    }
+    settle(
+      this.renderWaiters_.splice(0),
+      new Error("Idetik runtime stopped before drawing")
+    );
+    this.cancelFrame();
 
-    if (!this.running) {
-      if (!settling) Logger.warn("Idetik", "Idetik runtime not started");
-    } else {
+    if (this.running) {
       this.running_ = false;
       this.sizeObserver_.disconnect();
       for (const viewport of this.viewports_) {
         viewport.events.disconnect();
       }
       this.stats.resetRates();
+    } else if (!pending) {
+      Logger.warn("Idetik", "Idetik runtime not started");
     }
   }
 }
