@@ -259,59 +259,87 @@ function getMarkerAtlas(): Texture2DArray {
   return markerAtlas;
 }
 
+// Each sprite stores the signed distance to the marker's edge, in sprite
+// units (the sprite spans 1.0), negative inside. The fragment shader turns
+// it into coverage with a one-pixel smoothstep, so edges are antialiased at
+// any on-screen size and markers can be drawn much larger than the sprite.
+const SPRITE_SIZE = 256;
+
+type Sdf = (x: number, y: number) => number;
+
+// Circle of diameter 1 at the sprite center.
+const circleSdf: Sdf = (x, y) => Math.hypot(x - 0.5, y - 0.5) - 0.5;
+
+// Axis-aligned unit square (exact outside the corners too).
+const squareSdf: Sdf = (x, y) => {
+  const qx = Math.abs(x - 0.5) - 0.5;
+  const qy = Math.abs(y - 0.5) - 0.5;
+  return (
+    Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0)
+  );
+};
+
+// Isosceles triangle: apex at the top center, base along the bottom edge.
+const TRIANGLE: [number, number][] = [
+  [0.5, 0],
+  [1, 1],
+  [0, 1],
+];
+const triangleSdf: Sdf = (x, y) => polygonSdf(TRIANGLE, x, y);
+
+/** Signed distance to a simple polygon: edge distance, negative inside. */
+function polygonSdf(vertices: [number, number][], x: number, y: number) {
+  let d2 = Infinity;
+  let inside = false;
+  for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
+    const [ax, ay] = vertices[j];
+    const [bx, by] = vertices[i];
+    const ex = bx - ax;
+    const ey = by - ay;
+    const t = Math.max(
+      0,
+      Math.min(1, ((x - ax) * ex + (y - ay) * ey) / (ex * ex + ey * ey))
+    );
+    const dx = x - (ax + t * ex);
+    const dy = y - (ay + t * ey);
+    d2 = Math.min(d2, dx * dx + dy * dy);
+    // Even-odd crossing test.
+    if (ay > y !== by > y && x < ax + ((y - ay) * ex) / ey) inside = !inside;
+  }
+  return (inside ? -1 : 1) * Math.sqrt(d2);
+}
+
 function createMarkerAtlas(): Texture2DArray {
-  const square = (size: number) => {
-    const data = new Float32Array(size * size);
-    data.fill(1.0);
-    return data;
+  const sdfs: Record<Marker, Sdf> = {
+    circle: circleSdf,
+    square: squareSdf,
+    triangle: triangleSdf,
   };
-
-  const circle = (size: number) => {
-    const data = new Float32Array(size * size);
-    for (let i = 0; i < size; i++) {
-      for (let j = 0; j < size; j++) {
-        if ((i - size / 2) ** 2 + (j - size / 2) ** 2 < (size / 2) ** 2) {
-          data[i * size + j] = 1.0;
-        }
+  const pixelsPerSprite = SPRITE_SIZE * SPRITE_SIZE;
+  const numMarkers = Object.keys(sdfs).length;
+  // Half floats are filterable in WebGL2 (plain floats are not), so the
+  // distance can be sampled linearly when a marker is magnified past the
+  // sprite. Fall back to floats with nearest sampling where Float16Array is
+  // missing; minified markers still antialias since the distance varies
+  // smoothly across texels.
+  const halfFloat = typeof Float16Array !== "undefined";
+  const data = halfFloat
+    ? new Float16Array(numMarkers * pixelsPerSprite)
+    : new Float32Array(numMarkers * pixelsPerSprite);
+  for (const [marker, sdf] of Object.entries(sdfs) as [Marker, Sdf][]) {
+    const offset = MARKER_INDEX[marker] * pixelsPerSprite;
+    for (let i = 0; i < SPRITE_SIZE; i++) {
+      const y = (i + 0.5) / SPRITE_SIZE;
+      for (let j = 0; j < SPRITE_SIZE; j++) {
+        data[offset + i * SPRITE_SIZE + j] = sdf((j + 0.5) / SPRITE_SIZE, y);
       }
     }
-    return data;
-  };
-
-  const triangle = (size: number) => {
-    const data = new Float32Array(size * size);
-    for (let i = 0; i < size; i++) {
-      for (let j = 0; j < size; j++) {
-        if (j >= (size - i) / 2 && j <= (size + i) / 2) {
-          data[i * size + j] = 1.0;
-        }
-      }
-    }
-    return data;
-  };
-
-  const SPRITE_SIZE = 256;
-  const pixelsPerMarkerSprite = SPRITE_SIZE * SPRITE_SIZE;
-  const sprites: Record<Marker, Float32Array> = {
-    circle: circle(SPRITE_SIZE),
-    square: square(SPRITE_SIZE),
-    triangle: triangle(SPRITE_SIZE),
-  };
-
-  const numMarkers = Object.keys(sprites).length;
-  const data = new Float32Array(numMarkers * pixelsPerMarkerSprite);
-  for (const [marker, sprite] of Object.entries(sprites) as [
-    Marker,
-    Float32Array,
-  ][]) {
-    data.set(sprite, MARKER_INDEX[marker] * pixelsPerMarkerSprite);
   }
 
-  // TODO: this uses f32 values, which are not (by default) filterable in WebGL2
-  // to enable this, we can check/add OES_texture_float_linear.
-  // we also don't need the precision of f32 for this so I'd like to use an R8
-  // texture instead, but our Texture class does not yet support it.
   const texture = new Texture2DArray(data, SPRITE_SIZE, SPRITE_SIZE);
+  const filter = halfFloat ? "linear" : "nearest";
+  texture.minFilter = filter;
+  texture.maxFilter = filter;
   texture.wrapR = "clamp_to_edge";
   texture.wrapS = "clamp_to_edge";
   texture.wrapT = "clamp_to_edge";

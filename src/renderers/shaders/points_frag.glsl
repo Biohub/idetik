@@ -15,12 +15,16 @@ uniform bool u_premultiplyAlpha;
 
 
 void main() {
-    float alpha = texture(u_markerAtlas, vec3(gl_PointCoord, v_marker)).r;
-    float alpha_threshold = 1e-2;
-    if (alpha < alpha_threshold) {
+    // The atlas holds the signed distance to the marker's edge in sprite
+    // units (negative inside); the gradient's length is one screen pixel in
+    // those units, so the edge is antialiased over one pixel at any size.
+    float dist = texture(u_markerAtlas, vec3(gl_PointCoord, v_marker)).r;
+    float pixel = length(vec2(dFdx(dist), dFdy(dist)));
+    float coverage = 1.0 - smoothstep(-0.5 * pixel, 0.5 * pixel, dist);
+    if (coverage < 1e-2) {
         discard;
     }
-    fragColor = vec4(v_color.rgb, u_opacity * alpha * v_color.a * v_fade);
+    fragColor = vec4(v_color.rgb, u_opacity * coverage * v_color.a * v_fade);
     if (u_premultiplyAlpha) fragColor.rgb *= fragColor.a;
 }
 
