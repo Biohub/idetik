@@ -4,6 +4,8 @@ import { Color, ColorLike } from "../../math/color";
 import { RenderableObject } from "../../core/renderable_object";
 import { Texture2DArray } from "../textures/texture_2d_array";
 import { Geometry } from "../../core/geometry";
+import { Box3 } from "../../math/box3";
+import { Plane } from "../../math/plane";
 
 type Marker = "circle" | "square" | "triangle";
 
@@ -52,21 +54,30 @@ export type PointsRenderableOptions = {
 };
 
 /**
- * A depth range for {@link PointsRenderable.depthSlab}, in the renderable's
- * model-space z (before its transform).
+ * A slab of space around a plane, for {@link PointsRenderable.depthSlab}, in
+ * the renderable's model space (before its transform).
  */
 export type PointDepthSlab = {
-  /** Middle of the slab. */
-  center: number;
-  /** Full thickness; points farther than half of it from `center` are not
+  /** The slab's mid-plane, e.g. the plane of the image slice the points are
+   *  drawn over. Any orientation; mutate it in place to follow the slice. */
+  plane: Plane;
+  /** Full thickness; points farther than half of it from the plane are not
    *  drawn. `Infinity` keeps every point (useful with `flatten`). */
   thickness: number;
   /**
-   * Draw the kept points at z = `center` instead of their own z, e.g. to
-   * overlay a slab of a 3D point cloud on a 2D image plane. Defaults to
+   * Draw the kept points on the plane instead of at their own position, e.g.
+   * to overlay a slab of a 3D point cloud on a 2D image slice. Defaults to
    * `false`.
    */
   flatten?: boolean;
+  /**
+   * How points fade with distance from the plane. `"none"` (the default)
+   * draws every kept point in full. `"linear"` fades opacity to zero at the
+   * slab's faces. `"sphere"` scales size and opacity by the cross-section of
+   * a ball spanning the slab, so markers swell as the plane passes through
+   * them and shrink away toward the faces.
+   */
+  falloff?: "none" | "linear" | "sphere";
 };
 
 /**
@@ -115,10 +126,10 @@ export class PointsRenderable extends RenderableObject {
   /** Largest on-screen marker diameter in pixels. */
   public maxPixelSize: number;
   /**
-   * Draw only the points in a z range, optionally flattened onto its center
-   * plane. Applied per draw, so moving or resizing the slab (e.g. following
-   * an image's z slice) needs no rebuild. `null` (the default) draws every
-   * point at its own z.
+   * Draw only the points within a slab around a plane, optionally flattened
+   * onto it and fading toward its faces. Applied per draw, so moving or
+   * resizing the slab (e.g. following an image slice) needs no rebuild.
+   * `null` (the default) draws every point where it is.
    */
   public depthSlab: PointDepthSlab | null = null;
 
@@ -178,12 +189,27 @@ export class PointsRenderable extends RenderableObject {
     this.setTexture(0, getMarkerAtlas());
   }
 
-  /** World bounds, flattened onto the slab center when the slab flattens
+  /** World bounds, projected onto the slab plane when the slab flattens
    *  (so culling matches where points are drawn). */
   public override get boundingBox() {
-    if (!this.depthSlab?.flatten) return super.boundingBox;
-    const box = this.geometry.boundingBox.clone();
-    box.min[2] = box.max[2] = this.depthSlab.center;
+    const slab = this.depthSlab;
+    const local = this.geometry.boundingBox;
+    // A geometry with no points has an inverted box; leave it alone.
+    if (!slab?.flatten || local.min[0] > local.max[0]) return super.boundingBox;
+    const { normal, signedDistance } = slab.plane;
+    const box = new Box3();
+    const corner = vec3.create();
+    for (let i = 0; i < 8; i++) {
+      vec3.set(
+        corner,
+        (i & 1 ? local.max : local.min)[0],
+        (i & 2 ? local.max : local.min)[1],
+        (i & 4 ? local.max : local.min)[2]
+      );
+      const dist = vec3.dot(corner, normal) + signedDistance;
+      vec3.scaleAndAdd(corner, corner, normal, -dist);
+      box.expandWithPoint(corner);
+    }
     box.applyTransform(this.transform.matrix);
     return box;
   }
@@ -198,11 +224,13 @@ export class PointsRenderable extends RenderableObject {
     const slab = this.depthSlab;
     const halfThickness = slab ? slab.thickness / 2 : Infinity;
     return {
-      u_slabCenter: slab?.center ?? 0,
+      u_slabNormal: slab?.plane.normal ?? DEFAULT_SLAB_NORMAL,
+      u_slabDistance: slab?.plane.signedDistance ?? 0,
       u_slabHalfThickness: Number.isFinite(halfThickness)
         ? halfThickness
         : NO_SLAB_LIMIT,
       u_slabFlatten: Number(slab?.flatten ?? false),
+      u_slabFalloff: SLAB_FALLOFF[slab?.falloff ?? "none"],
       u_sizeInWorld: Number(this.sizeUnits === "world"),
       u_sizeScale: this.sizeScale,
       u_minPointSize: this.minPixelSize,
@@ -217,6 +245,8 @@ export class PointsRenderable extends RenderableObject {
 const NO_MAX_POINT_SIZE = 1e6;
 // Larger than any coordinate (and inf where mediump overflows, which also keeps every point).
 const NO_SLAB_LIMIT = 1e30;
+const DEFAULT_SLAB_NORMAL = vec3.fromValues(0, 0, 1);
+const SLAB_FALLOFF = { none: 0, linear: 1, sphere: 2 } as const;
 
 let markerAtlas: Texture2DArray | undefined;
 

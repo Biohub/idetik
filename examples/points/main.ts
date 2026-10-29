@@ -3,6 +3,8 @@ import {
   ColorLike,
   Layer,
   PanZoomControls,
+  Plane,
+  PointDepthSlab,
   PointsRenderable,
   OrthographicCamera,
   OmeZarrImageSource,
@@ -32,6 +34,9 @@ const IMAGE_SCALE_0 = 4.99; // nm/px
 // it is used for scaling of the slice/depth
 const IMAGE_SCALE_2 = 19.96; // nm/px
 const INITIAL_Z_POSITION = 918.16;
+// Particles within this distance (nm) of the shown slice are drawn, shrinking
+// and fading toward the slab's faces as if the slice cut through a ball.
+const SLAB_THICKNESS = 400;
 
 const fetchPositionsFromNDJson = async (url: string) => {
   return await fetch(url).then(async (response) => {
@@ -56,57 +61,37 @@ const virusLikeLocations = await fetchPositionsFromNDJson(virusLikeUrl);
 
 type Marker = "circle" | "square" | "triangle";
 
+// One slab shared by every particle layer: it follows the image slice, and
+// moving it is a single assignment applied on the next draw. Flattening draws
+// the kept particles on the slice plane so the image doesn't occlude them.
+const slab: PointDepthSlab = {
+  plane: new Plane([0, 0, 1], -INITIAL_Z_POSITION),
+  thickness: SLAB_THICKNESS,
+  flatten: true,
+  falloff: "sphere",
+};
+
 class Particles extends Layer {
   public readonly type = "Particles";
-  private readonly points_: vec3[] = [];
-  private readonly color_: Color;
-  private readonly marker_: Marker;
-  private needsUpdate_: boolean = true;
-  private depth_: number = 0;
 
   constructor(points: vec3[], color: ColorLike, marker: Marker) {
     super();
-    this.setState("initialized");
-    this.points_ = points;
-    this.color_ = Color.from(color);
-    this.marker_ = marker;
-    this.refreshPointsRenderable();
+    const renderable = new PointsRenderable(
+      points.map((position) => ({ position, color, size: 20, marker }))
+    );
+    renderable.depthSlab = slab;
+    this.addObject(renderable);
     this.setState("ready");
   }
 
+  /** Move the shared slab to the slice at `z`; no renderables are rebuilt. */
   public setDepth(z: number) {
-    this.depth_ = z;
-    this.needsUpdate_ = true;
+    slab.plane.signedDistance = -z;
+    this.invalidate();
   }
 
   public update(): boolean {
-    if (!this.needsUpdate_) {
-      return false;
-    }
-
-    this.refreshPointsRenderable();
-    this.needsUpdate_ = false;
-    return true;
-  }
-
-  private refreshPointsRenderable() {
-    // TODO: change this to not re-create the renderable object
-    // once Geometry supports updating buffers
-    const { r, g, b } = this.color_;
-    const scaledPoints = this.points_.map((p) => {
-      const zDist = Math.abs(p[2] - this.depth_);
-      // 64 is just a magic number that looks okay
-      const zScale = zDist / 64.0 + 1.0;
-      return {
-        position: p,
-        color: Color.from([r / zScale, g / zScale, b / zScale]),
-        size: 20.0 / zScale,
-        marker: this.marker_,
-      };
-    });
-    const pointsRenderable = new PointsRenderable(scaledPoints);
-    this.clearObjects();
-    this.addObject(pointsRenderable);
+    return false;
   }
 }
 const ribosomes = new Particles(ribosomeLocations, Color.RED, "circle");
@@ -116,9 +101,6 @@ const virusLike = new Particles(
   new Color(1.0, 0.0, 1.0),
   "square"
 );
-ribosomes.setDepth(INITIAL_Z_POSITION);
-ferritin.setDepth(INITIAL_Z_POSITION);
-virusLike.setDepth(INITIAL_Z_POSITION);
 
 const imageSource = await OmeZarrImageSource.fromHttp({ url: imageUrl });
 const dimensions = imageSource.getDimensions();
