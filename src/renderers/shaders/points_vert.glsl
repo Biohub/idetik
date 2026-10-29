@@ -35,6 +35,7 @@ flat out uint v_marker;
 out float v_fade;
 flat out float v_hollow;
 flat out float v_outlinePixels;
+flat out float v_pointSize;
 
 
 void main() {
@@ -49,6 +50,7 @@ void main() {
         v_fade = 0.0;
         v_hollow = 0.0;
         v_outlinePixels = 0.0;
+        v_pointSize = 1.0;
         return;
     }
 
@@ -75,6 +77,7 @@ void main() {
         size *= fade;
     }
     gl_PointSize = clamp(size, u_minPointSize, u_maxPointSize);
+    v_pointSize = gl_PointSize;
     v_fade = fade;
     v_hollow = (u_slabBehindHollow && dist < 0.0) ? 1.0 : 0.0;
     // A world-sized outline keeps at least a pixel so hollow markers don't
