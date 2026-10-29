@@ -25,19 +25,12 @@ uniform bool u_slabFlatten;
 // 0: no fade. 1: opacity falls linearly to 0 at the slab faces. 2: size and
 // opacity follow the cross-section of a ball spanning the slab.
 uniform int u_slabFalloff;
-// Draw points on the far side of the plane (against its normal) hollow,
-// with an outline u_outlineWidth wide (in the same units as a_size).
-uniform bool u_slabBehindHollow;
-uniform float u_outlineWidth;
 
 out vec4 v_color;
 flat out uint v_marker;
 out float v_fade;
-// One screen pixel in sprite units (the sprite spans gl_PointSize pixels).
+// One screen pixel in marker units (the marker spans gl_PointSize pixels).
 flat out float v_pixel;
-// The band inside the marker's edge that is drawn, in sprite units: the
-// outline for hollow points, or past the whole sprite for solid ones.
-flat out float v_band;
 
 
 void main() {
@@ -69,9 +62,6 @@ void main() {
     gl_PointSize = clamp(size, u_minPointSize, u_maxPointSize);
 
     v_pixel = 1.0 / gl_PointSize;
-    // Outlines keep at least a pixel so hollow markers don't vanish.
-    bool hollow = u_slabBehindHollow && dist < 0.0;
-    v_band = hollow ? max(u_outlineWidth * toPixels, 1.0) * v_pixel : 1.0;
     v_fade = fade;
     v_color = a_color;
     v_marker = uint(a_marker);

@@ -10,21 +10,16 @@ in vec4 v_color;
 flat in uint v_marker;
 in float v_fade;
 flat in float v_pixel;
-flat in float v_band;
 
 uniform float u_opacity;
 
 
 void main() {
-    // The atlas holds the signed distance to the marker's edge in sprite
+    // The atlas holds the signed distance to the marker's edge in marker
     // units (negative inside); v_pixel is one screen pixel in those units,
-    // so the edge is antialiased over one pixel at any marker size. Hollow
-    // markers keep only the band inside the edge: subtract the coverage of
-    // the marker shrunk by v_band (which lies past the sprite for solid
-    // markers, so nothing is subtracted).
+    // so the edge is antialiased over one pixel at any marker size.
     float dist = texture(u_markerAtlas, vec3(gl_PointCoord, v_marker)).r;
-    float coverage = smoothstep(-0.5 * v_pixel, 0.5 * v_pixel, dist + v_band)
-        - smoothstep(-0.5 * v_pixel, 0.5 * v_pixel, dist);
+    float coverage = 1.0 - smoothstep(-0.5 * v_pixel, 0.5 * v_pixel, dist);
     if (coverage < 1e-2) {
         discard;
     }

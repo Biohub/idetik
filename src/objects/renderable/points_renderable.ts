@@ -51,13 +51,6 @@ export type PointsRenderableOptions = {
    * 1 px and often 64–1024 px).
    */
   maxPixelSize?: number;
-  /**
-   * Outline width of hollow markers (see {@link PointDepthSlab.behind}), in
-   * `sizeUnits`, so world-sized markers get world-sized outlines (never
-   * thinner than one pixel). Defaults to `2.5`, which suits pixel-sized
-   * markers; set it for world-sized ones.
-   */
-  outlineWidth?: number;
 };
 
 /**
@@ -85,14 +78,6 @@ export type PointDepthSlab = {
    * them and shrink away toward the faces.
    */
   falloff?: "none" | "linear" | "sphere";
-  /**
-   * How points on the far side of the plane (against its normal) are drawn.
-   * `"solid"` (the default) draws them like the rest; `"hollow"` draws only
-   * their outline ({@link PointsRenderable.outlineWidth} wide), so the
-   * slice reads as lying in front of them. Orient the normal toward the
-   * viewer.
-   */
-  behind?: "solid" | "hollow";
 };
 
 /**
@@ -147,14 +132,12 @@ export class PointsRenderable extends RenderableObject {
    * `null` (the default) draws every point where it is.
    */
   public depthSlab: PointDepthSlab | null = null;
-  /** Outline width of hollow markers, in {@link sizeUnits}. */
-  public outlineWidth: number;
 
   /**
    * Creates a renderable drawing one marker per entry.
    *
    * @param points - The points to draw.
-   * @param options - Size units and scaling, and the hollow outline width.
+   * @param options - Size units and scaling.
    */
   constructor(points: PointProps[], options: PointsRenderableOptions = {}) {
     super();
@@ -162,7 +145,6 @@ export class PointsRenderable extends RenderableObject {
     this.sizeScale = options.sizeScale ?? 1;
     this.minPixelSize = options.minPixelSize ?? 0;
     this.maxPixelSize = options.maxPixelSize ?? Infinity;
-    this.outlineWidth = options.outlineWidth ?? 2.5;
     this.programName = "points";
     this.depthProgramName = "pointsDepth";
 
@@ -252,8 +234,6 @@ export class PointsRenderable extends RenderableObject {
       u_slabHalfThickness: finiteOr(halfThickness, GLSL_INFINITY),
       u_slabFlatten: Number(slab?.flatten ?? false),
       u_slabFalloff: SLAB_FALLOFF[slab?.falloff ?? "none"],
-      u_slabBehindHollow: Number(slab?.behind === "hollow"),
-      u_outlineWidth: this.outlineWidth,
       u_sizeInWorld: Number(this.sizeUnits === "world"),
       u_sizeScale: this.sizeScale,
       u_minPointSize: this.minPixelSize,

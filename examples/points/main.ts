@@ -68,8 +68,6 @@ const slab: PointDepthSlab = {
   thickness: SLAB_THICKNESS,
   flatten: true,
   falloff: "sphere",
-  // Particles below the slice are drawn as outlines.
-  behind: "hollow",
 };
 
 class Particles extends Layer {
@@ -92,13 +90,7 @@ class Particles extends Layer {
     this.opacity = 0.7;
     const renderable = new PointsRenderable(
       points.map((position) => ({ position, color, size: diameter, marker })),
-      {
-        sizeUnits: "world",
-        minPixelSize: 4,
-        // Outlines of particles below the slice, 10 Å wide (world units,
-        // like the size), so they scale with the particles.
-        outlineWidth: 10,
-      }
+      { sizeUnits: "world", minPixelSize: 4 }
     );
     renderable.depthSlab = slab;
     this.addObject(renderable);
