@@ -74,12 +74,22 @@ const slab: PointDepthSlab = {
 class Particles extends Layer {
   public readonly type = "Particles";
 
-  constructor(points: vec3[], color: ColorLike, marker: Marker) {
+  /**
+   * @param diameter - Marker diameter in world units (nm), so particles are
+   *   drawn at their physical size and scale with zoom; a pixel floor keeps
+   *   them visible as dots when zoomed out.
+   */
+  constructor(
+    points: vec3[],
+    color: ColorLike,
+    marker: Marker,
+    diameter: number
+  ) {
     // Blend so the slab falloff can fade particles, not just shrink them.
     super({ blendMode: "normal" });
     const renderable = new PointsRenderable(
-      points.map((position) => ({ position, color, size: 20, marker })),
-      { sizeUnits: "pixels" }
+      points.map((position) => ({ position, color, size: diameter, marker })),
+      { sizeUnits: "world", minPixelSize: 4 }
     );
     renderable.depthSlab = slab;
     this.addObject(renderable);
@@ -96,12 +106,14 @@ class Particles extends Layer {
     return false;
   }
 }
-const ribosomes = new Particles(ribosomeLocations, Color.RED, "circle");
-const ferritin = new Particles(ferritinLocations, Color.GREEN, "triangle");
+// Approximate particle diameters, nm.
+const ribosomes = new Particles(ribosomeLocations, Color.RED, "circle", 30);
+const ferritin = new Particles(ferritinLocations, Color.GREEN, "triangle", 12);
 const virusLike = new Particles(
   virusLikeLocations,
   new Color(1.0, 0.0, 1.0),
-  "square"
+  "square",
+  30
 );
 
 const imageSource = await OmeZarrImageSource.fromHttp({ url: imageUrl });
