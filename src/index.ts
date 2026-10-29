@@ -48,7 +48,11 @@ export type { ImageRenderableProps } from "./objects/renderable/image_renderable
 export { LabelImageRenderable } from "./objects/renderable/label_image_renderable";
 export type { LabelImageRenderableProps } from "./objects/renderable/label_image_renderable";
 export { PointsRenderable } from "./objects/renderable/points_renderable";
-export type { PointProps } from "./objects/renderable/points_renderable";
+export type {
+  PointDepthSlab,
+  PointProps,
+  PointsRenderableOptions,
+} from "./objects/renderable/points_renderable";
 export { ProjectedLineRenderable } from "./objects/renderable/projected_line_renderable";
 export type { ProjectedLineRenderableProps } from "./objects/renderable/projected_line_renderable";
 export { VolumeRenderable } from "./objects/renderable/volume_renderable";

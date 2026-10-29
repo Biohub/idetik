@@ -22,17 +22,59 @@ export type PointProps = {
   position: vec3;
   /** Fill color of the marker. */
   color: ColorLike;
-  /** Marker size in pixels. */
+  /** Marker size, in the renderable's {@link PointsRenderableOptions.sizeUnits}. */
   size: number;
   /** Marker shape. */
   marker: Marker;
 };
 
 /**
+ * Options for constructing a {@link PointsRenderable}.
+ */
+export type PointsRenderableOptions = {
+  /**
+   * Units of each point's `size`. `"pixels"` (the default) keeps markers a
+   * fixed size on screen; `"world"` makes `size` a world-space diameter, so
+   * markers grow and shrink with zoom (and with distance in perspective).
+   * World sizes ignore any scale in the renderable's transform.
+   */
+  sizeUnits?: "pixels" | "world";
+  /** Multiplier applied to every point's size. Defaults to `1`. */
+  sizeScale?: number;
+  /** Smallest on-screen marker diameter in pixels. Defaults to `0`. */
+  minPixelSize?: number;
+  /**
+   * Largest on-screen marker diameter in pixels. Defaults to no limit,
+   * though the GPU caps point sizes (`ALIASED_POINT_SIZE_RANGE`, at least
+   * 1 px and often 64–1024 px).
+   */
+  maxPixelSize?: number;
+};
+
+/**
+ * A depth range for {@link PointsRenderable.depthSlab}, in the renderable's
+ * model-space z (before its transform).
+ */
+export type PointDepthSlab = {
+  /** Middle of the slab. */
+  center: number;
+  /** Full thickness; points farther than half of it from `center` are not
+   *  drawn. `Infinity` keeps every point (useful with `flatten`). */
+  thickness: number;
+  /**
+   * Draw the kept points at z = `center` instead of their own z, e.g. to
+   * overlay a slab of a 3D point cloud on a 2D image plane. Defaults to
+   * `false`.
+   */
+  flatten?: boolean;
+};
+
+/**
  * A set of point markers drawn as screen-space sprites.
  *
- * Each point has a world-space position, a color, a size in pixels, and a
- * marker shape. All instances share a single marker sprite atlas. The
+ * Each point has a world-space position, a color, a size, and a marker
+ * shape. Sizes are in screen pixels unless {@link sizeUnits} is `"world"`.
+ * All instances share a single marker sprite atlas. The
  * point set is fixed at construction, so build a new instance to change
  * it. Construct these directly inside a custom {@link Layer}.
  *
@@ -64,13 +106,34 @@ export type PointProps = {
  * @group Renderables
  */
 export class PointsRenderable extends RenderableObject {
+  /** Units of each point's size. Can be changed without rebuilding. */
+  public sizeUnits: "pixels" | "world";
+  /** Multiplier applied to every point's size. Can be changed without rebuilding. */
+  public sizeScale: number;
+  /** Smallest on-screen marker diameter in pixels. */
+  public minPixelSize: number;
+  /** Largest on-screen marker diameter in pixels. */
+  public maxPixelSize: number;
+  /**
+   * Draw only the points in a z range, optionally flattened onto its center
+   * plane. Applied per draw, so moving or resizing the slab (e.g. following
+   * an image's z slice) needs no rebuild. `null` (the default) draws every
+   * point at its own z.
+   */
+  public depthSlab: PointDepthSlab | null = null;
+
   /**
    * Creates a renderable drawing one marker per entry.
    *
    * @param points - The points to draw.
+   * @param options - Size units and scaling.
    */
-  constructor(points: PointProps[]) {
+  constructor(points: PointProps[], options: PointsRenderableOptions = {}) {
     super();
+    this.sizeUnits = options.sizeUnits ?? "pixels";
+    this.sizeScale = options.sizeScale ?? 1;
+    this.minPixelSize = options.minPixelSize ?? 0;
+    this.maxPixelSize = options.maxPixelSize ?? Infinity;
     this.programName = "points";
     this.depthProgramName = "pointsDepth";
 
@@ -115,11 +178,45 @@ export class PointsRenderable extends RenderableObject {
     this.setTexture(0, getMarkerAtlas());
   }
 
+  /** World bounds, flattened onto the slab center when the slab flattens
+   *  (so culling matches where points are drawn). */
+  public override get boundingBox() {
+    if (!this.depthSlab?.flatten) return super.boundingBox;
+    const box = this.geometry.boundingBox.clone();
+    box.min[2] = box.max[2] = this.depthSlab.center;
+    box.applyTransform(this.transform.matrix);
+    return box;
+  }
+
   /** Identifies the renderable type as `PointsRenderable`. */
   public get type() {
     return "PointsRenderable";
   }
+
+  /** Returns the size and depth slab uniforms for the points shaders. */
+  public override getUniforms() {
+    const slab = this.depthSlab;
+    const halfThickness = slab ? slab.thickness / 2 : Infinity;
+    return {
+      u_slabCenter: slab?.center ?? 0,
+      u_slabHalfThickness: Number.isFinite(halfThickness)
+        ? halfThickness
+        : NO_SLAB_LIMIT,
+      u_slabFlatten: slab?.flatten ? 1 : 0,
+      u_sizeInWorld: this.sizeUnits === "world" ? 1 : 0,
+      u_sizeScale: this.sizeScale,
+      u_minPointSize: this.minPixelSize,
+      // GLSL has no infinity literal; any value past the GPU cap is no limit.
+      u_maxPointSize: Number.isFinite(this.maxPixelSize)
+        ? this.maxPixelSize
+        : NO_MAX_POINT_SIZE,
+    };
+  }
 }
+
+const NO_MAX_POINT_SIZE = 1e6;
+// Larger than any coordinate (and inf where mediump overflows, which also keeps every point).
+const NO_SLAB_LIMIT = 1e30;
 
 let markerAtlas: Texture2DArray | undefined;
 
