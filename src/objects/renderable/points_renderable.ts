@@ -261,18 +261,27 @@ function getMarkerAtlas(): Texture2DArray {
   return markerAtlas;
 }
 
-// Each sprite stores the signed distance to the marker's edge, in sprite
-// units (the sprite spans 1.0), negative inside. The fragment shader turns
+// Each sprite stores the signed distance to the marker's edge, in marker
+// units (the marker spans 1.0), negative inside. The fragment shader turns
 // it into coverage with a one-pixel smoothstep, so edges are antialiased at
 // any on-screen size and markers can be drawn much larger than the sprite.
+//
+// The marker is inset to the middle MARKER_FRACTION of the sprite, so the
+// field is also valid in a margin around it. Today the point sprite covers
+// just the marker (the fragment shaders map it onto the inset); a later
+// outer stroke or halo can enlarge the sprite by up to
+// (1 - MARKER_FRACTION) / 2 of the marker per side and still read real
+// distances, without touching the atlas.
 const SPRITE_SIZE = 256;
+// Keep in sync with MARKER_FRACTION in points_frag.glsl and points_depth_frag.glsl.
+const MARKER_FRACTION = 0.5;
 
 type Sdf = (x: number, y: number) => number;
 
-// Circle of diameter 1 at the sprite center.
+// Circle of diameter 1 at the marker center.
 const circleSdf: Sdf = (x, y) => Math.hypot(x - 0.5, y - 0.5) - 0.5;
 
-// Unit square filling the sprite.
+// Unit square filling the marker.
 const SQUARE: [number, number][] = [
   [0, 0],
   [1, 0],
@@ -331,10 +340,14 @@ function createMarkerAtlas(): Texture2DArray {
     : new Float32Array(numMarkers * pixelsPerSprite);
   for (const [marker, sdf] of Object.entries(sdfs) as [Marker, Sdf][]) {
     const offset = MARKER_INDEX[marker] * pixelsPerSprite;
+    // Sprite texel centers, mapped into marker space (the marker spans
+    // [0, 1] over the middle MARKER_FRACTION of the sprite).
+    const toMarker = (texel: number) =>
+      0.5 + ((texel + 0.5) / SPRITE_SIZE - 0.5) / MARKER_FRACTION;
     for (let i = 0; i < SPRITE_SIZE; i++) {
-      const y = (i + 0.5) / SPRITE_SIZE;
+      const y = toMarker(i);
       for (let j = 0; j < SPRITE_SIZE; j++) {
-        data[offset + i * SPRITE_SIZE + j] = sdf((j + 0.5) / SPRITE_SIZE, y);
+        data[offset + i * SPRITE_SIZE + j] = sdf(toMarker(j), y);
       }
     }
   }
