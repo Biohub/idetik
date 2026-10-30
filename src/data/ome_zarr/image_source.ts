@@ -1,6 +1,5 @@
 import { Location, Readable, FetchStore } from "zarrita";
 import {
-  openArray,
   openArrayFromParams,
   openGroup,
   createZarrArrayParams,
@@ -58,11 +57,11 @@ export type FileSystemOmeZarrImageSourceProps = {
 /**
  * A multiscale image opened from an OME-Zarr store.
  *
- * Instances are created with {@link fromHttp} or {@link fromFileSystem}
- * rather than the constructor. Both factories read the store's metadata up
- * front so the returned source already knows its axes, resolution levels,
- * and channel count. OME-Zarr versions `0.4` and `0.5` are supported and
- * the version is detected from metadata when not given.
+ * Instances are created with {@link fromHttp}, {@link fromFileSystem}, or
+ * {@link fromStore} rather than the constructor. The factories read the
+ * store's metadata up front so the returned source already knows its axes,
+ * resolution levels, and channel count. OME-Zarr versions `0.4` and `0.5`
+ * are supported and the version is detected from metadata when not given.
  *
  * A source is handed to a layer which streams chunks from it on demand.
  *
@@ -117,11 +116,7 @@ export class OmeZarrImageSource {
       createZarrArrayParams(location, d.path, zarrVersion)
     );
     const arrays = await Promise.all(
-      arrayParams.map((params, i) =>
-        params
-          ? openArrayFromParams(params)
-          : openArray(location.resolve(metadata.datasets[i].path), zarrVersion)
-      )
+      arrayParams.map((params) => openArrayFromParams(params))
     );
 
     const shape = arrays[0].shape;
@@ -166,9 +161,10 @@ export class OmeZarrImageSource {
   public static async fromHttp(
     props: HttpOmeZarrImageSourceProps
   ): Promise<OmeZarrImageSource> {
-    const location = new Location(new FetchStore(props.url));
-    const loader = await OmeZarrImageSource.openLoader(location, props.version);
-    return new OmeZarrImageSource({ location, version: props.version, loader });
+    return OmeZarrImageSource.fromStore({
+      store: new FetchStore(props.url),
+      version: props.version,
+    });
   }
 
   /**
@@ -196,11 +192,10 @@ export class OmeZarrImageSource {
   public static async fromFileSystem(
     props: FileSystemOmeZarrImageSourceProps
   ): Promise<OmeZarrImageSource> {
-    const location = new Location(
-      new WebFileSystemStore(props.directory),
-      props.path
-    );
-    const loader = await OmeZarrImageSource.openLoader(location, props.version);
-    return new OmeZarrImageSource({ location, version: props.version, loader });
+    return OmeZarrImageSource.fromStore({
+      store: new WebFileSystemStore(props.directory),
+      path: props.path,
+      version: props.version,
+    });
   }
 }

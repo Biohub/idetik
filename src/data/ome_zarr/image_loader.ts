@@ -13,7 +13,7 @@ import { fetchAndProcessChunk } from "./worker_pool";
 type OmeZarrImageLoaderProps = {
   metadata: OmeZarrImage["ome"]["multiscales"][number];
   arrays: zarr.Array<zarr.DataType, zarr.Readable>[];
-  arrayParams: (ZarrArrayParams | null)[];
+  arrayParams: ZarrArrayParams[];
 };
 
 // Loads chunks from a multiscale image implementing OME-Zarr v0.5:
@@ -23,7 +23,7 @@ export class OmeZarrImageLoader {
   private readonly arrays_: ReadonlyArray<
     zarr.Array<zarr.DataType, zarr.Readable>
   >;
-  private readonly arrayParams_: ReadonlyArray<ZarrArrayParams | null>;
+  private readonly arrayParams_: ReadonlyArray<ZarrArrayParams>;
   private readonly dimensions_: SourceDimensionMap;
   private readonly bytesPerElement_: number;
 
