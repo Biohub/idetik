@@ -3,6 +3,8 @@ import {
   ColorLike,
   Layer,
   PanZoomControls,
+  Plane,
+  PointDepthSlab,
   PointsRenderable,
   OrthographicCamera,
   OmeZarrImageSource,
@@ -22,16 +24,18 @@ const ribosomesUrl = `${baseUrl}/Annotations/104/cytosolic_ribosome-1.0_point.nd
 const ferritinUrl = `${baseUrl}/Annotations/101/ferritin_complex-1.0_point.ndjson`;
 const virusLikeUrl = `${baseUrl}/Annotations/106/pp7_vlp-1.0_point.ndjson`;
 
-// image scale for the highest res image --
-// point coordinates are stored in the pixel-space of
-// the highest res image, and need to be scaled
-// by this factor to match our world coordinates
-const IMAGE_SCALE_0 = 4.99; // nm/px
-// image scale for the lowest res --
-// this is the scale of the image we show
-// it is used for scaling of the slice/depth
-const IMAGE_SCALE_2 = 19.96; // nm/px
+// The tomogram's world units are Ångströms (the OME-Zarr axes say so, and the
+// portal's "VoxelSpacing4.990" is in Å). Point coordinates are stored in the
+// voxel space of the highest res image, so scale them by its voxel size to
+// match world coordinates.
+const IMAGE_SCALE_0 = 4.99; // Å per voxel at full resolution
+// voxel size of the lowest res, used for the slice slider's range
+const IMAGE_SCALE_2 = 19.96; // Å per voxel
 const INITIAL_Z_POSITION = 918.16;
+// Particles within this distance (Å) of the shown slice are drawn, shrinking
+// and fading toward the slab's faces as if the slice cut through a ball.
+// 500 Å is about one ribosome diameter either side of the slice.
+const SLAB_THICKNESS = 500;
 
 const fetchPositionsFromNDJson = async (url: string) => {
   return await fetch(url).then(async (response) => {
@@ -56,69 +60,62 @@ const virusLikeLocations = await fetchPositionsFromNDJson(virusLikeUrl);
 
 type Marker = "circle" | "square" | "triangle";
 
+// One slab shared by every particle layer: it follows the image slice, and
+// moving it is a single assignment applied on the next draw. Flattening draws
+// the kept particles on the slice plane so the image doesn't occlude them.
+const slab: PointDepthSlab = {
+  plane: new Plane([0, 0, 1], -INITIAL_Z_POSITION),
+  thickness: SLAB_THICKNESS,
+  flatten: true,
+  falloff: "sphere",
+};
+
 class Particles extends Layer {
   public readonly type = "Particles";
-  private readonly points_: vec3[] = [];
-  private readonly color_: Color;
-  private readonly marker_: Marker;
-  private needsUpdate_: boolean = true;
-  private depth_: number = 0;
 
-  constructor(points: vec3[], color: ColorLike, marker: Marker) {
-    super();
-    this.setState("initialized");
-    this.points_ = points;
-    this.color_ = Color.from(color);
-    this.marker_ = marker;
-    this.refreshPointsRenderable();
+  /**
+   * @param diameter - Marker diameter in world units (Å), so particles are
+   *   drawn at their physical size and scale with zoom; a small pixel floor
+   *   keeps them visible as dots when zoomed far out.
+   */
+  constructor(
+    points: vec3[],
+    color: ColorLike,
+    marker: Marker,
+    diameter: number
+  ) {
+    // Blend so the slab falloff can fade particles, not just shrink them,
+    // and keep the layer translucent so the tomogram shows through.
+    super({ blendMode: "normal" });
+    this.opacity = 0.7;
+    const renderable = new PointsRenderable(
+      points.map((position) => ({ position, color, size: diameter, marker })),
+      { sizeUnits: "world", minPixelSize: 4 }
+    );
+    renderable.depthSlab = slab;
+    this.addObject(renderable);
     this.setState("ready");
   }
 
+  /** Move the shared slab to the slice at `z`; no renderables are rebuilt. */
   public setDepth(z: number) {
-    this.depth_ = z;
-    this.needsUpdate_ = true;
+    slab.plane.signedDistance = -z;
+    this.invalidate();
   }
 
   public update(): boolean {
-    if (!this.needsUpdate_) {
-      return false;
-    }
-
-    this.refreshPointsRenderable();
-    this.needsUpdate_ = false;
-    return true;
-  }
-
-  private refreshPointsRenderable() {
-    // TODO: change this to not re-create the renderable object
-    // once Geometry supports updating buffers
-    const { r, g, b } = this.color_;
-    const scaledPoints = this.points_.map((p) => {
-      const zDist = Math.abs(p[2] - this.depth_);
-      // 64 is just a magic number that looks okay
-      const zScale = zDist / 64.0 + 1.0;
-      return {
-        position: p,
-        color: Color.from([r / zScale, g / zScale, b / zScale]),
-        size: 20.0 / zScale,
-        marker: this.marker_,
-      };
-    });
-    const pointsRenderable = new PointsRenderable(scaledPoints);
-    this.clearObjects();
-    this.addObject(pointsRenderable);
+    return false;
   }
 }
-const ribosomes = new Particles(ribosomeLocations, Color.RED, "circle");
-const ferritin = new Particles(ferritinLocations, Color.GREEN, "triangle");
+// Approximate particle diameters, Å.
+const ribosomes = new Particles(ribosomeLocations, Color.RED, "circle", 200);
+const ferritin = new Particles(ferritinLocations, Color.GREEN, "triangle", 100);
 const virusLike = new Particles(
   virusLikeLocations,
   new Color(1.0, 0.0, 1.0),
-  "square"
+  "square",
+  240
 );
-ribosomes.setDepth(INITIAL_Z_POSITION);
-ferritin.setDepth(INITIAL_Z_POSITION);
-virusLike.setDepth(INITIAL_Z_POSITION);
 
 const imageSource = await OmeZarrImageSource.fromHttp({ url: imageUrl });
 const dimensions = imageSource.getDimensions();
