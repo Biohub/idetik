@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 
 import * as zarr from "zarrita";
-import { openArrayFromParams, ZarrArrayParams } from "../zarr/open";
+import { openArrayFromParams, WorkerZarrArrayParams } from "../zarr/open";
 import { isChunkData, ChunkData } from "../chunk";
 import { SliceSpec, processChunk } from "./chunk_processing";
 
@@ -12,7 +12,7 @@ export type ZarrWorkerRequest = {
 } & (
   | {
       type: "getChunk";
-      arrayParams: ZarrArrayParams;
+      arrayParams: WorkerZarrArrayParams;
       index: number[];
       sliceSpec: SliceSpec;
     }
@@ -71,7 +71,7 @@ async function handleCancelMessage(id: number): Promise<void> {
 
 async function handleGetChunkMessage(
   id: number,
-  arrayParams: ZarrArrayParams,
+  arrayParams: WorkerZarrArrayParams,
   index: number[],
   sliceSpec: SliceSpec
 ): Promise<void> {
@@ -121,7 +121,7 @@ async function handleGetChunkMessage(
 // workers cache opened arrays to avoid reopening for each chunk request
 // this is a simple LRU cache relying on Map's insertion order to track usage
 async function getOrOpenArray(
-  params: ZarrArrayParams
+  params: WorkerZarrArrayParams
 ): Promise<zarr.Array<zarr.DataType, zarr.Readable>> {
   const cacheKey = getArrayCacheKey(params);
   let array = arrayCache.get(cacheKey);
@@ -146,7 +146,7 @@ async function getOrOpenArray(
   return array;
 }
 
-function getArrayCacheKey(params: ZarrArrayParams): string {
+function getArrayCacheKey(params: WorkerZarrArrayParams): string {
   const storeKey = params.type === "filesystem" ? params.path : params.url;
   return `${params.type}::${storeKey}::${params.arrayPath}`;
 }

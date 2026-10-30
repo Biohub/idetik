@@ -1,6 +1,6 @@
 import * as zarr from "zarrita";
 import { Logger } from "../../utilities/logger";
-import { ZarrArrayParams } from "../zarr/open";
+import { ZarrArrayParams, WorkerZarrArrayParams } from "../zarr/open";
 import { isChunkData, ChunkData } from "../chunk";
 import { ZarrWorkerRequest, ZarrWorkerResponse } from "./worker_kernel";
 import { SliceSpec, processChunk } from "./chunk_processing";
@@ -152,7 +152,7 @@ function getLeastBusyWorker(): WorkerInstance {
 }
 
 async function fetchAndProcessChunkInWorker(
-  zarrParams: ZarrArrayParams,
+  zarrParams: WorkerZarrArrayParams,
   chunkIndex: number[],
   sliceSpec: SliceSpec,
   options?: { signal?: AbortSignal }
@@ -234,41 +234,33 @@ function ensureWorkerPool(): void {
 
 export async function fetchAndProcessChunk(
   array: zarr.Array<zarr.DataType, zarr.Readable>,
-  arrayParams: ZarrArrayParams | null,
+  arrayParams: ZarrArrayParams,
   chunkCoords: number[],
   sliceSpec: SliceSpec,
   options?: { signal?: AbortSignal }
 ): Promise<ChunkData> {
-  // Stores a worker can't open (see createZarrArrayParams) read here.
-  if (arrayParams === null) {
-    return fetchAndProcessChunkOnMainThread(
-      array,
-      chunkCoords,
-      sliceSpec,
-      options
-    );
-  }
-  ensureWorkerPool();
-  try {
-    return await fetchAndProcessChunkInWorker(
-      arrayParams,
-      chunkCoords,
-      sliceSpec,
-      options
-    );
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw error;
+  if (arrayParams.type !== "store") {
+    ensureWorkerPool();
+    try {
+      return await fetchAndProcessChunkInWorker(
+        arrayParams,
+        chunkCoords,
+        sliceSpec,
+        options
+      );
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw error;
+      }
+      Logger.warn("ZarrWorker", "Falling back to main thread", error);
     }
-
-    Logger.warn("ZarrWorker", "Falling back to main thread", error);
-    return fetchAndProcessChunkOnMainThread(
-      array,
-      chunkCoords,
-      sliceSpec,
-      options
-    );
   }
+  return fetchAndProcessChunkOnMainThread(
+    array,
+    chunkCoords,
+    sliceSpec,
+    options
+  );
 }
 
 async function fetchAndProcessChunkOnMainThread(

@@ -17,7 +17,16 @@ export type ZarrArrayParams = {
       directoryHandle: FileSystemDirectoryHandle;
       path: string;
     }
+  | {
+      // a store a worker can't reconstruct (e.g. a custom in-memory store);
+      // chunks from these are read on the main thread
+      type: "store";
+      location: Location<Readable>;
+    }
 );
+
+/** Array params that can be posted to a worker, which reopens the store. */
+export type WorkerZarrArrayParams = Exclude<ZarrArrayParams, { type: "store" }>;
 
 export async function openGroup(
   location: zarr.Location<Readable>,
@@ -87,6 +96,10 @@ export async function openArrayFromParams(
       );
       break;
     }
+    case "store": {
+      rootLocation = params.location;
+      break;
+    }
     default: {
       const exhaustiveCheck: never = params;
       throw new Error(`Unsupported store type: ${exhaustiveCheck}`);
@@ -100,16 +113,11 @@ export async function openArrayFromParams(
   return openArray(arrayLocation, params.zarrVersion);
 }
 
-/**
- * Parameters for opening an array inside a worker, or `null` for stores a
- * worker can't reconstruct (custom in-memory stores); those are read on the
- * main thread.
- */
 export function createZarrArrayParams(
   location: Location<Readable>,
   arrayPath: string,
   zarrVersion: Version | undefined
-): ZarrArrayParams | null {
+): ZarrArrayParams {
   if (location.store instanceof FetchStore) {
     return {
       type: "fetch",
@@ -126,5 +134,5 @@ export function createZarrArrayParams(
       path: location.path,
     };
   }
-  return null;
+  return { type: "store", arrayPath, zarrVersion, location };
 }
