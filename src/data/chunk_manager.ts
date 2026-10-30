@@ -17,24 +17,27 @@ export type QueueStats = {
   pending: number;
   /** Number of requests currently in flight. */
   running: number;
+  /** Number of loaded chunks waiting for GPU upload. */
+  awaitingUpload: number;
 };
 
 const DEFAULT_MAX_CONCURRENT_REQUESTS = 8;
 const DEFAULT_MAX_GPU_UPLOADS_PER_UPDATE = 4;
 
 export class ChunkManager {
-  private readonly stores_: { source: ChunkSource; store: ChunkStore }[] = [];
+  private readonly stores_ = new Map<ChunkSource, ChunkStore>();
+  private readonly awaitingUpload_ = new Map<Chunk, ChunkStore>();
   private readonly queue_: ChunkQueue;
 
-  private readonly uploadTexture_?: (texture: Texture) => void;
-  private readonly disposeTexture_?: (texture: Texture) => void;
+  private readonly uploadTexture_: (texture: Texture) => void;
+  private readonly disposeTexture_: (texture: Texture) => void;
   private readonly getGpuResidentBytes_: () => number;
   private memoryLimitBytes_: number;
   private readonly maxGpuUploadsPerUpdate_: number;
 
   constructor(
-    uploadTexture?: (texture: Texture) => void,
-    disposeTexture?: (texture: Texture) => void,
+    uploadTexture: (texture: Texture) => void = () => {},
+    disposeTexture: (texture: Texture) => void = () => {},
     getGpuResidentBytes: () => number = () => 0,
     memoryLimitBytes: number = Infinity,
     maxConcurrentRequests: number = DEFAULT_MAX_CONCURRENT_REQUESTS,
@@ -60,6 +63,7 @@ export class ChunkManager {
     return {
       pending: this.queue_.pendingCount,
       running: this.queue_.runningCount,
+      awaitingUpload: this.awaitingUpload_.size,
     };
   }
 
@@ -68,7 +72,7 @@ export class ChunkManager {
   }
 
   public get sourceChunkStats(): SourceChunkStats[] {
-    return this.stores_.map(({ source, store }) =>
+    return Array.from(this.stores_, ([source, store]) =>
       computeSourceChunkStats(source, store)
     );
   }
@@ -78,18 +82,28 @@ export class ChunkManager {
     policy: ImageSourcePolicy,
     axes?: SliceAxes
   ): ChunkStoreView {
-    let store = this.stores_.find((s) => s.source === source)?.store;
+    let store = this.stores_.get(source);
     if (!store) {
       store = new ChunkStore(source.loader.getSourceDimensionMap());
-      this.stores_.push({ source, store });
+      this.stores_.set(source, store);
     }
     return store.addView(policy, axes);
   }
 
+  /**
+   * Collects chunk changes from every store's views. Chunks no longer wanted
+   * are released: requests are cancelled and loaded data is freed, while
+   * resident textures are kept until evicted. Wanted chunks are queued in
+   * priority order within the memory budget, evicting lower-priority resident
+   * chunks to make room, and then requests start up to the concurrency limit.
+   * Stores without views are disposed along with their textures.
+   *
+   * Chunk data is not uploaded to the GPU here; see {@link uploadLoadedChunks}.
+   */
   public update() {
     const candidates: { source: ChunkSource; chunk: Chunk }[] = [];
 
-    for (const { source, store } of this.stores_) {
+    for (const [source, store] of this.stores_) {
       const updatedChunks = store.updateAndCollectChunkChanges();
 
       for (const chunk of updatedChunks) {
@@ -102,22 +116,25 @@ export class ChunkManager {
           }
         }
       }
-
-      this.uploadLoadedChunks(store, updatedChunks);
     }
 
     this.enqueueWithinBudget(candidates);
     this.queue_.flush();
 
-    for (let i = this.stores_.length - 1; i >= 0; i--) {
-      const { store } = this.stores_[i];
+    for (const [source, store] of this.stores_) {
       if (!store.canDispose()) continue;
 
       for (const chunk of [...store.residentChunks]) {
         this.disposeChunkTexture(store, chunk);
         chunk.state = "unloaded";
       }
-      this.stores_.splice(i, 1);
+      for (const [chunk, owner] of this.awaitingUpload_) {
+        if (owner !== store) continue;
+        this.awaitingUpload_.delete(chunk);
+        clearChunkData(chunk);
+        chunk.state = "unloaded";
+      }
+      this.stores_.delete(source);
     }
   }
 
@@ -129,6 +146,7 @@ export class ChunkManager {
       return;
     }
 
+    this.awaitingUpload_.delete(chunk);
     clearChunkData(chunk);
     if (chunk.state === "loaded") chunk.state = "unloaded";
   }
@@ -144,6 +162,7 @@ export class ChunkManager {
     const victims = this.evictionCandidates();
 
     for (const { source, chunk } of candidates) {
+      const store = this.stores_.get(source)!;
       const bytes = this.chunkBytes(source, chunk);
 
       // A chunk that can never fit must not trigger eviction. It would drain
@@ -162,9 +181,10 @@ export class ChunkManager {
       if (committedBytes + bytes > this.memoryLimitBytes_) continue;
 
       committedBytes += bytes;
-      this.queue_.enqueue(chunk, (signal) =>
-        source.loader.loadChunkData(chunk, signal)
-      );
+      this.queue_.enqueue(chunk, async (signal) => {
+        await source.loader.loadChunkData(chunk, signal);
+        if (!signal.aborted) this.awaitingUpload_.set(chunk, store);
+      });
     }
   }
 
@@ -175,7 +195,7 @@ export class ChunkManager {
   }[] {
     const victims: { store: ChunkStore; chunk: Chunk; drawn: boolean }[] = [];
 
-    for (const { store } of this.stores_) {
+    for (const store of this.stores_.values()) {
       const drawn = new Set(
         store.views.flatMap((view) => view.getChunksToRender())
       );
@@ -222,25 +242,23 @@ export class ChunkManager {
     return chunk.shape.x * chunk.shape.y * chunk.shape.z * bytesPerElement;
   }
 
-  private uploadLoadedChunks(store: ChunkStore, chunks: Set<Chunk>) {
-    if (!this.uploadTexture_) return;
+  /**
+   * Uploads chunks that have finished loading to the GPU in priority order.
+   *
+   * Uploads are limited to a per-frame max to maintain interactivity.
+   *
+   * @param limit - Max uploads for this call.
+   */
+  public uploadLoadedChunks(limit = this.maxGpuUploadsPerUpdate_) {
+    if (this.awaitingUpload_.size === 0) return;
 
-    const pending: Chunk[] = [];
+    const pending = [...this.awaitingUpload_.keys()].sort(comparePriority);
+    const count = Math.min(pending.length, limit);
 
-    for (const chunk of chunks) {
-      if (chunk.state === "loaded" && chunk.texture === undefined) {
-        pending.push(chunk);
-      }
-    }
-
-    if (pending.length === 0) return;
-
-    pending.sort(comparePriority);
-
-    const limit = Math.min(pending.length, this.maxGpuUploadsPerUpdate_);
-
-    for (let i = 0; i < limit; i++) {
+    for (let i = 0; i < count; i++) {
       const chunk = pending[i];
+      const store = this.awaitingUpload_.get(chunk)!;
+      this.awaitingUpload_.delete(chunk);
       const texture = Texture3D.createWithChunk(chunk);
       this.uploadTexture_(texture);
       store.setChunkTexture(chunk, texture);
@@ -250,6 +268,6 @@ export class ChunkManager {
 
   private disposeChunkTexture(store: ChunkStore, chunk: Chunk) {
     const texture = store.clearChunkTexture(chunk);
-    if (texture !== undefined) this.disposeTexture_?.(texture);
+    if (texture !== undefined) this.disposeTexture_(texture);
   }
 }
