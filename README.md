@@ -5,7 +5,7 @@
 <div align="center">
 
 ![ci-badge](https://github.com/Biohub/idetik/actions/workflows/lint-test-build.yml/badge.svg)
-[![npm-badge](https://img.shields.io/npm/v/%40idetik%2Fcore.svg)](https://www.npmjs.com/package/@idetik/core)
+[![npm-badge](https://img.shields.io/npm/v/idetik.svg)](https://www.npmjs.com/package/idetik)
 [![docs-badge](https://img.shields.io/badge/docs-online-blue.svg)](https://biohub.github.io/idetik/)
 
 </div>
@@ -21,10 +21,10 @@ Idetik is a high-performance library for exploring multi-dimensional OME-Zarr da
 
 ## Installation
 
-Idetik is published to npm as [@idetik/core](https://www.npmjs.com/package/@idetik/core):
+Idetik is published to npm as [idetik](https://www.npmjs.com/package/idetik):
 
 ```bash
-npm install @idetik/core
+npm install idetik
 ```
 
 ## Minimal Example
@@ -39,7 +39,7 @@ import {
   OmeZarrImageSource,
   OrthographicCamera,
   PanZoomControls,
-} from '@idetik/core'
+} from 'idetik'
 
 const url = 'https://public.czbiohub.org/royerlab/zebrahub/imaging/single-objective/ZSNS001.ome.zarr/';
 const source = await OmeZarrImageSource.fromHttp({url});

@@ -25,18 +25,25 @@ jobs:
           cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Check tag matches package.json version
+      - name: Parse tag and check it matches package.json version
+        id: tag
         run: |
           tag_version="${GITHUB_REF_NAME#v}"
+          base_version="${tag_version%%-*}"
           pkg_version="$(node -p "require('./package.json').version")"
-          if [ "$tag_version" != "$pkg_version" ]; then
+          if [ "$base_version" != "$pkg_version" ]; then
             echo "Tag $GITHUB_REF_NAME does not match package.json version $pkg_version"
             exit 1
+          fi
+          echo "version=$tag_version" >> "$GITHUB_OUTPUT"
+          echo "base=$base_version" >> "$GITHUB_OUTPUT"
+          if [ "$tag_version" != "$base_version" ]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Extract release notes from CHANGELOG.md
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          version="${{ steps.tag.outputs.base }}"
           awk -v v="$version" '
             /^## \[/ { if (found) exit; if (index($0, "## [" v "]") == 1) { found = 1; next } }
             found { print }
@@ -67,11 +74,18 @@ jobs:
         run: npm run build
 
       - name: Publish to npm
-        run: npm publish --access public
+        run: |
+          if [ "${{ steps.tag.outputs.prerelease }}" = "true" ]; then
+            npm version "${{ steps.tag.outputs.version }}" --no-git-tag-version
+            npm publish --access public --tag next
+          else
+            npm publish --access public
+          fi
 
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" \
+            ${{ steps.tag.outputs.prerelease == 'true' && '--prerelease' || '' }} \
             --notes "$(cat "$RUNNER_TEMP/release-notes.md")" --generate-notes

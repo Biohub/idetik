@@ -85,7 +85,7 @@ export default defineConfig({
     ],
     resolve: {
       alias: {
-        '@idetik/core': fileURLToPath(new URL('../src/index.ts', import.meta.url)),
+        'idetik': fileURLToPath(new URL('../src/index.ts', import.meta.url)),
       },
     },
     worker: {

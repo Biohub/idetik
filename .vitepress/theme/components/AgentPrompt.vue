@@ -17,7 +17,7 @@ const AGENTS = [
 
 const PARAGRAPHS = [
   "# Set up my first Idetik viewer",
-  `Create a Vite + TypeScript project with @idetik/core, using ${DOCS_URL} as your reference.`,
+  `Create a Vite + TypeScript project with idetik, using ${DOCS_URL} as your reference.`,
   `Build a full-window 2D viewer with pan/zoom and a z slider for this OME-Zarr image:\n${IMAGE_PLACEHOLDER}`,
   "Start the dev server and confirm the image renders.",
 ];
@@ -26,7 +26,7 @@ const PROMPT = PARAGRAPHS.join("\n\n");
 
 const HIGHLIGHTS: Record<string, string> = {
   "# ": "muted",
-  "@idetik/core": "accent",
+  idetik: "accent",
   [DOCS_URL]: "link",
   [IMAGE_PLACEHOLDER]: "link",
 };

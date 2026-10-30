@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { shallowReactive, shallowRef } from "vue";
-import type { SourceDimension, SourceDimensionMap } from "@idetik/core";
+import type { SourceDimension, SourceDimensionMap } from "idetik";
 import SliceControls from "../SliceControls.vue";
 import { useIdetikViewer } from "../useIdetikViewer";
 
