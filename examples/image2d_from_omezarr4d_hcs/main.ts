@@ -12,7 +12,7 @@ import {
   ImageLayer,
   createNoPrefetchPolicy,
   Viewport,
-} from "@idetik/core";
+} from "idetik";
 
 const plateUrl =
   "https://public.czbiohub.org/organelle_box/datasets/A549/organelle_box_crop_v1.zarr/";

@@ -9,7 +9,7 @@ import {
   VolumeLayer,
   createExplorationPolicy,
   Viewport,
-} from "@idetik/core";
+} from "idetik";
 
 const url =
   "https://public.czbiohub.org/organelle_box/datasets/A549/organelle_box_crop_v1.zarr/CLTA/PFA/002000/";

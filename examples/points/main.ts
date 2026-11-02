@@ -11,7 +11,7 @@ import {
   Color,
   createNoPrefetchPolicy,
   Viewport,
-} from "@idetik/core";
+} from "idetik";
 
 import { vec3 } from "gl-matrix";
 import GUI from "lil-gui";

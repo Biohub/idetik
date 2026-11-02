@@ -118,7 +118,7 @@ export default defineConfig({
     ],
     resolve: {
       alias: {
-        '@idetik/core': fileURLToPath(new URL('../src/index.ts', import.meta.url)),
+        'idetik': fileURLToPath(new URL('../src/index.ts', import.meta.url)),
       },
     },
     worker: {
@@ -165,7 +165,7 @@ export default defineConfig({
     },
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/chanzuckerberg/idetik' },
+      { icon: 'github', link: 'https://github.com/biohub/idetik' },
     ],
 
     footer: {

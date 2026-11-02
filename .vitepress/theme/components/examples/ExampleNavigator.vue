@@ -47,7 +47,7 @@ const id = useId();
         <footer class="footer">
           <a
             class="source"
-            href="https://github.com/chanzuckerberg/idetik"
+            href="https://github.com/Biohub/idetik"
             target="_blank"
             rel="noopener"
           >

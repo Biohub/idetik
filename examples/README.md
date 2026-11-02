@@ -1,6 +1,6 @@
 # Examples
 
-Each folder here is a standalone viewer built on `@idetik/core`. Run them locally with `npm run examples`.
+Each folder here is a standalone viewer built on `idetik`. Run them locally with `npm run examples`.
 
 ## Layout
 
@@ -12,7 +12,7 @@ examples/<id>/
 └── thumbnail.jpg    required with showcase.json: 16:9 image for the gallery and sidebar
 ```
 
-Other local modules (e.g. `image_2d/scale_bar.ts`) are fine, but only `main.ts` is shown on the docs page. Import the library as `@idetik/core` so the code can be copied as-is.
+Other local modules (e.g. `image_2d/scale_bar.ts`) are fine, but only `main.ts` is shown on the docs page. Import the library as `idetik` so the code can be copied as-is.
 
 Use [lil-gui](https://lil-gui.georgealways.com/) for controls and link the shared theme from `index.html` so every example matches the docs:
 

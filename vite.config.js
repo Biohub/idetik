@@ -32,7 +32,7 @@ export default defineConfig(({ mode }) => {
     },
     resolve: {
       alias: {
-        '@idetik/core': path.resolve(_dirname, 'src/index.ts'),
+        idetik: path.resolve(_dirname, 'src/index.ts'),
         '@': path.resolve(_dirname, 'src'),
       },
     },

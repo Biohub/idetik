@@ -2,32 +2,57 @@ name: Release
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
-  issues: write
-  pull-requests: write
   id-token: write
 
 jobs:
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: ${{ ! contains(github.event.head_commit.message, '[skip ci]') }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Parse tag and check it matches package.json version
+        id: tag
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          base_version="${tag_version%%-*}"
+          pkg_version="$(node -p "require('./package.json').version")"
+          if [ "$base_version" != "$pkg_version" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $pkg_version"
+            exit 1
+          fi
+          echo "version=$tag_version" >> "$GITHUB_OUTPUT"
+          echo "base=$base_version" >> "$GITHUB_OUTPUT"
+          if [ "$tag_version" != "$base_version" ]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract release notes from CHANGELOG.md
+        run: |
+          version="${{ steps.tag.outputs.base }}"
+          awk -v v="$version" '
+            /^## \[/ { if (found) exit; if (index($0, "## [" v "]") == 1) { found = 1; next } }
+            found { print }
+          ' CHANGELOG.md | sed '/^\[/d' > "$RUNNER_TEMP/release-notes.md"
+          if ! grep -q '[^[:space:]]' "$RUNNER_TEMP/release-notes.md"; then
+            echo "CHANGELOG.md has no section for $version"
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/release-notes.md"
 
       - name: Install dependencies
         run: |
@@ -48,14 +73,19 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Generate token
-        id: generate_token
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ secrets.GH_ACTIONS_HELPER_APP_ID }}
-          private-key: ${{ secrets.GH_ACTIONS_HELPER_PK }}
+      - name: Publish to npm
+        run: |
+          if [ "${{ steps.tag.outputs.prerelease }}" = "true" ]; then
+            npm version "${{ steps.tag.outputs.version }}" --no-git-tag-version
+            npm publish --access public --tag next
+          else
+            npm publish --access public
+          fi
 
-      - name: Release
+      - name: Create GitHub release
         env:
-          GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
-        run: npm exec semantic-release
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" \
+            ${{ steps.tag.outputs.prerelease == 'true' && '--prerelease' || '' }} \
+            --notes "$(cat "$RUNNER_TEMP/release-notes.md")" --generate-notes

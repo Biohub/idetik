@@ -6,7 +6,7 @@ import {
   shallowReactive,
   shallowRef,
 } from "vue";
-import type { Idetik, SourceDimension } from "@idetik/core";
+import type { Idetik, SourceDimension } from "idetik";
 import RangeSlider from "./RangeSlider.vue";
 
 type Range = { min: number; max: number; step: number };
@@ -39,7 +39,7 @@ onMounted(async () => {
       OrthographicCamera,
       PanZoomControls,
       Viewport,
-    } = await import("@idetik/core");
+    } = await import("idetik");
 
     const baseUrl = "https://public.czbiohub.org/royerlab/zebrahub/imaging";
     const source = await OmeZarrImageSource.fromHttp({

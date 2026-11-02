@@ -8,7 +8,7 @@ import {
   Color,
   PanZoomControls,
   Viewport,
-} from "@idetik/core";
+} from "idetik";
 
 // A 3D (z-stack) OME-Zarr image with a matching label segmentation overlaid on
 // top. The image and labels share the same XY/Z geometry, so a single z-slice

@@ -6,7 +6,7 @@ import type {
   SliceOrientation,
   SourceDimension,
   SourceDimensionMap,
-} from "@idetik/core";
+} from "idetik";
 import SliceControls from "../SliceControls.vue";
 import { useIdetikViewer } from "../useIdetikViewer";
 

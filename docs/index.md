@@ -10,7 +10,7 @@ hero:
       link: /guide/getting-started
     - theme: alt
       text: View on GitHub
-      link: https://github.com/chanzuckerberg/idetik
+      link: https://github.com/Biohub/idetik
 
 features:
   - title: Composable by design
