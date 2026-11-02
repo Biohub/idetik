@@ -243,17 +243,14 @@ export class ChunkManager {
   }
 
   /**
-   * Uploads chunks that have finished loading to the GPU in priority order.
-   *
-   * Uploads are limited to a per-frame max to maintain interactivity.
-   *
-   * @param limit - Max uploads for this call.
+   * Uploads chunks that have finished loading to the GPU in priority order,
+   * up to the per-frame limit, to maintain interactivity.
    */
-  public uploadLoadedChunks(limit = this.maxGpuUploadsPerUpdate_) {
+  public uploadLoadedChunks() {
     if (this.awaitingUpload_.size === 0) return;
 
     const pending = [...this.awaitingUpload_.keys()].sort(comparePriority);
-    const count = Math.min(pending.length, limit);
+    const count = Math.min(pending.length, this.maxGpuUploadsPerUpdate_);
 
     for (let i = 0; i < count; i++) {
       const chunk = pending[i];
