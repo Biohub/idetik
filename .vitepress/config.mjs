@@ -3,7 +3,6 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitepress'
 import typedocSidebar from '../docs/api/typedoc-sidebar.json' with { type: 'json' }
-import builtWith from './theme/components/showcase/built-with.json' with { type: 'json' }
 import { loadShowcase } from './showcase.js'
 
 function getLatestVersion() {
@@ -18,8 +17,8 @@ function getLatestVersion() {
   return JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8')).version
 }
 
-// Showcase sidebar: the examples (sorted like the gallery), then the external
-// built-with list. Thumbnail paths are relative so they survive --base.
+// Showcase sidebar, sorted like the gallery. Thumbnail paths are relative so
+// they survive the base path.
 const thumb = (src) => `<img class="showcase-thumb" src="..${src}" alt="">`
 
 function showcaseSidebar() {
@@ -27,13 +26,7 @@ function showcaseSidebar() {
     text: `${thumb(`/examples/${id}/thumbnail.jpg`)}${title}`,
     link: `/showcase/${id}`,
   }))
-  return [
-    { text: 'Examples', link: '/showcase/', items },
-    {
-      text: 'Built with Idetik',
-      items: builtWith.map(({ title, url, image }) => ({ text: `${thumb(image)}${title}`, link: url })),
-    },
-  ]
+  return [{ text: 'Examples', link: '/showcase/', items }]
 }
 
 const headingRegex = /<h(\d*).*?>(.*?<a.*? href="#.*?".*?>.*?<\/a>)<\/h\1>/gi

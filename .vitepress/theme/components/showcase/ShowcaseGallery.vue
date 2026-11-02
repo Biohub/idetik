@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { withBase } from "vitepress";
 import { data as examples } from "./examples.data.js";
-import builtWith from "./built-with.json";
 </script>
 
 <template>
@@ -22,25 +21,6 @@ import builtWith from "./built-with.json";
           <div class="title">{{ item.title }}</div>
           <div class="desc">{{ item.description }}</div>
           <span class="tag">{{ item.data }}</span>
-        </div>
-      </a>
-    </div>
-
-    <h2>Built with Idetik</h2>
-    <div class="grid">
-      <a
-        v-for="item in builtWith"
-        :key="item.url"
-        :href="item.url"
-        target="_blank"
-        rel="noopener"
-        class="card"
-      >
-        <img :src="withBase(item.image)" alt="" loading="lazy" />
-        <div class="body">
-          <div class="title">{{ item.title }} ↗</div>
-          <div class="desc">{{ item.description }}</div>
-          <span class="link">{{ item.url.replace(/^https?:\/\//, "") }}</span>
         </div>
       </a>
     </div>
@@ -107,18 +87,5 @@ import builtWith from "./built-with.json";
   border-radius: var(--radius-pill);
   font-size: 11px;
   color: var(--vp-c-text-2);
-}
-
-.link {
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--vp-c-brand-1);
-}
-
-h2 {
-  margin: 56px 0 20px;
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
 }
 </style>
