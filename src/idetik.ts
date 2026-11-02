@@ -442,7 +442,6 @@ export class Idetik {
 
     this.updateControls(timestamp);
     this.detachRemovedLayers();
-    this.chunkManager_.uploadLoadedChunks();
     for (const viewport of this.viewports_) {
       this.updateViewport(viewport);
     }

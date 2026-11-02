@@ -93,12 +93,12 @@ export class ChunkManager {
   /**
    * Collects chunk changes from every store's views. Chunks no longer wanted
    * are released: requests are cancelled and loaded data is freed, while
-   * resident textures are kept until evicted. Wanted chunks are queued in
-   * priority order within the memory budget, evicting lower-priority resident
-   * chunks to make room, and then requests start up to the concurrency limit.
-   * Stores without views are disposed along with their textures.
-   *
-   * Chunk data is not uploaded to the GPU here; see {@link uploadLoadedChunks}.
+   * resident textures are kept until evicted. Loaded chunks are uploaded to
+   * the GPU in priority order up to the per-update limit. Wanted chunks are
+   * queued in priority order within the memory budget, evicting
+   * lower-priority resident chunks to make room, and then requests start up
+   * to the concurrency limit. Stores without views are disposed along with
+   * their textures.
    */
   public update() {
     const candidates: { source: ChunkSource; chunk: Chunk }[] = [];
@@ -118,6 +118,7 @@ export class ChunkManager {
       }
     }
 
+    this.uploadLoadedChunks();
     this.enqueueWithinBudget(candidates);
     this.queue_.flush();
 
@@ -242,11 +243,7 @@ export class ChunkManager {
     return chunk.shape.x * chunk.shape.y * chunk.shape.z * bytesPerElement;
   }
 
-  /**
-   * Uploads chunks that have finished loading to the GPU in priority order,
-   * up to the per-frame limit, to maintain interactivity.
-   */
-  public uploadLoadedChunks() {
+  private uploadLoadedChunks() {
     if (this.awaitingUpload_.size === 0) return;
 
     const pending = [...this.awaitingUpload_.keys()].sort(comparePriority);
