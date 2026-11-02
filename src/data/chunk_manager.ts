@@ -25,7 +25,7 @@ const DEFAULT_MAX_CONCURRENT_REQUESTS = 8;
 const DEFAULT_MAX_GPU_UPLOADS_PER_UPDATE = 4;
 
 export class ChunkManager {
-  private readonly stores_ = new Map<ChunkSource, ChunkStore>();
+  private readonly stores_: { source: ChunkSource; store: ChunkStore }[] = [];
   private readonly awaitingUpload_ = new Map<Chunk, ChunkStore>();
   private readonly queue_: ChunkQueue;
 
@@ -72,7 +72,7 @@ export class ChunkManager {
   }
 
   public get sourceChunkStats(): SourceChunkStats[] {
-    return Array.from(this.stores_, ([source, store]) =>
+    return this.stores_.map(({ source, store }) =>
       computeSourceChunkStats(source, store)
     );
   }
@@ -82,10 +82,10 @@ export class ChunkManager {
     policy: ImageSourcePolicy,
     axes?: SliceAxes
   ): ChunkStoreView {
-    let store = this.stores_.get(source);
+    let store = this.stores_.find((s) => s.source === source)?.store;
     if (!store) {
       store = new ChunkStore(source.loader.getSourceDimensionMap());
-      this.stores_.set(source, store);
+      this.stores_.push({ source, store });
     }
     return store.addView(policy, axes);
   }
@@ -101,9 +101,13 @@ export class ChunkManager {
    * their textures.
    */
   public update() {
-    const candidates: { source: ChunkSource; chunk: Chunk }[] = [];
+    const candidates: {
+      source: ChunkSource;
+      store: ChunkStore;
+      chunk: Chunk;
+    }[] = [];
 
-    for (const [source, store] of this.stores_) {
+    for (const { source, store } of this.stores_) {
       const updatedChunks = store.updateAndCollectChunkChanges();
 
       for (const chunk of updatedChunks) {
@@ -112,7 +116,7 @@ export class ChunkManager {
         } else {
           chunk.releasedAt = undefined;
           if (chunk.state === "queued") {
-            candidates.push({ source, chunk });
+            candidates.push({ source, store, chunk });
           }
         }
       }
@@ -122,7 +126,8 @@ export class ChunkManager {
     this.enqueueWithinBudget(candidates);
     this.queue_.flush();
 
-    for (const [source, store] of this.stores_) {
+    for (let i = this.stores_.length - 1; i >= 0; i--) {
+      const { store } = this.stores_[i];
       if (!store.canDispose()) continue;
 
       for (const chunk of [...store.residentChunks]) {
@@ -135,7 +140,7 @@ export class ChunkManager {
         clearChunkData(chunk);
         chunk.state = "unloaded";
       }
-      this.stores_.delete(source);
+      this.stores_.splice(i, 1);
     }
   }
 
@@ -153,7 +158,7 @@ export class ChunkManager {
   }
 
   private enqueueWithinBudget(
-    candidates: { source: ChunkSource; chunk: Chunk }[]
+    candidates: { source: ChunkSource; store: ChunkStore; chunk: Chunk }[]
   ) {
     if (candidates.length === 0) return;
 
@@ -162,8 +167,7 @@ export class ChunkManager {
     let committedBytes = this.getGpuResidentBytes_();
     const victims = this.evictionCandidates();
 
-    for (const { source, chunk } of candidates) {
-      const store = this.stores_.get(source)!;
+    for (const { source, store, chunk } of candidates) {
       const bytes = this.chunkBytes(source, chunk);
 
       // A chunk that can never fit must not trigger eviction. It would drain
@@ -196,7 +200,7 @@ export class ChunkManager {
   }[] {
     const victims: { store: ChunkStore; chunk: Chunk; drawn: boolean }[] = [];
 
-    for (const store of this.stores_.values()) {
+    for (const { store } of this.stores_) {
       const drawn = new Set(
         store.views.flatMap((view) => view.getChunksToRender())
       );
