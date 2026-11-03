@@ -26,7 +26,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run docs:api
-      - run: npx vitepress build --base /idetik/
+      - run: npm run build:examples
+      - run: npx vitepress build
       - uses: actions/configure-pages@v4
       - uses: actions/upload-pages-artifact@v3
         with:

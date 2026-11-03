@@ -12,7 +12,7 @@ import {
   VolumeLayer,
   createPlaybackPolicy,
   Viewport,
-} from "@";
+} from "idetik";
 import { addDimensionSlider } from "../lil_gui_utils";
 import { vec3 } from "gl-matrix";
 

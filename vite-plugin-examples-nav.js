@@ -31,6 +31,7 @@ function copyManifestToPublic() {
 
 function examplesManifestPlugin() {
   let isExamplesBuild = false;
+  let outDir;
 
   return {
     name: "examples-navigation",
@@ -42,6 +43,9 @@ function examplesManifestPlugin() {
         config.build.rollupOptions.input = getExampleInputs();
       }
     },
+    configResolved(config) {
+      outDir = config.build.outDir;
+    },
     buildStart(_options) {
       if (!isExamplesBuild) {
         return;
@@ -49,6 +53,19 @@ function examplesManifestPlugin() {
       generateExamplesManifest();
       copyManifestToPublic();
       console.log("Examples manifest generated and copied to public");
+    },
+    // Showcase thumbnails aren't imported by any page, so copy them alongside
+    // each built example for the docs gallery and sidebar.
+    closeBundle() {
+      if (!isExamplesBuild) {
+        return;
+      }
+      for (const example of discoverExamples()) {
+        const thumbnail = resolve(dirname(example.path), "thumbnail.jpg");
+        if (existsSync(thumbnail)) {
+          copyFileSync(thumbnail, resolve(outDir, example.name, "thumbnail.jpg"));
+        }
+      }
     },
     configureServer(server) {
       const regenerateManifest = () => {

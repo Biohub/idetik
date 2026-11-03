@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Image 2D</title>
+    <link rel="stylesheet" href="../lil_gui_theme.css" />
     <style>
       html,
       body {
@@ -12,8 +13,16 @@
         display: flex;
         width: 100%;
         height: 100%;
-        font-family: monospace;
+        font-family: ui-monospace, Menlo, monospace;
         font-size: 12px;
+        background-color: black;
+      }
+
+      #time-point,
+      #scale-bar-box,
+      #dataset-info {
+        border: 1px solid rgb(255 255 255 / 0.1);
+        border-radius: 8px;
       }
 
       canvas {

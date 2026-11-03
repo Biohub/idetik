@@ -324,3 +324,29 @@
 .vp-doc p:has(> img:only-child) + p:has(> em:only-child) > em {
   font-style: normal;
 }
+
+/* Showcase sidebar items: thumbnail beside a possibly wrapping title. */
+.VPSidebarItem .text:has(> .showcase-thumb) {
+  display: flex;
+  gap: 10px;
+}
+
+.showcase-thumb {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.VPDocFooter .showcase-thumb {
+  display: none;
+}
+
+/* Showcase example source: scroll long files inside the block. The copy
+   button sits on the outer div, so it stays put. */
+.vp-doc:has(.showcase-example) div[class*='language-'] pre {
+  max-height: 640px;
+  overflow-y: auto;
+}
