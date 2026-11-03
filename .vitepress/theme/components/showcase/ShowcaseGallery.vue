@@ -20,7 +20,11 @@ import { data as examples } from "./examples.data.js";
         <div class="body">
           <div class="title">{{ item.title }}</div>
           <div class="desc">{{ item.description }}</div>
-          <span class="tag">{{ item.data }}</span>
+          <div v-if="item.tags.length" class="tags">
+            <span v-for="tag in item.tags" :key="tag" class="tag">{{
+              tag
+            }}</span>
+          </div>
         </div>
       </a>
     </div>
@@ -79,9 +83,14 @@ import { data as examples } from "./examples.data.js";
   color: var(--vp-c-text-2);
 }
 
-.tag {
-  align-self: flex-start;
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
   margin-top: 4px;
+}
+
+.tag {
   padding: 2px 10px;
   border: 1px solid var(--vp-c-gutter);
   border-radius: var(--radius-pill);

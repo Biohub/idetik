@@ -1,4 +1,5 @@
 {
   "description": "Orthogonal XY, XZ and YZ slices plus a 3D volume, all on one canvas.",
-  "data": "Zebrahub multi-view · public.czbiohub.org"
+  "data": "Zebrahub multi-view · public.czbiohub.org",
+  "tags": ["viewports", "slices", "volume"]
 }
