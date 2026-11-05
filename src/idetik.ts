@@ -167,6 +167,7 @@ export class Idetik {
   private lastAnimationId_?: number;
   private lastTimestamp_: DOMHighResTimeStamp = 0;
   private renderInvalidated_ = true;
+  private sizeDirty_ = true;
   private running_ = false;
   private readonly pendingRenders_: PromiseCallbacks[] = [];
 
@@ -213,13 +214,8 @@ export class Idetik {
     }
 
     this.sizeObserver_ = new PixelSizeObserver(sizeDependents, () => {
-      this.renderer_.updateSize();
-      for (const viewport of this.viewports_) {
-        viewport.updateSize();
-      }
+      this.sizeDirty_ = true;
       this.invalidate();
-      this.cancelFrame();
-      this.animate(performance.now());
     });
   }
 
@@ -377,8 +373,9 @@ export class Idetik {
    * moving.
    *
    * This reflects the last frame, so poll it from `requestAnimationFrame`
-   * after {@link start}. Combined with {@link autoDraw}, this renders a scene
-   * exactly once, after everything visible has loaded:
+   * after {@link start}. A chunk that fails to load is retried indefinitely,
+   * so callers should bound the wait. Combined with {@link autoDraw}, this
+   * renders a scene exactly once, after everything visible has loaded:
    *
    * ```ts
    * idetik.autoDraw = false;
@@ -440,6 +437,7 @@ export class Idetik {
     this.lastAnimationId_ = undefined;
     this.stats_?.begin();
 
+    if (this.sizeDirty_) this.updateSize();
     this.updateControls(timestamp);
     this.detachRemovedLayers();
     for (const viewport of this.viewports_) {
@@ -458,9 +456,19 @@ export class Idetik {
     this.scheduleFrame();
   }
 
+  private updateSize(): void {
+    this.sizeDirty_ = false;
+    this.renderer_.updateSize();
+    for (const viewport of this.viewports_) {
+      viewport.updateSize();
+    }
+  }
+
   private updateControls(timestamp: DOMHighResTimeStamp): void {
-    // cap dt to prevent large time-step jumps when resuming from background tabs
-    const dt = Math.min(timestamp - this.lastTimestamp_, 100) / 1000;
+    // clamp dt: the first rAF timestamp can precede performance.now() from
+    // start(), and large steps follow resuming from a background tab
+    const dt =
+      Math.min(Math.max(timestamp - this.lastTimestamp_, 0), 100) / 1000;
     this.lastTimestamp_ = timestamp;
     for (const viewport of this.viewports_) {
       viewport.cameraControls?.onUpdate(dt);
