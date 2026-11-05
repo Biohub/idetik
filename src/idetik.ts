@@ -80,7 +80,7 @@ function validateViewport(
           : "[element has no id]");
       throw new Error(
         "Multiple viewports cannot share the same HTML element: " +
-          `viewports "${existing.id}" and "${viewport.id}" both use ${elementDescription}`
+        `viewports "${existing.id}" and "${viewport.id}" both use ${elementDescription}`
       );
     }
   }
@@ -157,11 +157,8 @@ export class Idetik {
 
   /**
    * Whether the loop draws on its own when something changed. When `false`,
-   * the loop still updates layers and loads and uploads chunks every frame,
-   * but draws only on {@link requestRender}. Set this before {@link start} to
-   * skip intermediate draws while loading, e.g. for a thumbnail rendered with
-   * a software renderer.
-   */
+   * the loop still updates every frame, but draws only on {@link requestRender}.
+  */
   public autoDraw = true;
 
   private lastAnimationId_?: number;
@@ -437,6 +434,7 @@ export class Idetik {
     this.lastAnimationId_ = undefined;
     this.stats_?.begin();
 
+    this.sizeDirty_ = false;
     if (this.sizeDirty_) this.updateSize();
     this.updateControls(timestamp);
     this.detachRemovedLayers();
@@ -457,16 +455,14 @@ export class Idetik {
   }
 
   private updateSize(): void {
-    this.sizeDirty_ = false;
     this.renderer_.updateSize();
     for (const viewport of this.viewports_) {
       viewport.updateSize();
     }
+    this.sizeDirty_ = false;
   }
 
   private updateControls(timestamp: DOMHighResTimeStamp): void {
-    // clamp dt: the first rAF timestamp can precede performance.now() from
-    // start(), and large steps follow resuming from a background tab
     const dt =
       Math.min(Math.max(timestamp - this.lastTimestamp_, 0), 100) / 1000;
     this.lastTimestamp_ = timestamp;
@@ -484,12 +480,6 @@ export class Idetik {
     this.lastAnimationId_ = requestAnimationFrame((timestamp) =>
       this.animate(timestamp)
     );
-  }
-
-  private cancelFrame(): void {
-    if (this.lastAnimationId_ === undefined) return;
-    cancelAnimationFrame(this.lastAnimationId_);
-    this.lastAnimationId_ = undefined;
   }
 
   private invalidate(): void {
@@ -543,16 +533,20 @@ export class Idetik {
     Logger.info("Idetik", "Idetik runtime stopping");
     if (!this.running) {
       Logger.warn("Idetik", "Idetik runtime not started");
-    } else {
-      this.running_ = false;
-      this.cancelFrame();
-      const error = new Error("Idetik runtime stopped before drawing");
-      for (const { reject } of this.pendingRenders_.splice(0)) reject(error);
-      this.sizeObserver_.disconnect();
-      for (const viewport of this.viewports_) {
-        viewport.events.disconnect();
-      }
-      this.stats.resetRates();
+      return;
     }
+    this.running_ = false;
+    if (this.lastAnimationId_ !== undefined) {
+      cancelAnimationFrame(this.lastAnimationId_);
+      this.lastAnimationId_ = undefined;
+    }
+    for (const { reject } of this.pendingRenders_.splice(0)) {
+      reject(new Error("Idetik runtime stopped before drawing"));
+    }
+    this.sizeObserver_.disconnect();
+    for (const viewport of this.viewports_) {
+      viewport.events.disconnect();
+    }
+    this.stats.resetRates();
   }
 }

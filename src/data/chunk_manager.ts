@@ -90,16 +90,6 @@ export class ChunkManager {
     return store.addView(policy, axes);
   }
 
-  /**
-   * Collects chunk changes from every store's views. Chunks no longer wanted
-   * are released: requests are cancelled and loaded data is freed, while
-   * resident textures are kept until evicted. Loaded chunks are uploaded to
-   * the GPU in priority order up to the per-update limit. Wanted chunks are
-   * queued in priority order within the memory budget, evicting
-   * lower-priority resident chunks to make room, and then requests start up
-   * to the concurrency limit. Stores without views are disposed along with
-   * their textures.
-   */
   public update() {
     const candidates: {
       source: ChunkSource;
