@@ -363,4 +363,3 @@ test("Removing a stopped viewport releases layers already removed from its list"
   expect(layer.attached).toBe(false);
   expect(layer.detachCount).toBe(1);
 });
-

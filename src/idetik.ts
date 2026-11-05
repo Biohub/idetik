@@ -11,11 +11,6 @@ import type { Geometry } from "./core/geometry";
 
 const DEFAULT_MEMORY_LIMIT_MB = 2048;
 
-type PromiseCallbacks = {
-  resolve: () => void;
-  reject: (error: Error) => void;
-};
-
 /**
  * An object updated once per animation frame after any drawing.
  *
@@ -80,7 +75,7 @@ function validateViewport(
           : "[element has no id]");
       throw new Error(
         "Multiple viewports cannot share the same HTML element: " +
-        `viewports "${existing.id}" and "${viewport.id}" both use ${elementDescription}`
+          `viewports "${existing.id}" and "${viewport.id}" both use ${elementDescription}`
       );
     }
   }
@@ -157,8 +152,8 @@ export class Idetik {
 
   /**
    * Whether the loop draws on its own when something changed. When `false`,
-   * the loop still updates every frame, but draws only on {@link requestRender}.
-  */
+   * the loop still updates every frame but only draws on {@link requestRender}.
+   */
   public autoDraw = true;
 
   private lastAnimationId_?: number;
@@ -166,7 +161,7 @@ export class Idetik {
   private renderInvalidated_ = true;
   private sizeDirty_ = true;
   private running_ = false;
-  private readonly pendingRenders_: PromiseCallbacks[] = [];
+  private renderRequested_ = false;
 
   /**
    * Creates an Idetik runtime for the given canvas.
@@ -344,24 +339,30 @@ export class Idetik {
    * Requests a draw on the next frame even if nothing has changed. This is
    * the only way the runtime draws while {@link autoDraw} is `false`.
    *
-   * The returned promise resolves right after the draw, before the browser
-   * composites the frame, so the canvas can be read back immediately:
+   * Await {@link nextFrame} and read the canvas immediately after:
    *
    * ```ts
-   * await idetik.requestRender();
+   * idetik.requestRender();
+   * await idetik.nextFrame();
    * const imageData = idetik.canvas.toDataURL();
    * ```
-   *
-   * @returns A promise resolved once the draw has happened. It rejects if the
-   *   runtime is not running, or if {@link stop} is called first.
    */
-  public requestRender(): Promise<void> {
+  public requestRender(): void {
+    this.renderRequested_ = true;
+  }
+
+  /**
+   * Resolves after the runtime's next frame has run, including any draw.
+   *
+   * @returns A promise resolved after the next frame. It rejects if the
+   *   runtime is not running. A call already waiting when {@link stop} runs
+   *   still resolves after the next browser frame.
+   */
+  public nextFrame(): Promise<void> {
     if (!this.running) {
       return Promise.reject(new Error("Idetik runtime not started"));
     }
-    return new Promise<void>((resolve, reject) => {
-      this.pendingRenders_.push({ resolve, reject });
-    });
+    return new Promise((resolve) => requestAnimationFrame(() => resolve()));
   }
 
   /**
@@ -369,18 +370,21 @@ export class Idetik {
    * flight, no loaded chunks awaiting GPU upload, and no camera controls
    * moving.
    *
-   * This reflects the last frame, so poll it from `requestAnimationFrame`
-   * after {@link start}. A chunk that fails to load is retried indefinitely,
-   * so callers should bound the wait. Combined with {@link autoDraw}, this
-   * renders a scene exactly once, after everything visible has loaded:
+   * This reflects the last frame, so poll it after {@link nextFrame} once
+   * the runtime has started. A chunk that fails to load is retried
+   * indefinitely, so callers should bound the wait. Chunks that do not fit
+   * the memory limit are never requested and so do not prevent settling.
+   * Combined with {@link autoDraw}, this renders a scene exactly once, after
+   * everything visible has loaded:
    *
    * ```ts
    * idetik.autoDraw = false;
    * idetik.start();
    * do {
-   *   await new Promise(requestAnimationFrame);
+   *   await idetik.nextFrame();
    * } while (!idetik.isSettled);
-   * await idetik.requestRender();
+   * idetik.requestRender();
+   * await idetik.nextFrame();
    * ```
    */
   public get isSettled(): boolean {
@@ -434,14 +438,13 @@ export class Idetik {
     this.lastAnimationId_ = undefined;
     this.stats_?.begin();
 
-    this.sizeDirty_ = false;
     if (this.sizeDirty_) this.updateSize();
     this.updateControls(timestamp);
     this.detachRemovedLayers();
     for (const viewport of this.viewports_) {
       this.updateViewport(viewport);
     }
-    if (this.renderRequested || (this.autoDraw && this.renderInvalidated_)) {
+    if (this.renderRequested_ || (this.autoDraw && this.renderInvalidated_)) {
       this.draw();
     }
 
@@ -469,10 +472,6 @@ export class Idetik {
     for (const viewport of this.viewports_) {
       viewport.cameraControls?.onUpdate(dt);
     }
-  }
-
-  private get renderRequested(): boolean {
-    return this.pendingRenders_.length > 0;
   }
 
   private scheduleFrame(): void {
@@ -517,13 +516,13 @@ export class Idetik {
 
   private draw(): void {
     this.renderInvalidated_ = false;
+    this.renderRequested_ = false;
     this.renderer_.beginFrame();
     for (const viewport of this.viewports_) {
       this.renderer_.render(viewport);
     }
     this.renderer_.endFrame();
     this.stats.recordDraw();
-    for (const { resolve } of this.pendingRenders_.splice(0)) resolve();
   }
 
   /**
@@ -539,9 +538,6 @@ export class Idetik {
     if (this.lastAnimationId_ !== undefined) {
       cancelAnimationFrame(this.lastAnimationId_);
       this.lastAnimationId_ = undefined;
-    }
-    for (const { reject } of this.pendingRenders_.splice(0)) {
-      reject(new Error("Idetik runtime stopped before drawing"));
     }
     this.sizeObserver_.disconnect();
     for (const viewport of this.viewports_) {

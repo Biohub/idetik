@@ -8,6 +8,7 @@ import { ChunkStoreView } from "./chunk_store_view";
 import { ImageSourcePolicy } from "../core/image_source_policy";
 import { Texture, textureStorageBytes } from "../objects/textures/texture";
 import { Texture3D } from "../objects/textures/texture_3d";
+import { Logger } from "../utilities/logger";
 
 /**
  * A snapshot of the chunk request queue.
@@ -29,15 +30,16 @@ export class ChunkManager {
   private readonly awaitingUpload_ = new Map<Chunk, ChunkStore>();
   private readonly queue_: ChunkQueue;
 
-  private readonly uploadTexture_: (texture: Texture) => void;
-  private readonly disposeTexture_: (texture: Texture) => void;
+  private readonly uploadTexture_?: (texture: Texture) => void;
+  private readonly disposeTexture_?: (texture: Texture) => void;
   private readonly getGpuResidentBytes_: () => number;
   private memoryLimitBytes_: number;
+  private oversizedWarned_ = false;
   private readonly maxGpuUploadsPerUpdate_: number;
 
   constructor(
-    uploadTexture: (texture: Texture) => void = () => {},
-    disposeTexture: (texture: Texture) => void = () => {},
+    uploadTexture?: (texture: Texture) => void,
+    disposeTexture?: (texture: Texture) => void,
     getGpuResidentBytes: () => number = () => 0,
     memoryLimitBytes: number = Infinity,
     maxConcurrentRequests: number = DEFAULT_MAX_CONCURRENT_REQUESTS,
@@ -144,19 +146,26 @@ export class ChunkManager {
   private enqueueWithinBudget(
     candidates: { source: ChunkSource; store: ChunkStore; chunk: Chunk }[]
   ) {
-    if (candidates.length === 0) return;
+    if (candidates.length === 0) {
+      this.oversizedWarned_ = false;
+      return;
+    }
 
     candidates.sort((a, b) => comparePriority(a.chunk, b.chunk));
 
     let committedBytes = this.getGpuResidentBytes_();
     const victims = this.evictionCandidates();
+    let oversized = false;
 
     for (const { source, store, chunk } of candidates) {
       const bytes = this.chunkBytes(source, chunk);
 
       // A chunk that can never fit must not trigger eviction. It would drain
       // the entire cache and still be skipped.
-      if (bytes > this.memoryLimitBytes_) continue;
+      if (bytes > this.memoryLimitBytes_) {
+        oversized = true;
+        continue;
+      }
 
       if (committedBytes + bytes > this.memoryLimitBytes_) {
         committedBytes = this.evictWorseChunks(
@@ -175,6 +184,14 @@ export class ChunkManager {
         if (!signal.aborted) this.awaitingUpload_.set(chunk, store);
       });
     }
+
+    if (oversized && !this.oversizedWarned_) {
+      Logger.warn(
+        "ChunkManager",
+        "Some visible chunks exceed the memory limit and will not load"
+      );
+    }
+    this.oversizedWarned_ = oversized;
   }
 
   private evictionCandidates(): {
@@ -232,7 +249,7 @@ export class ChunkManager {
   }
 
   private uploadLoadedChunks() {
-    if (this.awaitingUpload_.size === 0) return;
+    if (!this.uploadTexture_ || this.awaitingUpload_.size === 0) return;
 
     const pending = [...this.awaitingUpload_.keys()].sort(comparePriority);
     const count = Math.min(pending.length, this.maxGpuUploadsPerUpdate_);
@@ -250,6 +267,6 @@ export class ChunkManager {
 
   private disposeChunkTexture(store: ChunkStore, chunk: Chunk) {
     const texture = store.clearChunkTexture(chunk);
-    if (texture !== undefined) this.disposeTexture_(texture);
+    if (texture !== undefined) this.disposeTexture_?.(texture);
   }
 }
