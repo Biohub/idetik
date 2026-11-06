@@ -162,6 +162,12 @@ export class Idetik {
   private sizeDirty_ = true;
   private running_ = false;
   private renderRequested_ = false;
+  private onRendered_: Array<() => void> = [];
+  private settled_?: {
+    promise: Promise<void>;
+    resolve: () => void;
+    reject: (error: Error) => void;
+  };
 
   /**
    * Creates an Idetik runtime for the given canvas.
@@ -339,53 +345,63 @@ export class Idetik {
    * Requests a draw on the next frame even if nothing has changed. This is
    * the only way the runtime draws while {@link autoDraw} is `false`.
    *
-   * Await {@link nextFrame} and read the canvas immediately after:
+   * @param onRendered - Called right after that draw, in the same frame, so
+   *   the canvas can be read back before the browser composites it:
    *
    * ```ts
-   * idetik.requestRender();
-   * await idetik.nextFrame();
-   * const imageData = idetik.canvas.toDataURL();
+   * const url = await new Promise<string>((resolve) =>
+   *   idetik.requestRender(() => resolve(idetik.canvas.toDataURL()))
+   * );
    * ```
    */
-  public requestRender(): void {
+  public requestRender(onRendered?: () => void): void {
     this.renderRequested_ = true;
+    if (onRendered) this.onRendered_.push(onRendered);
   }
 
   /**
-   * Resolves after the runtime's next frame has run, including any draw.
+   * Resolves at the end of the first frame in which the scene
+   * {@link isSettled}.
    *
-   * @returns A promise resolved after the next frame. It rejects if the
-   *   runtime is not running. A call already waiting when {@link stop} runs
-   *   still resolves after the next browser frame.
-   */
-  public nextFrame(): Promise<void> {
-    if (!this.running) {
-      return Promise.reject(new Error("Idetik runtime not started"));
-    }
-    return new Promise((resolve) => requestAnimationFrame(() => resolve()));
-  }
-
-  /**
-   * Whether the scene has come to rest: no chunk requests queued or in
-   * flight, no loaded chunks awaiting GPU upload, and no camera controls
-   * moving.
-   *
-   * This reflects the last frame, so poll it after {@link nextFrame} once
-   * the runtime has started. A chunk that fails to load is retried
-   * indefinitely, so callers should bound the wait. Chunks that do not fit
-   * the memory limit are never requested and so do not prevent settling.
-   * Combined with {@link autoDraw}, this renders a scene exactly once, after
-   * everything visible has loaded:
+   * A chunk that fails to load is retried indefinitely, so bound the wait,
+   * e.g. with `Promise.race` and a timeout. Combined with {@link autoDraw},
+   * this renders a scene exactly once, after everything visible has loaded:
    *
    * ```ts
    * idetik.autoDraw = false;
    * idetik.start();
-   * do {
-   *   await idetik.nextFrame();
-   * } while (!idetik.isSettled);
-   * idetik.requestRender();
-   * await idetik.nextFrame();
+   * await idetik.whenSettled();
+   * const url = await new Promise<string>((resolve) =>
+   *   idetik.requestRender(() => resolve(idetik.canvas.toDataURL()))
+   * );
    * ```
+   *
+   * @returns A promise that rejects if the runtime is not running, or if
+   *   {@link stop} is called before the scene settles.
+   */
+  public whenSettled(): Promise<void> {
+    if (!this.running) {
+      return Promise.reject(new Error("Idetik runtime not started"));
+    }
+    if (!this.settled_) {
+      let resolve!: () => void;
+      let reject!: (error: Error) => void;
+      const promise = new Promise<void>((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      this.settled_ = { promise, resolve, reject };
+    }
+    return this.settled_.promise;
+  }
+
+  /**
+   * Whether the scene has come to rest: no layers loading, no chunk requests
+   * queued or in flight, no loaded chunks awaiting GPU upload, and no camera
+   * controls moving.
+   *
+   * Chunks that do not fit the memory limit are never requested and so do
+   * not prevent settling.
    */
   public get isSettled(): boolean {
     const queue = this.stats.queue;
@@ -393,7 +409,11 @@ export class Idetik {
       queue.pending === 0 &&
       queue.running === 0 &&
       queue.awaitingUpload === 0 &&
-      !this.viewports_.some((v) => v.cameraControls?.isMoving)
+      !this.viewports_.some(
+        (v) =>
+          v.cameraControls?.isMoving ||
+          v.layers.some((layer) => layer.state === "loading")
+      )
     );
   }
 
@@ -436,6 +456,7 @@ export class Idetik {
 
   private animate(timestamp: DOMHighResTimeStamp) {
     this.lastAnimationId_ = undefined;
+    this.scheduleFrame();
     this.stats_?.begin();
 
     if (this.sizeDirty_) this.updateSize();
@@ -444,9 +465,9 @@ export class Idetik {
     for (const viewport of this.viewports_) {
       this.updateViewport(viewport);
     }
-    if (this.renderRequested_ || (this.autoDraw && this.renderInvalidated_)) {
-      this.draw();
-    }
+    const drew =
+      this.renderRequested_ || (this.autoDraw && this.renderInvalidated_);
+    if (drew) this.draw();
 
     this.chunkManager_.update();
     for (const overlay of this.overlays) {
@@ -454,7 +475,17 @@ export class Idetik {
     }
 
     this.stats_?.end();
-    this.scheduleFrame();
+
+    if (this.settled_ && this.isSettled) {
+      const { resolve } = this.settled_;
+      this.settled_ = undefined;
+      resolve();
+    }
+    if (drew) {
+      const callbacks = this.onRendered_;
+      this.onRendered_ = [];
+      for (const callback of callbacks) callback();
+    }
   }
 
   private updateSize(): void {
@@ -539,6 +570,8 @@ export class Idetik {
       cancelAnimationFrame(this.lastAnimationId_);
       this.lastAnimationId_ = undefined;
     }
+    this.settled_?.reject(new Error("Idetik runtime stopped"));
+    this.settled_ = undefined;
     this.sizeObserver_.disconnect();
     for (const viewport of this.viewports_) {
       viewport.events.disconnect();
