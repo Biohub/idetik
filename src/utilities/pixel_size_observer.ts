@@ -58,10 +58,13 @@ export class PixelSizeObserver {
       );
       return;
     }
-    this.resizeObserver_?.disconnect();
+    this.resizeObserver_.disconnect();
+    this.resizeObserver_ = undefined;
     if (this.mediaQuery_ && this.onMediaQueryChange_) {
       this.mediaQuery_.removeEventListener("change", this.onMediaQueryChange_);
     }
+    this.mediaQuery_ = undefined;
+    this.onMediaQueryChange_ = undefined;
   }
 
   public observe(element: HTMLElement) {
