@@ -152,7 +152,8 @@ export class Idetik {
 
   /**
    * Whether the loop draws on its own when something changed. When `false`,
-   * the loop still updates every frame but only draws on {@link requestRender}.
+   * the loop still updates every frame but only draws on {@link requestRender}
+   * or {@link captureFrame}.
    */
   public autoDraw = true;
 
@@ -162,7 +163,11 @@ export class Idetik {
   private sizeDirty_ = true;
   private running_ = false;
   private renderRequested_ = false;
-  private onRendered_: Array<() => void> = [];
+  private frameReaders_: Array<{
+    read: (canvas: HTMLCanvasElement) => unknown;
+    resolve: (value: unknown) => void;
+    reject: (error: Error) => void;
+  }> = [];
   private settled_?: {
     promise: Promise<void>;
     resolve: () => void;
@@ -342,21 +347,36 @@ export class Idetik {
   }
 
   /**
-   * Requests a draw on the next frame even if nothing has changed. This is
-   * the only way the runtime draws while {@link autoDraw} is `false`.
-   *
-   * @param onRendered - Called right after that draw, in the same frame, so
-   *   the canvas can be read back before the browser composites it:
-   *
-   * ```ts
-   * const url = await new Promise<string>((resolve) =>
-   *   idetik.requestRender(() => resolve(idetik.canvas.toDataURL()))
-   * );
-   * ```
+   * Explicitly requests a draw on the next animation frame while running,
+   * even if no internal state has changed.
    */
-  public requestRender(onRendered?: () => void): void {
+  public requestRender(): void {
     this.renderRequested_ = true;
-    if (onRendered) this.onRendered_.push(onRendered);
+  }
+
+  /**
+   * Requests a draw and reads the canvas back right after it, in the same
+   * frame, before the browser composites it. The reader must read the canvas
+   * synchronously; it may return a promise from a synchronous capture such
+   * as `toBlob`.
+   *
+   * @param read - Reads the drawn canvas, e.g. `(canvas) => canvas.toDataURL()`.
+   * @returns A promise resolving to the reader's result. It rejects if the
+   *   runtime is not running, if {@link stop} is called before the draw, or
+   *   if the reader throws.
+   */
+  public captureFrame<T>(read: (canvas: HTMLCanvasElement) => T): Promise<T> {
+    if (!this.running) {
+      return Promise.reject(new Error("Idetik runtime not started"));
+    }
+    this.requestRender();
+    return new Promise<T>((resolve, reject) => {
+      this.frameReaders_.push({
+        read,
+        resolve: resolve as (value: unknown) => void,
+        reject,
+      });
+    });
   }
 
   /**
@@ -370,16 +390,14 @@ export class Idetik {
    * ```ts
    * idetik.autoDraw = false;
    * idetik.start();
-   * await idetik.whenSettled();
-   * const url = await new Promise<string>((resolve) =>
-   *   idetik.requestRender(() => resolve(idetik.canvas.toDataURL()))
-   * );
+   * await idetik.settled();
+   * const url = await idetik.captureFrame((canvas) => canvas.toDataURL());
    * ```
    *
    * @returns A promise that rejects if the runtime is not running, or if
    *   {@link stop} is called before the scene settles.
    */
-  public whenSettled(): Promise<void> {
+  public settled(): Promise<void> {
     if (!this.running) {
       return Promise.reject(new Error("Idetik runtime not started"));
     }
@@ -482,9 +500,15 @@ export class Idetik {
       resolve();
     }
     if (drew) {
-      const callbacks = this.onRendered_;
-      this.onRendered_ = [];
-      for (const callback of callbacks) callback();
+      const readers = this.frameReaders_;
+      this.frameReaders_ = [];
+      for (const { read, resolve, reject } of readers) {
+        try {
+          resolve(read(this.canvas));
+        } catch (error) {
+          reject(error as Error);
+        }
+      }
     }
   }
 
@@ -570,8 +594,11 @@ export class Idetik {
       cancelAnimationFrame(this.lastAnimationId_);
       this.lastAnimationId_ = undefined;
     }
-    this.settled_?.reject(new Error("Idetik runtime stopped"));
+    const stopped = new Error("Idetik runtime stopped");
+    this.settled_?.reject(stopped);
     this.settled_ = undefined;
+    for (const { reject } of this.frameReaders_) reject(stopped);
+    this.frameReaders_ = [];
     this.sizeObserver_.disconnect();
     for (const viewport of this.viewports_) {
       viewport.events.disconnect();
