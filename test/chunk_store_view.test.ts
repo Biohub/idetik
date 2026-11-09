@@ -191,10 +191,10 @@ function viewOfWidth(bufferWidthPx: number) {
 }
 
 function makeResident(store: ChunkStore, lod: number) {
-  for (const chunk of store.getChunkGrid(lod, 0, 0)!.flat(2)) {
+  store.forEachChunkInPlane(lod, 0, 0, (chunk) => {
     chunk.state = "loaded";
     store.setChunkTexture(chunk, {} as Texture);
-  }
+  });
 }
 
 function createPyramidDimensions(): SourceDimensionMap {

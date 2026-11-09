@@ -529,20 +529,9 @@ export class ChunkStoreView {
   ): void {
     const range = this.chunkIndexRange(bounds, lod);
     if (!range) return;
-    for (const c of channels) {
-      const grid = this.store_.getChunkGrid(lod, timeIndex, c);
-      if (!grid) continue;
-      for (let zi = range.zMin; zi < range.zMax; ++zi) {
-        const yPlane = grid[zi];
-        for (let yi = range.yMin; yi < range.yMax; ++yi) {
-          const xRow = yPlane[yi];
-          for (let xi = range.xMin; xi < range.xMax; ++xi) {
-            const chunk = xRow[xi];
-            callback(chunk);
-          }
-        }
-      }
-    }
+    if (!this.store_.hasChunksAtTime(timeIndex)) return;
+    for (const c of channels)
+      this.store_.forEachChunkInRange(lod, timeIndex, c, range, callback);
   }
 
   private iterateAllChunksAtLod(
@@ -551,17 +540,9 @@ export class ChunkStoreView {
     channels: number[],
     callback: (chunk: Chunk) => void
   ): void {
-    for (const c of channels) {
-      const grid = this.store_.getChunkGrid(lod, timeIndex, c);
-      if (!grid) continue;
-      for (const yPlane of grid) {
-        for (const xRow of yPlane) {
-          for (const chunk of xRow) {
-            callback(chunk);
-          }
-        }
-      }
-    }
+    if (!this.store_.hasChunksAtTime(timeIndex)) return;
+    for (const c of channels)
+      this.store_.forEachChunkInPlane(lod, timeIndex, c, callback);
   }
 
   private lodRange(): { min: number; max: number } {
