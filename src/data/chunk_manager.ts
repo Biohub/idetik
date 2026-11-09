@@ -23,6 +23,9 @@ const DEFAULT_MAX_CONCURRENT_REQUESTS = 8;
 const DEFAULT_MAX_GPU_UPLOADS_PER_UPDATE = 4;
 
 export class ChunkManager {
+  // Released chunks whose fetch was still settling when they lost priority;
+  // their descriptors are dropped once that resolves (see update()).
+  private readonly retiring_ = new Set<{ store: ChunkStore; chunk: Chunk }>();
   private readonly stores_: { source: ChunkSource; store: ChunkStore }[] = [];
   private readonly queue_: ChunkQueue;
 
@@ -95,6 +98,10 @@ export class ChunkManager {
       for (const chunk of updatedChunks) {
         if (chunk.priority === null) {
           this.releaseChunk(chunk);
+          // Unneeded and not in flight or resident: drop the descriptor. A
+          // cancelled fetch still settles asynchronously; retire it then.
+          if (!store.releaseChunkIfUnused(chunk) && chunk.texture === undefined)
+            this.retiring_.add({ store, chunk });
         } else {
           chunk.releasedAt = undefined;
           if (chunk.state === "queued") {
@@ -104,6 +111,13 @@ export class ChunkManager {
       }
 
       this.uploadLoadedChunks(store, updatedChunks);
+    }
+
+    for (const entry of this.retiring_) {
+      const { store, chunk } = entry;
+      // Touched again meanwhile: it is somebody's chunk, not ours to retire.
+      if (chunk.priority !== null || store.releaseChunkIfUnused(chunk))
+        this.retiring_.delete(entry);
     }
 
     this.enqueueWithinBudget(candidates);
@@ -212,6 +226,7 @@ export class ChunkManager {
       this.disposeChunkTexture(victim.store, victim.chunk);
       victim.chunk.state = "unloaded";
       victim.chunk.releasedAt = undefined;
+      victim.store.releaseChunkIfUnused(victim.chunk);
     }
 
     return committedBytes;
