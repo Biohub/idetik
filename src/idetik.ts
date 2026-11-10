@@ -35,8 +35,8 @@ export type Overlay = {
 /**
  * Initialization properties for constructing an Idetik instance.
  */
-/** Encoding options for {@link Idetik.captureFrame}, as for `canvas.toBlob`. */
-export interface CaptureFrameOptions {
+/** Encoding options for {@link Idetik.captureFrameBlob}, as for `canvas.toBlob`. */
+export interface CaptureFrameBlobOptions {
   /** MIME type, e.g. `"image/png"`, `"image/jpeg"` or `"image/webp"`. */
   type?: string;
   /** Encoder quality from 0 to 1 for lossy types. */
@@ -161,7 +161,7 @@ export class Idetik {
   /**
    * Whether the loop draws on its own when something changed. When `false`,
    * the loop still updates every frame but only draws on {@link requestRender}
-   * or {@link captureFrame}.
+   * or {@link captureFrameBlob}.
    */
   public autoDraw = true;
 
@@ -172,7 +172,7 @@ export class Idetik {
   private running_ = false;
   private renderRequested_ = false;
   private captures_: Array<{
-    options?: CaptureFrameOptions;
+    options?: CaptureFrameBlobOptions;
     resolve: (blob: Blob) => void;
     reject: (error: Error) => void;
   }> = [];
@@ -372,7 +372,7 @@ export class Idetik {
    *   runtime is not running, if {@link stop} is called before the draw, or
    *   if encoding fails.
    */
-  public captureFrame(options?: CaptureFrameOptions): Promise<Blob> {
+  public captureFrameBlob(options?: CaptureFrameBlobOptions): Promise<Blob> {
     if (!this.running) {
       return Promise.reject(new Error("Idetik runtime not started"));
     }
@@ -394,7 +394,7 @@ export class Idetik {
    * idetik.autoDraw = false;
    * idetik.start();
    * await idetik.settled();
-   * const blob = await idetik.captureFrame({ type: "image/webp" });
+   * const blob = await idetik.captureFrameBlob({ type: "image/webp" });
    * ```
    *
    * @returns A promise that rejects if the runtime is not running, or if
