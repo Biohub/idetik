@@ -35,6 +35,14 @@ export type Overlay = {
 /**
  * Initialization properties for constructing an Idetik instance.
  */
+/** Encoding options for {@link Idetik.captureFrameBlob}, as for `canvas.toBlob`. */
+export interface CaptureFrameBlobOptions {
+  /** MIME type, e.g. `"image/png"`, `"image/jpeg"` or `"image/webp"`. */
+  type?: string;
+  /** Encoder quality from 0 to 1 for lossy types. */
+  quality?: number;
+}
+
 export type IdetikProps = {
   /** The canvas element to render into. */
   canvas: HTMLCanvasElement;
@@ -150,10 +158,29 @@ export class Idetik {
   private readonly stats_?: StatsMeter;
   private readonly sizeObserver_: PixelSizeObserver;
 
+  /**
+   * Whether the loop draws on its own when something changed. When `false`,
+   * the loop still updates every frame but only draws on {@link requestRender}
+   * or {@link captureFrameBlob}.
+   */
+  public autoDraw = true;
+
   private lastAnimationId_?: number;
   private lastTimestamp_: DOMHighResTimeStamp = 0;
-  private renderRequested_ = false;
   private renderInvalidated_ = true;
+  private sizeDirty_ = true;
+  private running_ = false;
+  private renderRequested_ = false;
+  private captures_: Array<{
+    options?: CaptureFrameBlobOptions;
+    resolve: (blob: Blob) => void;
+    reject: (error: Error) => void;
+  }> = [];
+  private settled_?: {
+    promise: Promise<void>;
+    resolve: () => void;
+    reject: (error: Error) => void;
+  };
 
   /**
    * Creates an Idetik runtime for the given canvas.
@@ -198,15 +225,8 @@ export class Idetik {
     }
 
     this.sizeObserver_ = new PixelSizeObserver(sizeDependents, () => {
-      this.renderer_.updateSize();
-      this.detachRemovedLayers();
-
-      for (const viewport of this.viewports_) {
-        viewport.updateSize();
-        this.updateViewport(viewport);
-      }
-
-      this.draw();
+      this.sizeDirty_ = true;
+      this.invalidate();
     });
   }
 
@@ -227,7 +247,7 @@ export class Idetik {
 
   /** Whether the render loop is running. */
   public get running(): boolean {
-    return this.lastAnimationId_ !== undefined;
+    return this.running_;
   }
 
   /**
@@ -343,6 +363,82 @@ export class Idetik {
   }
 
   /**
+   * Requests a draw and encodes the canvas right after it, in the same
+   * frame, before the browser composites it.
+   *
+   * @param options - Image type and quality, as for `canvas.toBlob`.
+   *   Defaults to PNG.
+   * @returns A promise resolving to the encoded image. It rejects if the
+   *   runtime is not running, if {@link stop} is called before the draw, or
+   *   if encoding fails.
+   */
+  public captureFrameBlob(options?: CaptureFrameBlobOptions): Promise<Blob> {
+    if (!this.running) {
+      return Promise.reject(new Error("Idetik runtime not started"));
+    }
+    this.requestRender();
+    return new Promise<Blob>((resolve, reject) => {
+      this.captures_.push({ options, resolve, reject });
+    });
+  }
+
+  /**
+   * Resolves at the end of the first frame in which the scene
+   * {@link isSettled}.
+   *
+   * A chunk that fails to load is retried indefinitely, so bound the wait,
+   * e.g. with `Promise.race` and a timeout. Combined with {@link autoDraw},
+   * this renders a scene exactly once, after everything visible has loaded:
+   *
+   * ```ts
+   * idetik.autoDraw = false;
+   * idetik.start();
+   * await idetik.settled();
+   * const blob = await idetik.captureFrameBlob({ type: "image/webp" });
+   * ```
+   *
+   * @returns A promise that rejects if the runtime is not running, or if
+   *   {@link stop} is called before the scene settles.
+   */
+  public settled(): Promise<void> {
+    if (!this.running) {
+      return Promise.reject(new Error("Idetik runtime not started"));
+    }
+    if (!this.settled_) {
+      let resolve!: () => void;
+      let reject!: (error: Error) => void;
+      const promise = new Promise<void>((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      this.settled_ = { promise, resolve, reject };
+    }
+    return this.settled_.promise;
+  }
+
+  /**
+   * Whether the scene has come to rest: no layers loading, no chunk requests
+   * queued or in flight, no loaded chunks awaiting GPU upload, and no camera
+   * controls moving.
+   *
+   * Chunks that do not fit the memory limit are never requested and so do
+   * not prevent settling.
+   */
+  public get isSettled(): boolean {
+    const queue = this.stats.queue;
+    return (
+      queue.pending === 0 &&
+      queue.running === 0 &&
+      queue.awaitingUpload === 0 &&
+      !this.viewports_.some(
+        (v) =>
+          v.cameraControls?.isMoving ||
+          v.layers.some((layer) => layer.state === "loading")
+      )
+    );
+  }
+
+  /**
    * Starts the render loop and connects input handlers.
    *
    * @returns The instance, for chaining.
@@ -350,6 +446,8 @@ export class Idetik {
   public start() {
     Logger.info("Idetik", "Idetik runtime starting");
     if (!this.running) {
+      this.running_ = true;
+      this.lastTimestamp_ = performance.now();
       this.invalidate();
       this.stats.resetRates();
 
@@ -358,11 +456,7 @@ export class Idetik {
       }
 
       this.sizeObserver_.connect();
-
-      this.lastAnimationId_ = requestAnimationFrame((timestamp) => {
-        this.lastTimestamp_ = timestamp;
-        this.animate(timestamp);
-      });
+      this.scheduleFrame();
     } else {
       Logger.warn("Idetik", "Idetik runtime already started");
     }
@@ -382,33 +476,71 @@ export class Idetik {
   }
 
   private animate(timestamp: DOMHighResTimeStamp) {
+    this.lastAnimationId_ = undefined;
+    this.scheduleFrame();
     this.stats_?.begin();
 
-    // cap dt to prevent large time-step jumps when resuming from background tabs
-    const dt = Math.min(timestamp - this.lastTimestamp_, 100) / 1000;
-
-    this.lastTimestamp_ = timestamp;
+    if (this.sizeDirty_) this.updateSize();
+    this.updateControls(timestamp);
     this.detachRemovedLayers();
-
-    for (const viewport of this.viewports_) {
-      viewport.cameraControls?.onUpdate(dt);
-    }
-
     for (const viewport of this.viewports_) {
       this.updateViewport(viewport);
     }
-
-    if (this.renderRequested_ || this.renderInvalidated_) {
-      this.draw();
-    }
+    const drew =
+      this.renderRequested_ || (this.autoDraw && this.renderInvalidated_);
+    if (drew) this.draw();
 
     this.chunkManager_.update();
-
     for (const overlay of this.overlays) {
       overlay.update(this);
     }
 
     this.stats_?.end();
+
+    if (this.settled_ && this.isSettled) {
+      const { resolve } = this.settled_;
+      this.settled_ = undefined;
+      resolve();
+    }
+    if (drew) {
+      const captures = this.captures_;
+      this.captures_ = [];
+      for (const { options, resolve, reject } of captures) {
+        try {
+          this.canvas.toBlob(
+            (blob) =>
+              blob
+                ? resolve(blob)
+                : reject(new Error("Canvas encoding failed")),
+            options?.type,
+            options?.quality
+          );
+        } catch (error) {
+          reject(error as Error);
+        }
+      }
+    }
+  }
+
+  private updateSize(): void {
+    this.renderer_.updateSize();
+    for (const viewport of this.viewports_) {
+      viewport.updateSize();
+    }
+    this.sizeDirty_ = false;
+  }
+
+  private updateControls(timestamp: DOMHighResTimeStamp): void {
+    const dt =
+      Math.min(Math.max(timestamp - this.lastTimestamp_, 0), 100) / 1000;
+    this.lastTimestamp_ = timestamp;
+    for (const viewport of this.viewports_) {
+      viewport.cameraControls?.onUpdate(dt);
+    }
+  }
+
+  private scheduleFrame(): void {
+    if (!this.running || this.lastAnimationId_ !== undefined) return;
     this.lastAnimationId_ = requestAnimationFrame((timestamp) =>
       this.animate(timestamp)
     );
@@ -448,8 +580,8 @@ export class Idetik {
   }
 
   private draw(): void {
-    this.renderRequested_ = false;
     this.renderInvalidated_ = false;
+    this.renderRequested_ = false;
     this.renderer_.beginFrame();
     for (const viewport of this.viewports_) {
       this.renderer_.render(viewport);
@@ -465,15 +597,22 @@ export class Idetik {
     Logger.info("Idetik", "Idetik runtime stopping");
     if (!this.running) {
       Logger.warn("Idetik", "Idetik runtime not started");
-    } else {
-      this.sizeObserver_.disconnect();
-      for (const viewport of this.viewports_) {
-        viewport.events.disconnect();
-      }
-      // safe non-null assertion: this.running is true, so lastAnimationId_ is defined
-      cancelAnimationFrame(this.lastAnimationId_!);
-      this.lastAnimationId_ = undefined;
-      this.stats.resetRates();
+      return;
     }
+    this.running_ = false;
+    if (this.lastAnimationId_ !== undefined) {
+      cancelAnimationFrame(this.lastAnimationId_);
+      this.lastAnimationId_ = undefined;
+    }
+    const stopped = new Error("Idetik runtime stopped");
+    this.settled_?.reject(stopped);
+    this.settled_ = undefined;
+    for (const { reject } of this.captures_) reject(stopped);
+    this.captures_ = [];
+    this.sizeObserver_.disconnect();
+    for (const viewport of this.viewports_) {
+      viewport.events.disconnect();
+    }
+    this.stats.resetRates();
   }
 }

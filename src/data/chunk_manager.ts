@@ -8,6 +8,7 @@ import { ChunkStoreView } from "./chunk_store_view";
 import { ImageSourcePolicy } from "../core/image_source_policy";
 import { Texture, textureStorageBytes } from "../objects/textures/texture";
 import { Texture3D } from "../objects/textures/texture_3d";
+import { Logger } from "../utilities/logger";
 
 /**
  * A snapshot of the chunk request queue.
@@ -17,6 +18,8 @@ export type QueueStats = {
   pending: number;
   /** Number of requests currently in flight. */
   running: number;
+  /** Number of loaded chunks waiting for GPU upload. */
+  awaitingUpload: number;
 };
 
 const DEFAULT_MAX_CONCURRENT_REQUESTS = 8;
@@ -24,12 +27,14 @@ const DEFAULT_MAX_GPU_UPLOADS_PER_UPDATE = 4;
 
 export class ChunkManager {
   private readonly stores_: { source: ChunkSource; store: ChunkStore }[] = [];
+  private readonly awaitingUpload_ = new Map<Chunk, ChunkStore>();
   private readonly queue_: ChunkQueue;
 
   private readonly uploadTexture_?: (texture: Texture) => void;
   private readonly disposeTexture_?: (texture: Texture) => void;
   private readonly getGpuResidentBytes_: () => number;
   private memoryLimitBytes_: number;
+  private oversizedWarned_ = false;
   private readonly maxGpuUploadsPerUpdate_: number;
 
   constructor(
@@ -60,6 +65,7 @@ export class ChunkManager {
     return {
       pending: this.queue_.pendingCount,
       running: this.queue_.runningCount,
+      awaitingUpload: this.awaitingUpload_.size,
     };
   }
 
@@ -87,7 +93,11 @@ export class ChunkManager {
   }
 
   public update() {
-    const candidates: { source: ChunkSource; chunk: Chunk }[] = [];
+    const candidates: {
+      source: ChunkSource;
+      store: ChunkStore;
+      chunk: Chunk;
+    }[] = [];
 
     for (const { source, store } of this.stores_) {
       const updatedChunks = store.updateAndCollectChunkChanges();
@@ -98,14 +108,13 @@ export class ChunkManager {
         } else {
           chunk.releasedAt = undefined;
           if (chunk.state === "queued") {
-            candidates.push({ source, chunk });
+            candidates.push({ source, store, chunk });
           }
         }
       }
-
-      this.uploadLoadedChunks(store, updatedChunks);
     }
 
+    this.uploadLoadedChunks();
     this.enqueueWithinBudget(candidates);
     this.queue_.flush();
 
@@ -129,26 +138,34 @@ export class ChunkManager {
       return;
     }
 
+    this.awaitingUpload_.delete(chunk);
     clearChunkData(chunk);
     if (chunk.state === "loaded") chunk.state = "unloaded";
   }
 
   private enqueueWithinBudget(
-    candidates: { source: ChunkSource; chunk: Chunk }[]
+    candidates: { source: ChunkSource; store: ChunkStore; chunk: Chunk }[]
   ) {
-    if (candidates.length === 0) return;
+    if (candidates.length === 0) {
+      this.oversizedWarned_ = false;
+      return;
+    }
 
     candidates.sort((a, b) => comparePriority(a.chunk, b.chunk));
 
     let committedBytes = this.getGpuResidentBytes_();
     const victims = this.evictionCandidates();
+    let oversized = false;
 
-    for (const { source, chunk } of candidates) {
+    for (const { source, store, chunk } of candidates) {
       const bytes = this.chunkBytes(source, chunk);
 
       // A chunk that can never fit must not trigger eviction. It would drain
       // the entire cache and still be skipped.
-      if (bytes > this.memoryLimitBytes_) continue;
+      if (bytes > this.memoryLimitBytes_) {
+        oversized = true;
+        continue;
+      }
 
       if (committedBytes + bytes > this.memoryLimitBytes_) {
         committedBytes = this.evictWorseChunks(
@@ -162,10 +179,19 @@ export class ChunkManager {
       if (committedBytes + bytes > this.memoryLimitBytes_) continue;
 
       committedBytes += bytes;
-      this.queue_.enqueue(chunk, (signal) =>
-        source.loader.loadChunkData(chunk, signal)
+      this.queue_.enqueue(chunk, async (signal) => {
+        await source.loader.loadChunkData(chunk, signal);
+        if (!signal.aborted) this.awaitingUpload_.set(chunk, store);
+      });
+    }
+
+    if (oversized && !this.oversizedWarned_) {
+      Logger.warn(
+        "ChunkManager",
+        "Some visible chunks exceed the memory limit and will not load"
       );
     }
+    this.oversizedWarned_ = oversized;
   }
 
   private evictionCandidates(): {
@@ -222,25 +248,16 @@ export class ChunkManager {
     return chunk.shape.x * chunk.shape.y * chunk.shape.z * bytesPerElement;
   }
 
-  private uploadLoadedChunks(store: ChunkStore, chunks: Set<Chunk>) {
-    if (!this.uploadTexture_) return;
+  private uploadLoadedChunks() {
+    if (!this.uploadTexture_ || this.awaitingUpload_.size === 0) return;
 
-    const pending: Chunk[] = [];
+    const pending = [...this.awaitingUpload_.keys()].sort(comparePriority);
+    const count = Math.min(pending.length, this.maxGpuUploadsPerUpdate_);
 
-    for (const chunk of chunks) {
-      if (chunk.state === "loaded" && chunk.texture === undefined) {
-        pending.push(chunk);
-      }
-    }
-
-    if (pending.length === 0) return;
-
-    pending.sort(comparePriority);
-
-    const limit = Math.min(pending.length, this.maxGpuUploadsPerUpdate_);
-
-    for (let i = 0; i < limit; i++) {
+    for (let i = 0; i < count; i++) {
       const chunk = pending[i];
+      const store = this.awaitingUpload_.get(chunk)!;
+      this.awaitingUpload_.delete(chunk);
       const texture = Texture3D.createWithChunk(chunk);
       this.uploadTexture_(texture);
       store.setChunkTexture(chunk, texture);
