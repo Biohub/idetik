@@ -66,7 +66,6 @@ const idetik = new Idetik({
       layers: [volumeLayer],
     }),
   ],
-  showStats: true,
 });
 
 idetik.start();
@@ -150,7 +149,7 @@ function createChannelControls(
 }
 
 // Add GUI controls to manipulate rendering
-const gui = new GUI({ width: 320, closeFolders: true });
+const gui = new GUI({ width: 320, closeFolders: true }).close();
 gui
   .add(controls, "lod", 0, 2, 1)
   .name("Level of Detail (LOD)")

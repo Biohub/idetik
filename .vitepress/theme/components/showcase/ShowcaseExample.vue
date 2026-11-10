@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useData, withBase } from "vitepress";
+import { VPButton } from "vitepress/theme";
 
 // docs/showcase/[id].md embeds the built examples/<id>/ app; params come from
 // .vitepress/showcase.js.
 const { params } = useData();
-const src = computed(() => withBase(`/examples/${params.value.id}/index.html`));
+const appPath = computed(() => `/examples/${params.value.id}/index.html`);
+const src = computed(() => withBase(appPath.value));
 const source = computed(
   () =>
     `https://github.com/chanzuckerberg/idetik/tree/main/examples/${params.value.id}`
@@ -20,8 +22,20 @@ const source = computed(
         <p class="desc">{{ params.description }}</p>
       </div>
       <div class="actions">
-        <a :href="src" target="_blank" rel="noopener">Open full screen ↗</a>
-        <a :href="source" target="_blank" rel="noopener">Source on GitHub ↗</a>
+        <VPButton
+          theme="alt"
+          text="Full screen ↗"
+          :href="appPath"
+          target="_blank"
+          rel="noopener"
+        />
+        <VPButton
+          theme="alt"
+          text="View on GitHub ↗"
+          :href="source"
+          target="_blank"
+          rel="noopener"
+        />
       </div>
     </div>
     <iframe :src="src" :title="params.title" allow="fullscreen" />
@@ -33,7 +47,7 @@ const source = computed(
 .header {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
   margin: 0 0 20px;
@@ -53,21 +67,11 @@ h1 {
 
 .actions {
   display: flex;
-  gap: 8px;
+  gap: 12px;
 }
 
-.actions a {
-  padding: 6px 14px;
-  border: 1px solid var(--vp-button-alt-border);
-  border-radius: var(--radius-pill);
-  font-size: 13px;
-  color: var(--vp-c-text-1);
+.actions :deep(.VPButton) {
   text-decoration: none;
-  transition: border-color 0.25s;
-}
-
-.actions a:hover {
-  border-color: var(--vp-button-alt-hover-border);
 }
 
 iframe {

@@ -14,10 +14,11 @@ export function loadShowcase() {
           throw new Error(`examples/${name}/${file} is required for the showcase`)
         }
       }
-      const { description, data, tags = [] } = JSON.parse(
+      const { label, description, data, tags = [] } = JSON.parse(
         readFileSync(resolve(dir, 'showcase.json'), 'utf-8'),
       )
-      return { id: name, title: getExampleTitle(htmlContent, name), description, data, tags }
+      const title = getExampleTitle(htmlContent, name)
+      return { id: name, title, label: label ?? title, description, data, tags }
     })
     .sort((a, b) => a.title.localeCompare(b.title))
 }

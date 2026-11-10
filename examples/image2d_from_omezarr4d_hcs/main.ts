@@ -34,7 +34,7 @@ if (plate.plate === undefined) {
 const wellPaths = plate.plate.wells.map((well) => well.path);
 
 const selection = { well: initialWellPath, image: initialImagePath };
-const gui = new GUI({ width: 280 });
+const gui = new GUI({ width: 280 }).close();
 gui.add(selection, "well", wellPaths).name("Well").onChange(onWellChange);
 const imageController = gui
   .add(selection, "image", [initialImagePath])

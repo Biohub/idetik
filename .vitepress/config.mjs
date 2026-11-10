@@ -19,15 +19,19 @@ function getLatestVersion() {
 
 // Showcase sidebar, sorted like the gallery. Thumbnail paths are relative so
 // they survive the base path.
-const thumb = (src) => `<img class="showcase-thumb" src="..${src}" alt="">`
+const thumb = (src) => `<span class="showcase-thumb"><img src="..${src}" alt=""></span>`
 
 function showcaseSidebar() {
-  const items = loadShowcase().map(({ id, title }) => ({
-    text: `${thumb(`/examples/${id}/thumbnail.jpg`)}${title}`,
+  const items = loadShowcase().map(({ id, label }) => ({
+    text: `${thumb(`/examples/${id}/thumbnail.jpg`)}${label}`,
     link: `/showcase/${id}`,
   }))
-  return [{ text: 'Examples', link: '/showcase/', items }]
+  return [{ items }]
 }
+
+// The Examples nav entry opens the first example in gallery order; the
+// sidebar lists the rest. /showcase/ itself only redirects here.
+const firstExample = `/showcase/${loadShowcase()[0].id}`
 
 const headingRegex = /<h(\d*).*?>(.*?<a.*? href="#.*?".*?>.*?<\/a>)<\/h\1>/gi
 const headingContentRegex = /(.*?)<a class="header-anchor" href="#(.*?)".*?>.*?<\/a>/i
@@ -57,6 +61,9 @@ function* splitPageIntoSections(html) {
   }
 }
 
+// One Biohub logo for the nav and footer, inlined so CSS can color it.
+const biohubLogo = readFileSync(new URL('./theme/icons/biohub.svg', import.meta.url), 'utf-8')
+
 // GitHub Pages project path. Set here, not via --base, so the raw-HTML footer
 // and head links below can use it; VitePress doesn't prefix those.
 const base = '/idetik/'
@@ -71,6 +78,13 @@ export default defineConfig({
     if (pageData.params?.title) {
       pageData.title = pageData.params.title
       pageData.description = pageData.params.description
+    }
+    if (pageData.relativePath === 'showcase/index.md') {
+      const target = `${base}${firstExample.slice(1)}.html`
+      pageData.frontmatter.head = [
+        ['meta', { 'http-equiv': 'refresh', content: `0; url=${target}` }],
+        ['link', { rel: 'canonical', href: target }],
+      ]
     }
   },
 
@@ -138,15 +152,14 @@ export default defineConfig({
     },
 
     nav: [
-      { text: 'User Guide', link: '/guide/getting-started' },
-      { text: 'API Reference', link: '/api/' },
-      { text: 'Examples', link: '/showcase/' },
+      { text: 'User Guide', link: '/guide/getting-started', activeMatch: '^/guide/' },
+      { text: 'API Reference', link: '/api/', activeMatch: '^/api/' },
+      { text: 'Examples', link: firstExample, activeMatch: '^/showcase/' },
     ],
 
     sidebar: {
       '/guide/': [
         {
-          text: 'User Guide',
           items: [
             { text: 'Getting Started', link: '/guide/getting-started' },
             { text: 'How Idetik Works', link: '/guide/how-idetik-works' },
@@ -162,9 +175,10 @@ export default defineConfig({
     ],
 
     footer: {
-      message: 'Released under the MIT License',
+      message:
+        'Released under the <a href="https://github.com/Biohub/idetik/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>. © 2026-present Chan Zuckerberg Biohub, Inc.',
       copyright:
-        `<a href="https://biohub.ai" target="_blank" rel="noopener"><img src="${base}biohub-logo.svg" alt="Biohub"></a>`,
+        `<a href="https://biohub.ai" target="_blank" rel="noopener" aria-label="Biohub">${biohubLogo}</a>`,
     },
   },
 })

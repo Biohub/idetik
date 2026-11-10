@@ -3,22 +3,25 @@ import { h } from 'vue'
 import VersionBadge from './VersionBadge.vue'
 import GettingStartedViewer from './GettingStartedViewer.vue'
 import HomeGallery from './components/showcase/HomeGallery.vue'
-import AgentPrompt from './components/AgentPrompt.vue'
-import ShowcaseGallery from './components/showcase/ShowcaseGallery.vue'
+import AgentOnboard from './components/AgentOnboard.vue'
+import HeroGlow from './components/HeroGlow.vue'
 import ShowcaseExample from './components/showcase/ShowcaseExample.vue'
+import biohubLogo from './icons/biohub.svg?raw'
 import './custom.css'
 
 export default {
   extends: DefaultTheme,
   Layout() {
     return h(DefaultTheme.Layout, null, {
-      'home-features-after': () => [h(HomeGallery), h(AgentPrompt)],
+      'nav-bar-title-before': () =>
+        h('span', { class: 'biohub-logo', role: 'img', 'aria-label': 'Biohub', innerHTML: biohubLogo }),
+      'home-hero-before': () => h(HeroGlow),
+      'home-features-after': () => [h(HomeGallery), h(AgentOnboard)],
     })
   },
   enhanceApp({ app }) {
     app.component('VersionBadge', VersionBadge)
     app.component('GettingStartedViewer', GettingStartedViewer)
-    app.component('ShowcaseGallery', ShowcaseGallery)
     app.component('ShowcaseExample', ShowcaseExample)
   },
 }

@@ -26,12 +26,13 @@ Add `showcase.json` next to `index.html`:
 
 ```json
 {
+  "label": "Blastocyst Nuclei",
   "description": "One sentence on what the example shows.",
   "data": "Where the data comes from, e.g. IDR idr0062A · EBI",
   "tags": ["2d", "labels"]
 }
 ```
 
-and a `thumbnail.jpg` (1280×720 works well). `tags` are short lowercase feature names shown on the gallery card; keep to two or three and reuse existing ones where they fit. `data` appears under the viewer on the example's page. The docs pick it up at `/showcase/<id>` with a gallery card and sidebar entry; no docs files need editing. The docs build fails if `showcase.json` exists without `main.ts` or `thumbnail.jpg`.
+and a `thumbnail.jpg` (1280×720 works well). `tags` are short lowercase feature names shown on the gallery card; keep to two or three and reuse existing ones where they fit. `label` is the short name in the examples sidebar; keep it to one line (about 18 characters) and it falls back to the `<title>` when omitted. `data` appears under the viewer on the example's page and as the gallery card's subtitle. The docs pick it up at `/showcase/<id>` with a gallery card and sidebar entry; no docs files need editing. The docs build fails if `showcase.json` exists without `main.ts` or `thumbnail.jpg`.
 
 Preview with `npm run docs:dev`.

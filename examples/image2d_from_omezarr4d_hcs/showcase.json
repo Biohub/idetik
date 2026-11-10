@@ -1,4 +1,5 @@
 {
+  "label": "HCS Plate",
   "description": "Browse wells of a high-content screening plate.",
   "data": "A549 organelle box plate · public.czbiohub.org",
   "tags": ["2d", "hcs"]

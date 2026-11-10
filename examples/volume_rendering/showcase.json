@@ -1,4 +1,5 @@
 {
+  "label": "A549 Cells Volume",
   "description": "3D multichannel volume rendering with orbit controls and a fixed-LOD policy.",
   "data": "A549 organelle box · public.czbiohub.org",
   "tags": ["3d", "volume"]

@@ -126,7 +126,7 @@ function applyColorCycle() {
   labelsLayer.setColorMap(cycle ? { cycle } : {});
 }
 
-const gui = new GUI({ width: 280 });
+const gui = new GUI({ width: 280 }).close();
 gui
   .add(controls, "zIndex", 0, zSize - 1, 1)
   .name("Z slice")

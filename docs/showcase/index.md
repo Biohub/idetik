@@ -1,11 +1,16 @@
 ---
 title: Examples
-description: Examples of how to use Idetik, each with its full source.
+sidebar: false
 aside: false
 ---
 
-# Examples
+<script setup>
+import { onMounted } from 'vue'
+import { withBase } from 'vitepress'
+import { data as examples } from '../../.vitepress/theme/components/showcase/examples.data.js'
 
-Examples of how to use Idetik.
+const first = withBase(`/showcase/${examples[0].id}.html`)
+onMounted(() => location.replace(first))
+</script>
 
-<ShowcaseGallery />
+Redirecting to the <a :href="first">first example</a>…

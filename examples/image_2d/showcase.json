@@ -1,5 +1,6 @@
 {
+  "label": "Zebrafish Embryo 2D",
   "description": "A 2D viewer with a dataset picker spanning Zarr v2 and v3, plus a custom URL field.",
-  "data": "Zebrahub · AIND exaSPIM · EBI · OME-Zarr SciVis",
-  "tags": ["2d", "multiscale", "playback"]
+  "data": "Zebrahub · AIND exaSPIM · EBI",
+  "tags": ["streaming", "multiscale", "playback"]
 }

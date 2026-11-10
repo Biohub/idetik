@@ -1,14 +1,10 @@
 <script setup lang="ts">
-import { withBase } from "vitepress";
 import ShowcaseGallery from "./ShowcaseGallery.vue";
 </script>
 
 <template>
   <section class="home-gallery">
     <div class="container">
-      <h2 class="title">
-        <a :href="withBase('/showcase/')">Examples</a>
-      </h2>
       <ShowcaseGallery />
     </div>
   </section>
@@ -36,29 +32,5 @@ import ShowcaseGallery from "./ShowcaseGallery.vue";
 .container {
   margin: 0 auto;
   max-width: var(--home-max-width);
-}
-
-/* Same scale as the agent prompt's heading below. */
-.title {
-  margin: 0;
-  font-size: 36px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.15;
-}
-
-@media (min-width: 640px) {
-  .title {
-    font-size: 44px;
-  }
-}
-
-.title a {
-  color: var(--vp-c-text-1);
-  text-decoration: none;
-}
-
-.title a:hover {
-  color: var(--vp-c-brand-1);
 }
 </style>

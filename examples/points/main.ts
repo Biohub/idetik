@@ -176,6 +176,7 @@ imageLayer.addStateChangeCallback(onFirstImageLoad);
 
 const controls = { zIndex: Math.round(INITIAL_Z_POSITION / IMAGE_SCALE_2) };
 new GUI({ width: 280 })
+  .close()
   .add(controls, "zIndex", zMin, zMax - 1, 1)
   .name("Z slice")
   .onChange((index: number) => {

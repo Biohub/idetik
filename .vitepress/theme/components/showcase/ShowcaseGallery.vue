@@ -19,7 +19,7 @@ import { data as examples } from "./examples.data.js";
         />
         <div class="body">
           <div class="title">{{ item.title }}</div>
-          <div class="desc">{{ item.description }}</div>
+          <div class="desc">{{ item.data }}</div>
           <div v-if="item.tags.length" class="tags">
             <span v-for="tag in item.tags" :key="tag" class="tag">{{
               tag
@@ -32,10 +32,6 @@ import { data as examples } from "./examples.data.js";
 </template>
 
 <style scoped>
-.showcase-gallery {
-  margin-top: 32px;
-}
-
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -53,8 +49,12 @@ import { data as examples } from "./examples.data.js";
   transition: border-color 0.25s;
 }
 
+.dark .card {
+  border-color: #27272b;
+}
+
 .card:hover {
-  border-color: var(--vp-c-brand-1);
+  border-color: var(--vp-c-border);
 }
 
 .card img {
@@ -67,9 +67,15 @@ import { data as examples } from "./examples.data.js";
 
 .body {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 6px;
   padding: 14px 16px 16px;
+  background: rgb(0 0 0 / 0.025);
+}
+
+.dark .body {
+  background: #1c1c20;
 }
 
 .title {
@@ -91,10 +97,17 @@ import { data as examples } from "./examples.data.js";
 }
 
 .tag {
-  padding: 2px 10px;
-  border: 1px solid var(--vp-c-gutter);
+  padding: 0 10px;
   border-radius: var(--radius-pill);
-  font-size: 11px;
+  background: rgb(0 0 0 / 0.06);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 22px;
   color: var(--vp-c-text-2);
+}
+
+.dark .tag {
+  background: #3e3e41;
+  color: rgb(235 235 245 / 0.62);
 }
 </style>
