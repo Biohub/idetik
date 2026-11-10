@@ -35,6 +35,14 @@ export type Overlay = {
 /**
  * Initialization properties for constructing an Idetik instance.
  */
+/** Encoding options for {@link Idetik.captureFrame}, as for `canvas.toBlob`. */
+export interface CaptureFrameOptions {
+  /** MIME type, e.g. `"image/png"`, `"image/jpeg"` or `"image/webp"`. */
+  type?: string;
+  /** Encoder quality from 0 to 1 for lossy types. */
+  quality?: number;
+}
+
 export type IdetikProps = {
   /** The canvas element to render into. */
   canvas: HTMLCanvasElement;
@@ -163,9 +171,9 @@ export class Idetik {
   private sizeDirty_ = true;
   private running_ = false;
   private renderRequested_ = false;
-  private frameReaders_: Array<{
-    read: (canvas: HTMLCanvasElement) => unknown;
-    resolve: (value: unknown) => void;
+  private captures_: Array<{
+    options?: CaptureFrameOptions;
+    resolve: (blob: Blob) => void;
     reject: (error: Error) => void;
   }> = [];
   private settled_?: {
@@ -355,27 +363,22 @@ export class Idetik {
   }
 
   /**
-   * Requests a draw and reads the canvas back right after it, in the same
-   * frame, before the browser composites it. The reader must read the canvas
-   * synchronously; it may return a promise from a synchronous capture such
-   * as `toBlob`.
+   * Requests a draw and encodes the canvas right after it, in the same
+   * frame, before the browser composites it.
    *
-   * @param read - Reads the drawn canvas, e.g. `(canvas) => canvas.toDataURL()`.
-   * @returns A promise resolving to the reader's result. It rejects if the
+   * @param options - Image type and quality, as for `canvas.toBlob`.
+   *   Defaults to PNG.
+   * @returns A promise resolving to the encoded image. It rejects if the
    *   runtime is not running, if {@link stop} is called before the draw, or
-   *   if the reader throws.
+   *   if encoding fails.
    */
-  public captureFrame<T>(read: (canvas: HTMLCanvasElement) => T): Promise<T> {
+  public captureFrame(options?: CaptureFrameOptions): Promise<Blob> {
     if (!this.running) {
       return Promise.reject(new Error("Idetik runtime not started"));
     }
     this.requestRender();
-    return new Promise<T>((resolve, reject) => {
-      this.frameReaders_.push({
-        read,
-        resolve: resolve as (value: unknown) => void,
-        reject,
-      });
+    return new Promise<Blob>((resolve, reject) => {
+      this.captures_.push({ options, resolve, reject });
     });
   }
 
@@ -391,7 +394,7 @@ export class Idetik {
    * idetik.autoDraw = false;
    * idetik.start();
    * await idetik.settled();
-   * const url = await idetik.captureFrame((canvas) => canvas.toDataURL());
+   * const blob = await idetik.captureFrame({ type: "image/webp" });
    * ```
    *
    * @returns A promise that rejects if the runtime is not running, or if
@@ -500,11 +503,18 @@ export class Idetik {
       resolve();
     }
     if (drew) {
-      const readers = this.frameReaders_;
-      this.frameReaders_ = [];
-      for (const { read, resolve, reject } of readers) {
+      const captures = this.captures_;
+      this.captures_ = [];
+      for (const { options, resolve, reject } of captures) {
         try {
-          resolve(read(this.canvas));
+          this.canvas.toBlob(
+            (blob) =>
+              blob
+                ? resolve(blob)
+                : reject(new Error("Canvas encoding failed")),
+            options?.type,
+            options?.quality
+          );
         } catch (error) {
           reject(error as Error);
         }
@@ -597,8 +607,8 @@ export class Idetik {
     const stopped = new Error("Idetik runtime stopped");
     this.settled_?.reject(stopped);
     this.settled_ = undefined;
-    for (const { reject } of this.frameReaders_) reject(stopped);
-    this.frameReaders_ = [];
+    for (const { reject } of this.captures_) reject(stopped);
+    this.captures_ = [];
     this.sizeObserver_.disconnect();
     for (const viewport of this.viewports_) {
       viewport.events.disconnect();
