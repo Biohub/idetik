@@ -30,19 +30,19 @@ The same placement makes slicing cheap. Idetik uploads every chunk to the GPU as
 
 ## The Frame
 
-[`start`](/api/classes/Idetik.html#start) begins a render loop driven by `requestAnimationFrame`. The loop never idles. There is no dirty flag and nothing tells Idetik that a camera moved or a slice coordinate changed. Each frame reads the current state of every object and draws it.
+[`start`](/api/classes/Idetik.html#start) begins a loop driven by `requestAnimationFrame`. The loop runs every frame, but it draws only when the output would change. Nothing tells Idetik that a camera moved or a slice coordinate changed. Each frame reads the current state of every object and works out for itself whether anything is different.
 
-This approach yields a runtime with no invalidation logic and no missed updates but the cost is real: the loop draws every frame even when nothing has changed. Rendering only on change is a candidate for a future release.
+A frame proceeds in a fixed order. First every viewport integrates its camera controls. Then every layer in every viewport updates. A layer's update is where streaming decisions are made: it inspects the camera, decides which chunks it needs at which resolution, and rebuilds its renderable objects from the chunks that have already arrived. The layer then reports whether that changed what it draws, which triggers a re-render on the next frame.
 
-A frame proceeds in a fixed order. Each viewport, in order, integrates its camera controls, updates its layers, and draws them. A layer's update is where streaming decisions are made: it inspects the camera, decides which chunks it needs at which resolution, and rebuilds its renderable objects from the chunks that have already arrived.
+If any layer changed, or any viewport's camera or layout changed, the renderer draws every viewport. Otherwise the frame draws nothing and the canvas keeps the last image. A still view costs a few comparisons per frame, not a redraw.
 
-Once every viewport has drawn, the chunk manager runs. It gathers what all the layers asked for, admits requests against the memory budget, hands them to the loading queue, uploads a few finished chunks to the GPU, and evicts if it must. The overlays run last.
+The chunk manager updates at the end of each frame, whether the scene was drawn or not. It gathers what all the layers asked for, admits requests against the memory budget, hands them to the loading queue, uploads a few finished chunks to the GPU, and evicts if it must. The overlays run last.
 
 ![One frame in Idetik, and the path of a chunk through three frames](/diagrams/architecture_diagram_1.png)
 
-_One frame, then the path of a single chunk. Layers request while drawing, the manager acts after every viewport has drawn, and a chunk on screen in frame N+2 was requested in frame N._
+_One frame, then the path of a single chunk. Layers request while updating, the manager acts after the draw, and a chunk on screen in frame N+2 was requested in frame N._
 
-The ordering has a consequence the diagram makes visible. Layers declare their needs while drawing, and the manager acts on the aggregate afterwards. A chunk requested in one frame is fetched and decoded off the main thread, arrives during a later frame, is uploaded at the end of that frame, and is ready to be drawn in the frame after that.
+The ordering has a consequence the diagram makes visible. Layers declare their needs while updating, and the manager acts on the aggregate afterwards. A chunk requested in one frame is fetched and decoded off the main thread, arrives during a later frame, is uploaded at the end of that frame, and is ready to be drawn in the frame after that.
 
 Data is on screen one to two frames after it arrives. The delay is invisible in practice, and the arrangement keeps every frame's work bounded: uploads per frame are capped, so a burst of arriving chunks spreads over several frames instead of stalling one.
 
@@ -80,13 +80,13 @@ Synchronizing views follows from the plain-object model. Two layers constructed 
 
 ## Layers and Renderables
 
-A layer decides what to draw and how to handle input. Its [`LayerState`](/api/classes/Layer.html#layerstate) controls whether the renderer draws it. The renderer calls `update()` every frame, but skips drawing until the state is `ready`. Built-in streaming layers switch to `ready` on their first update after attachment, whether or not any chunks have arrived. Applications can subscribe to state changes, but `ready` is not a signal that image data is available.
+A layer decides what to draw and how to handle input. Its [`LayerState`](/api/classes/Layer.html#layerstate) controls whether the renderer draws it. The runtime calls `update()` every frame, but the renderer skips drawing until the state is `ready`. Built-in streaming layers switch to `ready` on their first update after attachment, whether or not any chunks have arrived. Applications can subscribe to state changes, but `ready` is not a signal that image data is available. To know when everything in view has loaded, check [`isSettled`](/api/classes/Idetik.html#issettled) or await [`settled`](/api/classes/Idetik.html#settled) on the runtime.
 
 Every layer carries three presentation settings. [`opacity`](/api/classes/Layer.html#opacity) scales its output. [`blendMode`](/api/classes/Layer.html#blendmode-1) chooses how its pixels combine with what is already drawn and also how objects within the layer combine with each other.
 
 [`occludes`](/api/classes/Layer.html#occludes) declares whether the layer hides what is behind it. Occluding layers draw first in a depth pass followed by a color pass, wherever they sit in the stack. Non-occluding layers draw afterwards in stack order and blend over them. When not set `occludes` is inferred from the blend mode at construction. The image layer sets it explicitly because it blends its channels additively within the layer yet should read as solid to the layers above it.
 
-A renderable object is a geometry, a shader program, textures, and one transform. A new layer type is a subclass of [`Layer`](/api/classes/Layer.html) that owns some: it registers them with [`addObject`](/api/classes/Layer.html#addobject), rebuilds them in `update()` when its data changes, and sets its state to `ready`. The built-in renderables are exported for this, so a layer that draws points or lines needs no shader work. The built-in layers create theirs from the chunks they receive.
+A renderable object is a geometry, a shader program, textures, and one transform. A new layer type is a subclass of [`Layer`](/api/classes/Layer.html) that owns some: it registers them with [`addObject`](/api/classes/Layer.html#addobject), rebuilds them in `update()` when its data changes, and sets its state to `ready`. Because the runtime draws only on change, `update()` returns `true` when it changed what the layer draws. A change made outside `update()`, in a setter or an asynchronous callback, calls [`invalidate`](/api/classes/Layer.html#invalidate) so the next frame draws it. The built-in renderables are exported for this, so a layer that draws points or lines needs no shader work. The built-in layers create theirs from the chunks they receive.
 
 | Layer                                          | Draws                                                | Per frame                                                                                        |
 | ---------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
@@ -119,7 +119,7 @@ The prefetch distances, the ordering of priority categories, and the range of le
 
 ## The Memory Budget
 
-Every chunk resident on the GPU counts against one budget, set by [`memoryLimitMB`](/api/classes/Idetik.html#property-memorylimitmb) and shared by all viewports of a runtime. The default is two gigabytes. The manager admits a request only if the chunk will fit, evicting less important resident chunks to make room if it must. A chunk visible in any view is never evicted.
+Every chunk resident on the GPU counts against one budget, set by [`memoryLimitMB`](/api/classes/Idetik.html#property-memorylimitmb) and shared by all viewports of a runtime. The default is two gigabytes. The manager admits a request only if the chunk will fit, evicting less important resident chunks to make room if it must. When the budget cannot hold every requested chunk, the least important ones are not fetched. [`stats.chunks`](/api/classes/Stats.html#chunks) reports requested and resident counts per source and per viewport; resident staying below requested while the queue is idle means the budget is too small. A chunk visible in any view is never evicted.
 
 Chunks that fall out of view are not freed. Their textures stay resident, marked as released, so panning back or scrubbing to a recent time point is instant. Only when a new request needs the space does the manager evict, taking the least important chunk first and the longest released among equals.
 
