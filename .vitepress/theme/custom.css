@@ -371,13 +371,12 @@
   background-color: transparent;
 }
 
-/* Showcase sidebar items: thumbnail beside a possibly wrapping title. */
-.VPSidebarItem .text:has(> .showcase-thumb) {
+.VPSidebarItem .text:has(> .example-thumb) {
   display: flex;
   gap: 10px;
 }
 
-.showcase-thumb {
+.example-thumb {
   flex-shrink: 0;
   width: 20px;
   height: 20px;
@@ -387,20 +386,18 @@
   background-color: #000;
 }
 
-.showcase-thumb img {
+.example-thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   transform: scale(1.3);
 }
 
-.VPDocFooter .showcase-thumb {
+.VPDocFooter .example-thumb {
   display: none;
 }
 
-/* Showcase example source: scroll long files inside the block. The copy
-   button sits on the outer div, so it stays put. */
-.vp-doc:has(.showcase-example) div[class*='language-'] pre {
+.vp-doc:has(.example-page) div[class*='language-'] pre {
   max-height: 640px;
   overflow-y: auto;
 }

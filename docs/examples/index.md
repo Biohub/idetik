@@ -7,9 +7,9 @@ aside: false
 <script setup>
 import { onMounted } from 'vue'
 import { withBase } from 'vitepress'
-import { data as examples } from '../../.vitepress/theme/components/showcase/examples.data.js'
+import { examples } from '../../examples/examples.ts'
 
-const first = withBase(`/showcase/${examples[0].id}.html`)
+const first = withBase(`/examples/${examples[0].id}.html`)
 onMounted(() => location.replace(first))
 </script>
 

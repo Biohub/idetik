@@ -2,10 +2,10 @@ import DefaultTheme from 'vitepress/theme'
 import { h } from 'vue'
 import VersionBadge from './VersionBadge.vue'
 import GettingStartedViewer from './GettingStartedViewer.vue'
-import HomeGallery from './components/showcase/HomeGallery.vue'
+import HomeGallery from './components/HomeGallery.vue'
 import AgentOnboard from './components/AgentOnboard.vue'
 import HeroGlow from './components/HeroGlow.vue'
-import ShowcaseExample from './components/showcase/ShowcaseExample.vue'
+import ExamplePage from './components/ExamplePage.vue'
 import biohubLogo from './icons/biohub.svg?raw'
 import './custom.css'
 
@@ -22,6 +22,6 @@ export default {
   enhanceApp({ app }) {
     app.component('VersionBadge', VersionBadge)
     app.component('GettingStartedViewer', GettingStartedViewer)
-    app.component('ShowcaseExample', ShowcaseExample)
+    app.component('ExamplePage', ExamplePage)
   },
 }

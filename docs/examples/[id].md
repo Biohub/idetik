@@ -2,6 +2,6 @@
 aside: false
 ---
 
-<ShowcaseExample />
+<ExamplePage />
 
 <!-- @content -->

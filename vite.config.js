@@ -4,9 +4,10 @@ import eslint from 'vite-plugin-eslint';
 import glsl from 'vite-plugin-glsl';
 import path from 'path';
 import typescript from '@rollup/plugin-typescript';
-import examplesManifestPlugin from './vite-plugin-examples-nav.js';
+import { examples } from './examples/examples.ts';
 import { playwright } from '@vitest/browser-playwright';
 
+import { copyFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 const _dirname = dirname(fileURLToPath(import.meta.url));
@@ -60,16 +61,38 @@ export default defineConfig(({ mode }) => {
   }
 
   if (mode === 'examples') {
-    // Built into the docs' public dir so the showcase pages can embed them.
+    const outDir = path.resolve(_dirname, 'docs/public/examples/live')
+    const copyThumbnails = {
+      name: 'copy-example-thumbnails',
+      closeBundle() {
+        for (const { id } of examples) {
+          copyFileSync(
+            path.resolve(_dirname, 'examples', id, 'thumbnail.jpg'),
+            path.resolve(outDir, id, 'thumbnail.jpg'),
+          )
+        }
+      },
+    }
     return {
       ...common,
-      plugins: [eslint(), glsl(), examplesManifestPlugin()],
+      plugins: [eslint(), glsl(), copyThumbnails],
       root: 'examples',
       base: './',
       build: {
         ...common.build,
-        outDir: path.resolve(_dirname, 'docs/public/examples'),
+        outDir,
         emptyOutDir: true,
+        rollupOptions: {
+          input: {
+            main: path.resolve(_dirname, 'examples/index.html'),
+            ...Object.fromEntries(
+              examples.map(({ id }) => [
+                id,
+                path.resolve(_dirname, 'examples', id, 'index.html'),
+              ]),
+            ),
+          },
+        },
       },
     }
   }
@@ -77,7 +100,7 @@ export default defineConfig(({ mode }) => {
   if (mode === 'development') {
     return {
       ...common,
-      plugins: [eslint(), glsl(), examplesManifestPlugin()],
+      plugins: [eslint(), glsl()],
       root: 'examples',
     }
   }

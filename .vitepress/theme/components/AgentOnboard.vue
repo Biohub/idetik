@@ -46,9 +46,9 @@ async function copy() {
         <h2 class="title">Get started with your favorite coding agent</h2>
         <p class="description">
           Paste the URL of your <span class="nowrap">OME-Zarr</span> image and
-          copy a ready-made prompt for Claude Code, Codex, or Cursor. Your
-          agent scaffolds a Vite project, installs Idetik, and renders the
-          image in a single viewport.
+          copy a ready-made prompt for Claude Code, Codex, or Cursor. Your agent
+          scaffolds a Vite project, installs Idetik, and renders the image in a
+          single viewport.
         </p>
       </div>
       <form class="form" @submit.prevent="copy">
@@ -64,24 +64,24 @@ async function copy() {
           placeholder="Paste an OME-Zarr URL (optional)"
         />
         <button type="submit" class="onboard">
-            <span class="logos" aria-hidden="true">
-              <span
-                v-for="agent in AGENTS"
-                :key="agent.name"
-                class="logo"
-                :title="agent.name"
-                v-html="agent.icon"
-              ></span>
-            </span>
-            <span aria-live="polite">{{
-              copied ? "Paste into your agent" : "Onboard your agent"
-            }}</span>
+          <span class="logos" aria-hidden="true">
             <span
-              class="copy-icon"
-              aria-hidden="true"
-              v-html="copied ? checkIcon : copyIcon"
+              v-for="agent in AGENTS"
+              :key="agent.name"
+              class="logo"
+              :title="agent.name"
+              v-html="agent.icon"
             ></span>
-          </button>
+          </span>
+          <span aria-live="polite">{{
+            copied ? "Paste into your agent" : "Onboard your agent"
+          }}</span>
+          <span
+            class="copy-icon"
+            aria-hidden="true"
+            v-html="copied ? checkIcon : copyIcon"
+          ></span>
+        </button>
       </form>
     </div>
   </section>
@@ -176,7 +176,6 @@ async function copy() {
   gap: 16px;
   min-width: 0;
 }
-
 
 .input {
   width: 100%;

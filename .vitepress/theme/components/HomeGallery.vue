@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import ShowcaseGallery from "./ShowcaseGallery.vue";
+import ExamplesGallery from "./ExamplesGallery.vue";
 </script>
 
 <template>
   <section class="home-gallery">
     <div class="container">
-      <ShowcaseGallery />
+      <ExamplesGallery />
     </div>
   </section>
 </template>

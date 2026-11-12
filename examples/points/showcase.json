@@ -1,6 +1,0 @@
-{
-  "label": "Cryo-ET Particles",
-  "description": "Ribosome and ferritin annotations drawn over a cryo-ET tomogram.",
-  "data": "CryoET Data Portal",
-  "tags": ["points", "custom layer"]
-}

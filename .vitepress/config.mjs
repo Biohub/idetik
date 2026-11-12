@@ -1,9 +1,10 @@
 import { execSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
+import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitepress'
 import typedocSidebar from '../docs/api/typedoc-sidebar.json' with { type: 'json' }
-import { loadShowcase } from './showcase.js'
+import { examples } from '../examples/examples.ts'
 
 function getLatestVersion() {
   try {
@@ -17,21 +18,17 @@ function getLatestVersion() {
   return JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8')).version
 }
 
-// Showcase sidebar, sorted like the gallery. Thumbnail paths are relative so
-// they survive the base path.
-const thumb = (src) => `<span class="showcase-thumb"><img src="..${src}" alt=""></span>`
+const thumb = (src) => `<span class="example-thumb"><img src="..${src}" alt=""></span>`
 
-function showcaseSidebar() {
-  const items = loadShowcase().map(({ id, label }) => ({
-    text: `${thumb(`/examples/${id}/thumbnail.jpg`)}${label}`,
-    link: `/showcase/${id}`,
+function examplesSidebar() {
+  const items = examples.map(({ id, label }) => ({
+    text: `${thumb(`/examples/live/${id}/thumbnail.jpg`)}${label}`,
+    link: `/examples/${id}`,
   }))
   return [{ items }]
 }
 
-// The Examples nav entry opens the first example in gallery order; the
-// sidebar lists the rest. /showcase/ itself only redirects here.
-const firstExample = `/showcase/${loadShowcase()[0].id}`
+const firstExample = `/examples/${examples[0].id}`
 
 const headingRegex = /<h(\d*).*?>(.*?<a.*? href="#.*?".*?>.*?<\/a>)<\/h\1>/gi
 const headingContentRegex = /(.*?)<a class="header-anchor" href="#(.*?)".*?>.*?<\/a>/i
@@ -61,25 +58,21 @@ function* splitPageIntoSections(html) {
   }
 }
 
-// One Biohub logo for the nav and footer, inlined so CSS can color it.
 const biohubLogo = readFileSync(new URL('./theme/icons/biohub.svg', import.meta.url), 'utf-8')
 
-// GitHub Pages project path. Set here, not via --base, so the raw-HTML footer
-// and head links below can use it; VitePress doesn't prefix those.
-const base = '/idetik/'
+const base = process.env.DOCS_BASE || '/'
 
 export default defineConfig({
   base,
   title: 'Idetik',
   description: 'A library for creating interactive viewers for large bioimaging data',
 
-  // Showcase pages come from a dynamic route; title them from their params.
   transformPageData(pageData) {
     if (pageData.params?.title) {
       pageData.title = pageData.params.title
       pageData.description = pageData.params.description
     }
-    if (pageData.relativePath === 'showcase/index.md') {
+    if (pageData.relativePath === 'examples/index.md') {
       const target = `${base}${firstExample.slice(1)}.html`
       pageData.frontmatter.head = [
         ['meta', { 'http-equiv': 'refresh', content: `0; url=${target}` }],
@@ -154,7 +147,7 @@ export default defineConfig({
     nav: [
       { text: 'User Guide', link: '/guide/getting-started', activeMatch: '^/guide/' },
       { text: 'API Reference', link: '/api/', activeMatch: '^/api/' },
-      { text: 'Examples', link: firstExample, activeMatch: '^/showcase/' },
+      { text: 'Examples', link: firstExample, activeMatch: '^/examples/' },
     ],
 
     sidebar: {
@@ -167,7 +160,7 @@ export default defineConfig({
         },
       ],
       '/api/': typedocSidebar,
-      '/showcase/': showcaseSidebar(),
+      '/examples/': examplesSidebar(),
     },
 
     socialLinks: [

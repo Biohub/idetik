@@ -3,10 +3,8 @@ import { computed } from "vue";
 import { useData, withBase } from "vitepress";
 import { VPButton } from "vitepress/theme";
 
-// docs/showcase/[id].md embeds the built examples/<id>/ app; params come from
-// .vitepress/showcase.js.
 const { params } = useData();
-const appPath = computed(() => `/examples/${params.value.id}/index.html`);
+const appPath = computed(() => `/examples/live/${params.value.id}/index.html`);
 const src = computed(() => withBase(appPath.value));
 const source = computed(
   () =>
@@ -15,7 +13,7 @@ const source = computed(
 </script>
 
 <template>
-  <div class="vp-raw showcase-example">
+  <div class="vp-raw example-page">
     <div class="header">
       <div>
         <h1>{{ params.title }}</h1>

@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import { withBase } from "vitepress";
-import { data as examples } from "./examples.data.js";
+import { examples } from "../../../examples/examples.ts";
 </script>
 
 <template>
-  <div class="vp-raw showcase-gallery">
+  <div class="vp-raw examples-gallery">
     <div class="grid">
       <a
         v-for="item in examples"
         :key="item.id"
-        :href="withBase(`/showcase/${item.id}.html`)"
+        :href="withBase(`/examples/${item.id}.html`)"
         class="card"
       >
         <img
-          :src="withBase(`/examples/${item.id}/thumbnail.jpg`)"
+          :src="withBase(`/examples/live/${item.id}/thumbnail.jpg`)"
           alt=""
           loading="lazy"
         />
