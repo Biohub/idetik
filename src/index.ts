@@ -48,7 +48,11 @@ export type { ImageRenderableProps } from "./objects/renderable/image_renderable
 export { LabelImageRenderable } from "./objects/renderable/label_image_renderable";
 export type { LabelImageRenderableProps } from "./objects/renderable/label_image_renderable";
 export { PointsRenderable } from "./objects/renderable/points_renderable";
-export type { PointProps } from "./objects/renderable/points_renderable";
+export type {
+  PointDepthSlab,
+  PointProps,
+  PointsRenderableOptions,
+} from "./objects/renderable/points_renderable";
 export { ProjectedLineRenderable } from "./objects/renderable/projected_line_renderable";
 export type { ProjectedLineRenderableProps } from "./objects/renderable/projected_line_renderable";
 export { VolumeRenderable } from "./objects/renderable/volume_renderable";
@@ -99,5 +103,6 @@ export { Color } from "./math/color";
 export type { ColorLike } from "./math/color";
 export { Box2 } from "./math/box2";
 export { Box3 } from "./math/box3";
+export { Plane } from "./math/plane";
 export { Frustum } from "./math/frustum";
 export { TrsTransform } from "./math/transforms";
