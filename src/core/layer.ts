@@ -12,6 +12,9 @@ export type LayerState = "initialized" | "loading" | "ready";
 
 /**
  * How a layer's output blends with previously drawn content.
+ *
+ * `none` replaces what is underneath instead of blending with it.
+ * `multiply` and `subtractive` ignore layer opacity.
  */
 export type BlendMode =
   | "none"
