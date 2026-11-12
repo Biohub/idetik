@@ -17,7 +17,8 @@ uniform mediump sampler2D u_colorCycleSampler;
 uniform highp usampler2D u_colorLookupTableSampler;
 
 uniform float u_opacity;
-uniform float u_outlineSelected; // Note: Using float instead of bool due to framework uniform handling
+uniform bool u_premultiplyAlpha;
+uniform float u_outlineSelected;
 uniform float u_selectedValue;
 
 in vec3 v_texCoords;
@@ -68,6 +69,7 @@ void main() {
         if (isEdgePixel(texel, v_texCoords, stepX, stepY)) {
             // Draw outline in bright white with layer opacity
             fragColor = vec4(1.0, 1.0, 1.0, u_opacity);
+            if (u_premultiplyAlpha) fragColor.rgb *= fragColor.a;
             return;
         }
     }
@@ -84,6 +86,7 @@ void main() {
             float alpha = isSelectedValue ? u_opacity * color.a * 0.9 : u_opacity * color.a;
 
             fragColor = vec4(color.rgb, alpha);
+            if (u_premultiplyAlpha) fragColor.rgb *= fragColor.a;
             return;
         }
     }
@@ -96,4 +99,5 @@ void main() {
     float alpha = isSelectedValue ? u_opacity * color.a * 0.9 : u_opacity * color.a;
 
     fragColor = vec4(color.rgb, alpha);
+    if (u_premultiplyAlpha) fragColor.rgb *= fragColor.a;
 }

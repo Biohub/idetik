@@ -10,6 +10,7 @@ in vec4 v_color;
 flat in uint v_marker;
 
 uniform float u_opacity;
+uniform bool u_premultiplyAlpha;
 
 
 void main() {
@@ -19,5 +20,6 @@ void main() {
         discard;
     }
     fragColor = vec4(v_color.rgb, u_opacity * alpha * v_color.a);
+    if (u_premultiplyAlpha) fragColor.rgb *= fragColor.a;
 }
 

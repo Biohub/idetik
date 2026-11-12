@@ -19,6 +19,8 @@ export class WebGLState {
   private depthFunc_: GLenum | null = null;
   private blendSrcFactor_: GLenum | null = null;
   private blendDstFactor_: GLenum | null = null;
+  private blendSrcAlphaFactor_: GLenum | null = null;
+  private blendDstAlphaFactor_: GLenum | null = null;
   private currentBlendingMode_: BlendingMode | null = null;
   private currentViewport_: Box2 | null = null;
   private currentScissor_: Box2 | null = null;
@@ -52,11 +54,23 @@ export class WebGLState {
     }
   }
 
-  private setBlendFunc(src: GLenum, dst: GLenum) {
-    if (this.blendSrcFactor_ !== src || this.blendDstFactor_ !== dst) {
-      this.gl_.blendFunc(src, dst);
+  private setBlendFunc(
+    src: GLenum,
+    dst: GLenum,
+    srcAlpha: GLenum = src,
+    dstAlpha: GLenum = dst
+  ) {
+    if (
+      this.blendSrcFactor_ !== src ||
+      this.blendDstFactor_ !== dst ||
+      this.blendSrcAlphaFactor_ !== srcAlpha ||
+      this.blendDstAlphaFactor_ !== dstAlpha
+    ) {
+      this.gl_.blendFuncSeparate(src, dst, srcAlpha, dstAlpha);
       this.blendSrcFactor_ = src;
       this.blendDstFactor_ = dst;
+      this.blendSrcAlphaFactor_ = srcAlpha;
+      this.blendDstAlphaFactor_ = dstAlpha;
     }
   }
 
@@ -126,20 +140,34 @@ export class WebGLState {
       this.setBlending(true);
       switch (mode) {
         case "additive":
-          this.setBlendFunc(this.gl_.SRC_ALPHA, this.gl_.ONE);
+          this.setBlendFunc(this.gl_.SRC_ALPHA, this.gl_.ONE, this.gl_.ONE);
           break;
         case "multiply":
-          this.setBlendFunc(this.gl_.DST_COLOR, this.gl_.ZERO);
+          this.setBlendFunc(
+            this.gl_.DST_COLOR,
+            this.gl_.ZERO,
+            this.gl_.ZERO,
+            this.gl_.ONE
+          );
           break;
         case "subtractive":
-          this.setBlendFunc(this.gl_.ZERO, this.gl_.ONE_MINUS_SRC_COLOR);
+          this.setBlendFunc(
+            this.gl_.ZERO,
+            this.gl_.ONE_MINUS_SRC_COLOR,
+            this.gl_.ZERO,
+            this.gl_.ONE
+          );
           break;
         case "premultipliedOver":
           this.setBlendFunc(this.gl_.ONE, this.gl_.ONE_MINUS_SRC_ALPHA);
           break;
         case "normal":
         default:
-          this.setBlendFunc(this.gl_.SRC_ALPHA, this.gl_.ONE_MINUS_SRC_ALPHA);
+          this.setBlendFunc(
+            this.gl_.SRC_ALPHA,
+            this.gl_.ONE_MINUS_SRC_ALPHA,
+            this.gl_.ONE
+          );
           break;
       }
     }

@@ -263,7 +263,7 @@ export class WebGLRenderer extends Renderer {
       const stencilTestEnabled = this.state_.stencilTestEnabled;
       const blendingMode = this.state_.blendingMode;
       this.state_.setStencilTest(false);
-      this.state_.setBlendingMode("none");
+      this.state_.setBlendingMode("normal");
 
       this.bindings_.bindGeometry(object.wireframeGeometry);
       const wireframeProgram = this.programs_.use("wireframe");
@@ -349,6 +349,12 @@ export class WebGLRenderer extends Renderer {
             uniformName,
             layer.opacity *
               ((objectUniforms.Opacity as number | undefined) ?? 1)
+          );
+          break;
+        case "u_premultiplyAlpha":
+          program.setUniform(
+            uniformName,
+            Number(this.state_.blendingMode === "none")
           );
           break;
         case "u_cameraPositionModel": {
