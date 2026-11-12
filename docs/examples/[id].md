@@ -1,0 +1,7 @@
+---
+aside: false
+---
+
+<ExamplePage />
+
+<!-- @content -->

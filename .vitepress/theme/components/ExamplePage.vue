@@ -1,0 +1,89 @@
+<script setup lang="ts">
+import { computed } from "vue";
+import { useData, withBase } from "vitepress";
+import { VPButton } from "vitepress/theme";
+
+const { params } = useData();
+const appPath = computed(() => `/examples/live/${params.value.id}/index.html`);
+const src = computed(() => withBase(appPath.value));
+const source = computed(
+  () =>
+    `https://github.com/chanzuckerberg/idetik/tree/main/examples/${params.value.id}`
+);
+</script>
+
+<template>
+  <div class="vp-raw example-page">
+    <div class="header">
+      <div>
+        <h1>{{ params.title }}</h1>
+        <p class="desc">{{ params.description }}</p>
+      </div>
+      <div class="actions">
+        <VPButton
+          theme="alt"
+          text="Full screen ↗"
+          :href="appPath"
+          target="_blank"
+          rel="noopener"
+        />
+        <VPButton
+          theme="alt"
+          text="View on GitHub ↗"
+          :href="source"
+          target="_blank"
+          rel="noopener"
+        />
+      </div>
+    </div>
+    <iframe :src="src" :title="params.title" allow="fullscreen" />
+    <p class="data">Data: {{ params.data }}</p>
+  </div>
+</template>
+
+<style scoped>
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 20px;
+}
+
+h1 {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.desc {
+  margin-top: 8px;
+  color: var(--vp-c-text-2);
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+}
+
+.actions :deep(.VPButton) {
+  text-decoration: none;
+}
+
+iframe {
+  display: block;
+  width: 100%;
+  height: 640px;
+  border: 1px solid var(--vp-c-gutter);
+  border-radius: 12px;
+  background-color: #000;
+}
+
+.data {
+  margin: 10px 0 32px;
+  font-size: 13px;
+  color: var(--vp-c-text-2);
+}
+</style>

@@ -12,7 +12,7 @@ import {
   VolumeLayer,
   createPlaybackPolicy,
   Viewport,
-} from "@";
+} from "idetik";
 import { addDimensionSlider } from "../lil_gui_utils";
 import { vec3 } from "gl-matrix";
 
@@ -137,10 +137,9 @@ new Idetik({
       ],
     }),
   ],
-  showStats: false,
 }).start();
 
-const gui = new GUI({ width: 300 });
+const gui = new GUI({ width: 300 }).close();
 
 addDimensionSlider({
   gui,

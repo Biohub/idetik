@@ -24,10 +24,14 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: npm
+      - uses: actions/configure-pages@v4
+        id: pages
       - run: npm ci
       - run: npm run docs:api
-      - run: npx vitepress build --base /idetik/
-      - uses: actions/configure-pages@v4
+      - run: npm run build:examples
+      - run: npx vitepress build
+        env:
+          DOCS_BASE: ${{ steps.pages.outputs.base_path }}/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: .vitepress/dist

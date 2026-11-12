@@ -30,7 +30,4 @@ dist-ssr
 # Docs
 .vitepress/cache
 docs/api
-
-# Generated manifests
-examples/examples-manifest.json
-public/examples-manifest.json
+docs/public/examples

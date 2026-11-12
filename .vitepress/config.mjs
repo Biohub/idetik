@@ -1,8 +1,10 @@
 import { execSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
+import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitepress'
 import typedocSidebar from '../docs/api/typedoc-sidebar.json' with { type: 'json' }
+import { examples } from '../examples/examples.ts'
 
 function getLatestVersion() {
   try {
@@ -15,6 +17,18 @@ function getLatestVersion() {
   }
   return JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8')).version
 }
+
+const thumb = (src) => `<span class="example-thumb"><img src="..${src}" alt=""></span>`
+
+function examplesSidebar() {
+  const items = examples.map(({ id, label }) => ({
+    text: `${thumb(`/examples/live/${id}/thumbnail.jpg`)}${label}`,
+    link: `/examples/${id}`,
+  }))
+  return [{ items }]
+}
+
+const firstExample = `/examples/${examples[0].id}`
 
 const headingRegex = /<h(\d*).*?>(.*?<a.*? href="#.*?".*?>.*?<\/a>)<\/h\1>/gi
 const headingContentRegex = /(.*?)<a class="header-anchor" href="#(.*?)".*?>.*?<\/a>/i
@@ -44,15 +58,34 @@ function* splitPageIntoSections(html) {
   }
 }
 
+const biohubLogo = readFileSync(new URL('./theme/icons/biohub.svg', import.meta.url), 'utf-8')
+
+const base = process.env.DOCS_BASE || '/'
+
 export default defineConfig({
+  base,
   title: 'Idetik',
   description: 'A library for creating interactive viewers for large bioimaging data',
+
+  transformPageData(pageData) {
+    if (pageData.params?.title) {
+      pageData.title = pageData.params.title
+      pageData.description = pageData.params.description
+    }
+    if (pageData.relativePath === 'examples/index.md') {
+      const target = `${base}${firstExample.slice(1)}.html`
+      pageData.frontmatter.head = [
+        ['meta', { 'http-equiv': 'refresh', content: `0; url=${target}` }],
+        ['link', { rel: 'canonical', href: target }],
+      ]
+    }
+  },
 
   srcDir: 'docs',
   appearance: 'force-dark',
 
   head: [
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/icon.svg' }],
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}icon.svg` }],
     ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
     ['link', { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' }],
     [
@@ -112,14 +145,14 @@ export default defineConfig({
     },
 
     nav: [
-      { text: 'User Guide', link: '/guide/getting-started' },
-      { text: 'API Reference', link: '/api/' },
+      { text: 'User Guide', link: '/guide/getting-started', activeMatch: '^/guide/' },
+      { text: 'API Reference', link: '/api/', activeMatch: '^/api/' },
+      { text: 'Examples', link: firstExample, activeMatch: '^/examples/' },
     ],
 
     sidebar: {
       '/guide/': [
         {
-          text: 'User Guide',
           items: [
             { text: 'Getting Started', link: '/guide/getting-started' },
             { text: 'How Idetik Works', link: '/guide/how-idetik-works' },
@@ -127,6 +160,7 @@ export default defineConfig({
         },
       ],
       '/api/': typedocSidebar,
+      '/examples/': examplesSidebar(),
     },
 
     socialLinks: [
@@ -134,9 +168,10 @@ export default defineConfig({
     ],
 
     footer: {
-      message: 'Released under the MIT License',
+      message:
+        'Released under the <a href="https://github.com/Biohub/idetik/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>. © 2026-present Chan Zuckerberg Biohub, Inc.',
       copyright:
-        '<a href="https://biohub.ai" target="_blank" rel="noopener"><img src="/biohub-logo.svg" alt="Biohub"></a>',
+        `<a href="https://biohub.ai" target="_blank" rel="noopener" aria-label="Biohub">${biohubLogo}</a>`,
     },
   },
 })

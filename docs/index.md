@@ -3,13 +3,13 @@ layout: home
 
 hero:
   text: Build interactive viewers for massive bioimaging data
-  tagline: Idetik is a high-performance TypeScript library for exploring multi-dimensional OME-Zarr datasets right in the browser.
+  tagline: High-performance visualization library for exploring <span style="white-space:nowrap">multi-dimensional</span> OME-Zarr datasets right in the browser.
   actions:
     - theme: brand
       text: Get Started
       link: /guide/getting-started
     - theme: alt
-      text: View on GitHub
+      text: View on GitHub ↗
       link: https://github.com/Biohub/idetik
 
 features:

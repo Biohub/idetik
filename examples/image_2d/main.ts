@@ -11,7 +11,7 @@ import {
   createExplorationPolicy,
   createPlaybackPolicy,
   Viewport,
-} from "@";
+} from "idetik";
 import { ScaleBar } from "./scale_bar";
 import { addDimensionSlider } from "../lil_gui_utils";
 import GUI from "lil-gui";
@@ -213,13 +213,12 @@ const idetik = new Idetik({
   canvas,
   viewports: [viewport],
   overlays: [timePointOverlay, scaleBar],
-  showStats: true,
 });
 idetik.start();
 
 datasetInfoDiv.innerHTML = formatDatasetInfo(config, dimensions);
 
-const gui = new GUI({ width: 380 });
+const gui = new GUI({ width: 380 }).close();
 
 const datasetState = {
   selection: parsed.preset?.label ?? CUSTOM_LABEL,

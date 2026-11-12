@@ -18,6 +18,7 @@ Idetik is a high-performance library for exploring multi-dimensional OME-Zarr da
 
 - User guide: https://biohub.github.io/idetik/guide/getting-started
 - API reference: https://biohub.github.io/idetik/api/
+- Examples: https://biohub.github.io/idetik/examples/
 
 ## Installation
 

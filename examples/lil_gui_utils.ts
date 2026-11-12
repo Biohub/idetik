@@ -1,4 +1,4 @@
-import { SliceCoordinates } from "@";
+import { SliceCoordinates } from "idetik";
 import { Controller, GUI } from "lil-gui";
 
 type DimensionSliderProps = {

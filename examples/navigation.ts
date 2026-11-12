@@ -1,13 +1,8 @@
+import { examples } from "./examples";
+
 interface Example {
-  id: string;
   title: string;
   path: string;
-  directory: string;
-}
-
-interface Manifest {
-  generated: string;
-  examples: Example[];
 }
 
 class IdetikNavigation {
@@ -17,7 +12,10 @@ class IdetikNavigation {
   private close_: HTMLButtonElement;
   private examplesList_: HTMLElement;
   private iframe_: HTMLIFrameElement;
-  private examples_: Example[] = [];
+  private examples_: Example[] = examples.map(({ id, title }) => ({
+    title,
+    path: `${id}/`,
+  }));
 
   constructor() {
     this.navigation_ = document.getElementById("idetik-navigation")!;
@@ -30,7 +28,8 @@ class IdetikNavigation {
     )! as HTMLIFrameElement;
 
     this.initializeEventListeners();
-    this.loadExamples();
+    this.renderExamples();
+    this.handleRouteChange();
   }
 
   private initializeEventListeners(): void {
@@ -44,20 +43,6 @@ class IdetikNavigation {
     });
 
     window.addEventListener("hashchange", () => this.handleRouteChange());
-  }
-
-  private async loadExamples(): Promise<void> {
-    try {
-      const response = await fetch(`examples-manifest.json?t=${Date.now()}`);
-      const manifest: Manifest = await response.json();
-      this.examples_ = manifest.examples || [];
-      this.renderExamples();
-      this.handleRouteChange();
-    } catch (error) {
-      console.error("Failed to load examples manifest:", error);
-      this.examplesList_.innerHTML =
-        '<div class="nav-empty">Failed to load examples</div>';
-    }
   }
 
   private renderExamples(): void {
