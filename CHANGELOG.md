@@ -8,6 +8,15 @@ While the project is pre-1.0, breaking changes bump the minor version.
 
 ## [Unreleased]
 
+### Changed
+
+- `multiply` and `subtractive` blending now preserve destination alpha.
+
+### Fixed
+
+- Alpha accumulation for `normal` and `additive` blending.
+- Transparency when blending is disabled and when drawing wireframe overlays.
+
 ## [0.54.0] - 2026-11-10
 
 ### Added
