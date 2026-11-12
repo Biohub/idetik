@@ -89,5 +89,10 @@
   "license": "MIT",
   "keywords": [
     "idetik"
-  ]
+  ],
+  "overrides": {
+    "vitepress": {
+      "vite": "$vite"
+    }
+  }
 }
