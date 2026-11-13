@@ -23,6 +23,14 @@ uniform float u_selectedValue;
 
 in vec3 v_texCoords;
 
+vec3 srgbToLinear(vec3 color) {
+    return mix(
+        color / 12.92,
+        pow((color + 0.055) / 1.055, vec3(2.4)),
+        greaterThan(color, vec3(0.04045))
+    );
+}
+
 vec4 unpackRgba(uint packed) {
     uint r = (packed >> 24u) & 0xFFu;
     uint g = (packed >> 16u) & 0xFFu;
@@ -85,7 +93,7 @@ void main() {
             // If this is the selected segment and outlining is enabled, make it slightly transparent
             float alpha = isSelectedValue ? u_opacity * color.a * 0.9 : u_opacity * color.a;
 
-            fragColor = vec4(color.rgb, alpha);
+            fragColor = vec4(srgbToLinear(color.rgb), alpha);
             if (u_premultiplyAlpha) fragColor.rgb *= fragColor.a;
             return;
         }

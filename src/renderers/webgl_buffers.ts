@@ -31,6 +31,10 @@ export class WebGLBuffers {
     this.currentGeometry_ = geometry;
   }
 
+  public reset() {
+    this.currentGeometry_ = null;
+  }
+
   public disposeObject(geometry: Geometry) {
     const buffers = this.buffers_.get(geometry);
     if (!buffers) return;

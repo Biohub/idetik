@@ -82,7 +82,7 @@ export class MeshRenderable extends RenderableObject {
   /** Returns the color and lighting strength uniforms for the mesh shader. */
   public override getUniforms(): UniformValues {
     return {
-      u_color: this.color.rgb,
+      u_color: this.color.linearRgb,
       u_ambientStrength: this.ambientStrength,
       u_diffuseStrength: this.diffuseStrength,
     };

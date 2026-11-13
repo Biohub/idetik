@@ -6,6 +6,7 @@ import {
   type TextureWrapMode,
   type TextureDataType,
   type TextureDataFormat,
+  type TextureColorSpace,
 } from "../objects/textures/texture";
 
 import { Texture2D } from "../objects/textures/texture_2d";
@@ -133,7 +134,11 @@ export class WebGLTextures {
     }
 
     const textureType = this.getTextureType(texture);
-    const info = this.getDataFormatInfo(texture.dataFormat, texture.dataType);
+    const info = this.getDataFormatInfo(
+      texture.dataFormat,
+      texture.dataType,
+      texture.colorSpace
+    );
 
     this.gl_.activeTexture(this.gl_.TEXTURE0 + index);
 
@@ -330,11 +335,20 @@ export class WebGLTextures {
 
   private getDataFormatInfo(
     format: TextureDataFormat,
-    type: TextureDataType
+    type: TextureDataType,
+    colorSpace: TextureColorSpace
   ): TextureFormatInfo {
+    if (
+      colorSpace === "srgb" &&
+      (type !== "unsigned_byte" || (format !== "rgb" && format !== "rgba"))
+    ) {
+      throw new Error("sRGB textures require unsigned-byte RGB or RGBA data");
+    }
+
     if (format === "rgba" && type === "unsigned_byte") {
       return {
-        internalFormat: this.gl_.RGBA8,
+        internalFormat:
+          colorSpace === "srgb" ? this.gl_.SRGB8_ALPHA8 : this.gl_.RGBA8,
         format: this.gl_.RGBA,
         type: this.gl_.UNSIGNED_BYTE,
       };
@@ -348,7 +362,7 @@ export class WebGLTextures {
     }
     if (format === "rgb" && type === "unsigned_byte") {
       return {
-        internalFormat: this.gl_.RGB8,
+        internalFormat: colorSpace === "srgb" ? this.gl_.SRGB8 : this.gl_.RGB8,
         format: this.gl_.RGB,
         type: this.gl_.UNSIGNED_BYTE,
       };

@@ -10,6 +10,8 @@ import { WebGLTimer } from "./webgl_timer";
 import { Layer } from "../core/layer";
 import { WebGLState } from "./webgl_state";
 import { WebGLDepthTarget } from "./webgl_depth_target";
+import { WebGLSceneTarget } from "./webgl_scene_target";
+import { WebGLPresentPass } from "./webgl_present_pass";
 import { RenderableObject } from "../core/renderable_object";
 import { Geometry, Primitive } from "../core/geometry";
 import { Box2 } from "../math/box2";
@@ -34,11 +36,13 @@ export class WebGLRenderer extends Renderer {
   private readonly gl_: WebGL2RenderingContext;
   private readonly bindings_: WebGLBuffers;
   private readonly depthTarget_: WebGLDepthTarget;
+  private readonly sceneTarget_: WebGLSceneTarget;
   private readonly programs_: WebGLShaderPrograms;
   private readonly state_: WebGLState;
   private readonly textures_: WebGLTextures;
   private readonly timer_: WebGLTimer;
 
+  private presentPass_: WebGLPresentPass | null = null;
   private renderedObjectsPerFrame_ = 0;
   private stencilRef_ = 0;
   private currentViewportSize_: [number, number] = [0, 0];
@@ -48,9 +52,10 @@ export class WebGLRenderer extends Renderer {
     super(canvas);
 
     const gl = this.canvas.getContext("webgl2", {
-      depth: true,
+      depth: false,
       antialias: false,
-      stencil: true,
+      stencil: false,
+      premultipliedAlpha: true,
     });
     if (!gl) {
       throw new Error(`Failed to initialize WebGL2 context`);
@@ -70,6 +75,10 @@ export class WebGLRenderer extends Renderer {
     this.textures_ = new WebGLTextures(gl);
     this.state_ = new WebGLState(gl);
     this.depthTarget_ = new WebGLDepthTarget(
+      gl,
+      this.textures_.reservePersistentUnit()
+    );
+    this.sceneTarget_ = new WebGLSceneTarget(
       gl,
       this.textures_.reservePersistentUnit()
     );
@@ -105,12 +114,30 @@ export class WebGLRenderer extends Renderer {
     this.renderedObjectsPerFrame_ = 0;
     this.stencilRef_ = 0;
 
+    if (this.gl_.isContextLost()) return;
+
+    try {
+      this.renderViewport(viewport);
+    } catch (error) {
+      // The context can be lost during allocation or shader compilation.
+      if (!this.gl_.isContextLost()) throw error;
+    }
+  }
+
+  private renderViewport(viewport: Viewport) {
     if (getComputedStyle(viewport.domElement).visibility === "hidden") return;
 
+    const width = this.gl_.drawingBufferWidth;
+    const height = this.gl_.drawingBufferHeight;
+    if (width === 0 || height === 0) return;
+
     const viewportBox = viewport.getBoxRelativeTo(this.canvas);
+    const viewportRect = viewportBox.toRect();
+    if (viewportRect.width <= 0 || viewportRect.height <= 0) return;
+
     const surfaceBox = new Box2(
       vec2.fromValues(0, 0),
-      vec2.fromValues(this.width, this.height)
+      vec2.fromValues(width, height)
     );
 
     const viewportEquals = Box2.equals(viewportBox.floor(), surfaceBox.floor());
@@ -130,10 +157,10 @@ export class WebGLRenderer extends Renderer {
     }
 
     this.state_.setViewport(viewportBox);
+    this.sceneTarget_.bind(width, height);
     this.resetState();
     this.clear();
 
-    const viewportRect = viewportBox.toRect();
     this.currentViewportSize_ = [viewportRect.width, viewportRect.height];
 
     const frustum = viewport.camera.frustum;
@@ -153,15 +180,29 @@ export class WebGLRenderer extends Renderer {
 
     if (this.currentViewportHasSceneDepth_) {
       this.renderDepthTexture(occludingLayers, viewport.camera, frustum);
+      this.sceneTarget_.bind(width, height);
     }
 
     this.state_.setDepthMask(false);
     for (const layer of [...occludingLayers, ...nonOccludingLayers]) {
       this.renderLayer(layer, viewport.camera, frustum);
     }
+    this.present();
     this.resetState();
 
     this.renderedObjects_ = this.renderedObjectsPerFrame_;
+  }
+
+  private present() {
+    this.presentPass_ ??= new WebGLPresentPass(this.gl_);
+    this.sceneTarget_.unbind();
+    this.state_.setColorMask(true);
+    this.state_.setDepthTesting(false);
+    this.state_.setStencilTest(false);
+    this.state_.setBlendingMode("none");
+    this.state_.setCullFaceMode("none");
+    this.bindings_.reset();
+    this.presentPass_.render(this.sceneTarget_);
   }
 
   private primeDepthBuffer(layers: Layer[], camera: Camera, frustum: Frustum) {
@@ -181,7 +222,7 @@ export class WebGLRenderer extends Renderer {
     camera: Camera,
     frustum: Frustum
   ) {
-    this.depthTarget_.bind(this.width, this.height);
+    this.depthTarget_.bind(this.sceneTarget_.width, this.sceneTarget_.height);
     this.state_.setDepthMask(true);
     this.state_.setDepthFunc(this.gl_.LESS);
     this.gl_.clear(this.gl_.DEPTH_BUFFER_BIT);
@@ -269,7 +310,7 @@ export class WebGLRenderer extends Renderer {
       const wireframeProgram = this.programs_.use("wireframe");
       wireframeProgram.setUniform(
         "u_wireframeColor",
-        object.wireframeColor.rgb
+        object.wireframeColor.linearRgb
       );
       this.drawGeometry(
         object.wireframeGeometry,
