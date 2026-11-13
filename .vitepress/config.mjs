@@ -9,8 +9,9 @@ import { examples } from '../examples/examples.ts'
 function getLatestVersion() {
   try {
     const tag = execSync("git tag --list 'v*' --sort=-v:refname", { encoding: 'utf-8' })
-      .split('\n')[0]
-      .trim()
+      .split('\n')
+      .map((line) => line.trim())
+      .find((line) => /^v\d+\.\d+\.\d+$/.test(line))
     if (tag) return tag.replace(/^v/, '')
   } catch {
     // fall through to package.json
