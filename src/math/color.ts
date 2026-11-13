@@ -1,18 +1,20 @@
 import { vec3, vec4 } from "gl-matrix";
 
 /**
- * A value convertible to {@link Color}.
+ * An sRGB color convertible to {@link Color}. Array alpha is linear opacity.
  */
 export type ColorLike = Color | vec3 | vec4 | string;
 
 /**
- * Immutable RGBA color with components in `[0, 1]`.
+ * Immutable sRGB color with components in `[0, 1]` and linear alpha.
  *
  * Color represents an RGBA value with four components. It is used for channel
  * tints, label color maps, and wireframe overlays. Components are validated
  * at construction and never change. Every API that takes a color accepts a
  * {@link ColorLike} so hex strings and component arrays coerce automatically
  * through {@link from}. Common colors are available as static presets.
+ * RGB components, hex strings, and packed bytes use the sRGB encoding.
+ * Use {@link linearRgb} or {@link linearRgba} for rendering calculations.
  *
  * @group Math
  */
@@ -36,11 +38,13 @@ export class Color {
   /** Fully transparent black. */
   public static readonly TRANSPARENT: Color = new Color(0.0, 0.0, 0.0, 0.0);
 
-  // RGBA color values in the range [0, 1]
+  // sRGB components and linear alpha in the range [0, 1].
   private readonly rgba_: readonly [number, number, number, number];
+  private linearRgb_?: readonly [number, number, number];
+  private linearRgba_?: readonly [number, number, number, number];
 
   /**
-   * Creates a color from RGBA components in `[0, 1]`.
+   * Creates a color from sRGB components and linear alpha in `[0, 1]`.
    *
    * @param r - The red component.
    * @param g - The green component.
@@ -57,27 +61,43 @@ export class Color {
     this.rgba_ = [r, g, b, a ?? 1.0];
   }
 
-  /** The RGB components as a three-element array. */
+  /** The sRGB components as a three-element array. */
   public get rgb(): [number, number, number] {
     return [this.rgba_[0], this.rgba_[1], this.rgba_[2]];
   }
 
-  /** The RGBA components as a four-element array. */
+  /** The sRGB components and linear alpha as a four-element array. */
   public get rgba(): readonly [number, number, number, number] {
     return this.rgba_;
   }
 
-  /** The red component. */
+  /** The cached RGB components decoded to linear sRGB for rendering calculations. */
+  public get linearRgb(): readonly [number, number, number] {
+    this.linearRgb_ ??= Object.freeze([
+      srgbToLinear(this.r),
+      srgbToLinear(this.g),
+      srgbToLinear(this.b),
+    ] as const);
+    return this.linearRgb_;
+  }
+
+  /** The cached linear sRGB components with the original, unchanged alpha. */
+  public get linearRgba(): readonly [number, number, number, number] {
+    this.linearRgba_ ??= Object.freeze([...this.linearRgb, this.a] as const);
+    return this.linearRgba_;
+  }
+
+  /** The sRGB red component. */
   public get r(): number {
     return this.rgba_[0];
   }
 
-  /** The green component. */
+  /** The sRGB green component. */
   public get g(): number {
     return this.rgba_[1];
   }
 
-  /** The blue component. */
+  /** The sRGB blue component. */
   public get b(): number {
     return this.rgba_[2];
   }
@@ -87,12 +107,12 @@ export class Color {
     return this.rgba_[3];
   }
 
-  /** The color as a `#rrggbb` hex string. Alpha is dropped. */
+  /** The sRGB color as a `#rrggbb` hex string. Alpha is dropped. */
   public get rgbHex(): string {
     return `#${this.toHexComponent(this.r)}${this.toHexComponent(this.g)}${this.toHexComponent(this.b)}`;
   }
 
-  /** The color packed into a 32-bit integer as RGBA bytes. */
+  /** The sRGB color and linear alpha packed into 32 bits as RGBA bytes. */
   public get packed(): number {
     return (
       (Math.round(this.r * 255) << 24) |
@@ -124,7 +144,7 @@ export class Color {
   }
 
   /**
-   * Parses a `#rrggbb` hex string into an opaque color.
+   * Parses an sRGB `#rrggbb` hex string into an opaque color.
    *
    * @param hex - The hex string with or without the leading `#`.
    */
@@ -147,4 +167,8 @@ export class Color {
       .padStart(2, "0");
     return hex.length === 1 ? "0" + hex : hex;
   }
+}
+
+function srgbToLinear(value: number): number {
+  return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
 }

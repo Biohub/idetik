@@ -69,7 +69,7 @@ export class ProjectedLineRenderable extends RenderableObject {
   /** Returns the color and width uniforms for the line shader. */
   public override getUniforms() {
     return {
-      u_lineColor: this.color.rgb,
+      u_lineColor: this.color.linearRgb,
       u_lineWidth: this.width,
     };
   }

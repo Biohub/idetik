@@ -204,6 +204,7 @@ export class LabelImageRenderable extends RenderableObject {
     );
     const texture = new Texture2D(data, cycle.length, 1);
     texture.dataFormat = "rgba";
+    texture.colorSpace = "srgb";
     return texture;
   }
 

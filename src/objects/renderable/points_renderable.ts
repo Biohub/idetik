@@ -80,10 +80,7 @@ export class PointsRenderable extends RenderableObject {
         point.position[0],
         point.position[1],
         point.position[2],
-        color.r,
-        color.g,
-        color.b,
-        color.a,
+        ...color.linearRgba,
         point.size,
         MARKER_INDEX[point.marker],
       ];

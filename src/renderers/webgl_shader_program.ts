@@ -160,6 +160,10 @@ export class WebGLShaderProgram {
     this.gl_.useProgram(this.program_);
   }
 
+  public dispose() {
+    this.gl_.deleteProgram(this.program_);
+  }
+
   private getParameter(parameter: number) {
     return this.gl_.getProgramParameter(this.program_, parameter);
   }
