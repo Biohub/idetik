@@ -9,8 +9,8 @@ const BLOBS = [
     a: 0.22,
     dx: "-155px",
     dy: "90px",
-    drift: 25,
-    pulse: 16,
+    drift: 19,
+    pulse: 12,
   },
   {
     x: "70%",
@@ -21,8 +21,8 @@ const BLOBS = [
     a: 0.12,
     dx: "135px",
     dy: "110px",
-    drift: 29,
-    pulse: 19,
+    drift: 22,
+    pulse: 14,
   },
   {
     x: "12%",
@@ -33,8 +33,8 @@ const BLOBS = [
     a: 0.17,
     dx: "180px",
     dy: "-95px",
-    drift: 21,
-    pulse: 14,
+    drift: 16,
+    pulse: 11,
   },
   {
     x: "30%",
@@ -45,8 +45,8 @@ const BLOBS = [
     a: 0.12,
     dx: "-115px",
     dy: "75px",
-    drift: 33,
-    pulse: 22,
+    drift: 25,
+    pulse: 17,
   },
 ];
 
