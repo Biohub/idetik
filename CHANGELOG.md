@@ -8,9 +8,14 @@ While the project is pre-1.0, breaking changes bump the minor version.
 
 ## [Unreleased]
 
+### Added
+
+- `Color.linearRgb` and `Color.linearRgba` which return the color's RGB components converted from sRGB to linear.
+
 ### Changed
 
 - `multiply` and `subtractive` blending now preserve destination alpha.
+- Colors are treated as sRGB and layers are now blended in linear space before the result is converted back to sRGB for display.
 
 ### Fixed
 
