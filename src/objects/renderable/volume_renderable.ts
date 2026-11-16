@@ -5,6 +5,7 @@ import { type Texture, TextureDataType } from "../textures/texture";
 import {
   Channel,
   ChannelProps,
+  COLOR_MAPS,
   validateChannel,
   validateChannels,
 } from "../../core/channel";
@@ -42,6 +43,7 @@ export class VolumeRenderable extends RenderableObject {
 
   private channels_: Required<Channel>[];
   private loadedChannels_: Set<number> = new Set();
+  private readonly colorMaps_: number[] = new Array(4 * 32 * 3).fill(0);
 
   private readonly channelToTextureIndex_: Map<number, number> = new Map();
 
@@ -139,6 +141,7 @@ export class VolumeRenderable extends RenderableObject {
       1, 1, 1,
       1, 1, 1,
     ]
+    const hasColorMap = [0, 0, 0, 0];
     const valueOffset = [0, 0, 0, 0];
     const valueScale = [1, 1, 1, 1];
     const channelOpacity = [1, 1, 1, 1];
@@ -163,6 +166,13 @@ export class VolumeRenderable extends RenderableObject {
       colors[k * 3] = r;
       colors[k * 3 + 1] = g;
       colors[k * 3 + 2] = b;
+      if (channel.colorMap !== undefined) {
+        const mapColors = COLOR_MAPS[channel.colorMap];
+        for (let j = 0; j < mapColors.length; j++) {
+          this.colorMaps_[k * mapColors.length + j] = mapColors[j];
+        }
+        hasColorMap[k] = 1;
+      }
 
       samplerUniforms.push(textureIndex);
       valueOffset[k] = -channel.contrastLimits[0];
@@ -181,6 +191,8 @@ export class VolumeRenderable extends RenderableObject {
       {
         u_visible: loadedAndVisibleTextures,
         "u_color[0]": colors,
+        u_hasColorMap: hasColorMap,
+        ...(hasColorMap.includes(1) && { "u_colorMap[0]": this.colorMaps_ }),
         u_valueOffset: valueOffset,
         u_valueScale: valueScale,
         u_channelOpacity: channelOpacity,

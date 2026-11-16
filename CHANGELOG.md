@@ -8,6 +8,10 @@ While the project is pre-1.0, breaking changes bump the minor version.
 
 ## [Unreleased]
 
+### Added
+
+- `ChannelProps.colorMap` which colors a channel by intensity with a matplotlib color map instead of `color`.
+
 ### Changed
 
 - `multiply` and `subtractive` blending now preserve destination alpha.
