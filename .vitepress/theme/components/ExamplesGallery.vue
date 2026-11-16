@@ -99,15 +99,10 @@ import { examples } from "../../../examples/examples.ts";
 .tag {
   padding: 0 10px;
   border-radius: var(--radius-pill);
-  background: rgb(0 0 0 / 0.06);
+  background: color-mix(in srgb, var(--vp-c-brand-1) 12%, transparent);
   font-size: 12px;
   font-weight: 500;
   line-height: 22px;
-  color: var(--vp-c-text-2);
-}
-
-.dark .tag {
-  background: #3e3e41;
-  color: rgb(235 235 245 / 0.62);
+  color: var(--vp-c-brand-1);
 }
 </style>

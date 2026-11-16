@@ -2,8 +2,8 @@
 layout: home
 
 hero:
-  text: Build interactive viewers for massive bioimaging data
-  tagline: High-performance visualization library for exploring <span style="white-space:nowrap">multi-dimensional</span> OME-Zarr datasets right in the browser.
+  text: Build interactive viewers for <span class="hero-highlight">massive bioimaging data</span>
+  tagline: High-performance visualization library for exploring <span style="white-space:nowrap">multi-dimensional</span> <span style="white-space:nowrap">OME-Zarr</span> datasets right in the browser.
   actions:
     - theme: brand
       text: Get Started
@@ -21,7 +21,7 @@ features:
     details: Built-in support for N-dimensional, multiscale, multichannel OME-Zarr 0.4/0.5. Point Idetik at a local or remote store, no conversion needed.
   - title: Chunk streaming
     icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/></svg>'
-    details: Chunks are streamed based on what the camera needs at the current zoom, nothing more. Preconfigured policies enable smooth temporal playback.
+    details: Chunks stream based on what the camera needs at the current zoom, nothing more. Preconfigured policies enable smooth temporal playback.
   - title: Built to be extended
     icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 22V7a1 1 0 0 0-1-1H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5a1 1 0 0 0-1-1H2"/><rect x="14" y="2" width="8" height="8" rx="1"/></svg>'
     details: Subclass Layer to render your own data and add custom input handlers, or plug in your own data loader. Renderables and overlays are public building blocks.

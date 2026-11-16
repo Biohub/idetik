@@ -61,7 +61,7 @@ async function copy() {
           inputmode="url"
           autocomplete="off"
           spellcheck="false"
-          placeholder="Paste an OME-Zarr URL (optional)"
+          placeholder="Paste an OME-Zarr URL"
         />
         <button type="submit" class="onboard">
           <span class="logos" aria-hidden="true">
@@ -92,7 +92,7 @@ async function copy() {
   position: relative;
   isolation: isolate;
   margin-top: var(--home-section-gap);
-  padding: 77px 24px;
+  padding: 59px 24px 64px;
   border-top: 1px solid var(--vp-c-gutter);
 }
 
@@ -144,25 +144,32 @@ async function copy() {
 
 .title {
   margin: 0;
-  font-size: 36px;
+  font-size: 28px;
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.15;
   color: var(--vp-c-text-1);
+  text-wrap: balance;
 }
 
 @media (min-width: 640px) {
   .title {
-    font-size: 44px;
+    font-size: 36px;
   }
 }
 
 .description {
   margin: 24px 0 0;
   max-width: 480px;
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1.65;
   color: var(--vp-c-text-2);
+}
+
+@media (min-width: 640px) {
+  .description {
+    font-size: 18px;
+  }
 }
 
 .nowrap {
@@ -211,6 +218,14 @@ async function copy() {
   font-weight: 500;
   color: #111114;
   transition: background-color 0.2s;
+}
+
+@media (max-width: 639px) {
+  .onboard {
+    align-self: stretch;
+    justify-content: center;
+    height: 44px;
+  }
 }
 
 .onboard:hover {
