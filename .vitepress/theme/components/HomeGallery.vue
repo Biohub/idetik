@@ -9,8 +9,8 @@ import ExamplesGallery from "./ExamplesGallery.vue";
         <h2 class="heading">Examples</h2>
         <p class="description">
           Live viewers built with Idetik on public
-          <span class="nowrap">OME-Zarr</span> datasets. Tap to explore in
-          your browser and view the source code.
+          <span class="nowrap">OME-Zarr</span> datasets. Tap to explore in your
+          browser and view the source code.
         </p>
       </div>
       <ExamplesGallery />
