@@ -33,7 +33,11 @@
         bottom: 1.5em;
         height: 18%;
         overflow: hidden;
-        border: 1px solid rgb(0 0 0 / 0.3);
+        /* A dark ring inside a light one, so one always contrasts with the
+           image behind it. */
+        box-shadow:
+          0 0 0 1px rgb(0 0 0 / 0.6),
+          0 0 0 2px rgb(255 255 255 / 0.6);
         border-radius: 4px;
         cursor: crosshair;
         touch-action: none;
