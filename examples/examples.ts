@@ -10,7 +10,7 @@ export const examples = [
     tags: ["2d", "streaming", "multiscale"],
   },
   {
-    id: "volume_rendering",
+    id: "zebrafish_volume",
     title: "3D Volume of a Zebrafish Embryo",
     label: "Zebrafish Volume",
     description:
@@ -59,7 +59,7 @@ export const examples = [
     tags: ["2d", "channels", "multiscale"],
   },
   {
-    id: "image_2d",
+    id: "zebrafish_timelapse",
     title: "2D Timelapse of a Zebrafish Embryo",
     label: "Zebrafish Timelapse",
     description:

@@ -11,7 +11,7 @@ examples/<id>/
 └── thumbnail.jpg    16:9 image for the docs gallery and sidebar (1280×720 works well)
 ```
 
-Other local modules (e.g. `image_2d/scale_bar.ts`) are fine, but only `main.ts` is shown on the docs page. Import the library as `idetik` so the code can be copied as-is.
+Other modules (e.g. the shared `scale_bar.ts`) are fine, but only `main.ts` is shown on the docs page. Import the library as `idetik` so the code can be copied as-is.
 
 Use [lil-gui](https://lil-gui.georgealways.com/) for controls and link the shared theme from `index.html` so every example matches the docs:
 
