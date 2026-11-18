@@ -12,10 +12,8 @@ import {
   createPlaybackPolicy,
   Viewport,
 } from "idetik";
-import { addDimensionSlider } from "../lil_gui_utils";
-import { vec3 } from "gl-matrix";
-
 import GUI from "lil-gui";
+import { addDimensionSlider } from "../lil_gui_utils";
 
 // A whole mouse brain imaged with exaSPIM light-sheet microscopy: a 7-level
 // Zarr v2 pyramid of 21,041 × 40,660 × 66,934 voxels at 1 × 0.75 × 0.75 µm,
@@ -25,23 +23,28 @@ import GUI from "lil-gui";
 const url =
   "https://aind-open-data.s3.amazonaws.com/exaSPIM_822177_2026-04-24_17-36-07_processed_2026-05-04_09-30-27/fusion/fused.zarr/";
 
+// Highlight the viewport under the pointer.
+const viewportElements = document.querySelectorAll(".viewport");
+for (const element of viewportElements) {
+  element.addEventListener("mouseenter", () => {
+    viewportElements.forEach((other) =>
+      other.classList.toggle("active", other === element)
+    );
+  });
+}
+viewportElements[0]?.classList.add("active");
+
 const source = await OmeZarrImageSource.fromHttp({ url });
 
-const baseLod = 0;
 const dims = source.getDimensions();
-const axisRange = (axis: "x" | "y" | "z"): readonly [number, number] => {
-  const d = dims[axis]!.lods[baseLod];
-  return [d.translation, d.translation + d.size * d.scale] as const;
+const axes = ["x", "y", "z"] as const;
+type Axis = (typeof axes)[number];
+const range = (axis: Axis): [number, number] => {
+  const { translation, size, scale } = dims[axis]!.lods[0];
+  return [translation, translation + size * scale];
 };
-const [xMin, xMax] = axisRange("x");
-const [yMin, yMax] = axisRange("y");
-const [zMin, zMax] = axisRange("z");
-
-const center = vec3.fromValues(
-  (xMin + xMax) / 2,
-  (yMin + yMax) / 2,
-  (zMin + zMax) / 2
-);
+const [xRange, yRange, zRange] = axes.map(range);
+const [x, y, z] = axes.map((axis) => (range(axis)[0] + range(axis)[1]) / 2);
 
 // Tissue sits around 5-20 counts over a ~5-count background, so the slices
 // use a tight window and the volume starts above background to stay clear.
@@ -52,13 +55,7 @@ const volumeChannelProps: ChannelProps[] = [
   { color: "#00e5ff", contrastLimits: [6, 30] },
 ];
 
-const sliceCoords = {
-  t: 0,
-  x: center[0],
-  y: center[1],
-  z: center[2],
-  c: [0],
-};
+const sliceCoords = { t: 0, x, y, z, c: [0] };
 
 function createSliceLayer(orientation: SliceOrientation) {
   return new ImageLayer({
@@ -73,8 +70,8 @@ function createSliceLayer(orientation: SliceOrientation) {
 function createSliceViewport(
   id: string,
   orientation: SliceOrientation,
-  [uMin, uMax]: readonly [number, number],
-  [vMin, vMax]: readonly [number, number]
+  [uMin, uMax]: [number, number],
+  [vMin, vMax]: [number, number]
 ) {
   const uPad = 0.2 * (uMax - uMin);
   const vPad = 0.2 * (vMax - vMin);
@@ -106,13 +103,11 @@ const volumeLayer = new VolumeLayer({
 });
 volumeLayer.opacityMultiplier = 0.01;
 
-const xRange = [xMin, xMax] as const;
-const yRange = [yMin, yMax] as const;
-const zRange = [zMin, zMax] as const;
-
 // World units are micrometers and the brain spans ~50 mm, so push the far
 // plane well past the orbit radius.
-const diagonal = Math.hypot(xMax - xMin, yMax - yMin, zMax - zMin);
+const diagonal = Math.hypot(
+  ...[xRange, yRange, zRange].map(([min, max]) => max - min)
+);
 const camera3D = new PerspectiveCamera({
   near: diagonal / 1000,
   far: diagonal * 10,
@@ -131,7 +126,7 @@ const viewport3D = new Viewport({
     radius: diagonal,
     yaw: 0.4,
     pitch: 0.1,
-    target: center,
+    target: [x, y, z],
   }),
   layers: [...slicesIn3D, volumeLayer],
 });
@@ -161,23 +156,11 @@ gui
     }
   });
 
-addDimensionSlider({
-  gui,
-  sliceCoords,
-  dimensionName: "x",
-  lod: dims.x!.lods[baseLod],
-});
-
-addDimensionSlider({
-  gui,
-  sliceCoords,
-  dimensionName: "y",
-  lod: dims.y!.lods[baseLod],
-});
-
-addDimensionSlider({
-  gui,
-  sliceCoords,
-  dimensionName: "z",
-  lod: dims.z!.lods[baseLod],
-});
+for (const axis of axes) {
+  addDimensionSlider({
+    gui,
+    sliceCoords,
+    dimensionName: axis,
+    lod: dims[axis]!.lods[0],
+  });
+}
