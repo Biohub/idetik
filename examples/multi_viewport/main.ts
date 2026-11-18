@@ -36,7 +36,6 @@ const axisRange = (axis: "x" | "y" | "z"): readonly [number, number] => {
 const [xMin, xMax] = axisRange("x");
 const [yMin, yMax] = axisRange("y");
 const [zMin, zMax] = axisRange("z");
-const step = (axis: "x" | "y" | "z") => dims[axis]!.lods[baseLod].scale;
 
 const center = vec3.fromValues(
   (xMin + xMax) / 2,
@@ -166,25 +165,19 @@ addDimensionSlider({
   gui,
   sliceCoords,
   dimensionName: "x",
-  minValue: xMin,
-  maxValue: xMax,
-  stepValue: step("x"),
+  lod: dims.x!.lods[baseLod],
 });
 
 addDimensionSlider({
   gui,
   sliceCoords,
   dimensionName: "y",
-  minValue: yMin,
-  maxValue: yMax,
-  stepValue: step("y"),
+  lod: dims.y!.lods[baseLod],
 });
 
 addDimensionSlider({
   gui,
   sliceCoords,
   dimensionName: "z",
-  minValue: zMin,
-  maxValue: zMax,
-  stepValue: step("z"),
+  lod: dims.z!.lods[baseLod],
 });

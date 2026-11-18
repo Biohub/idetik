@@ -98,17 +98,13 @@ addDimensionSlider({
   gui,
   sliceCoords,
   dimensionName: "z",
-  minValue: coord(zLod, 0),
-  maxValue: coord(zLod, zLod.size - 1),
-  stepValue: zLod.scale,
+  lod: zLod,
 });
 addDimensionSlider({
   gui,
   sliceCoords,
   dimensionName: "t",
-  minValue: coord(tLod, 0),
-  maxValue: coord(tLod, tLod.size - 1),
-  stepValue: tLod.scale,
+  lod: tLod,
   playback: { maxRateHz: 10 },
 });
 

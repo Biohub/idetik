@@ -167,9 +167,7 @@ addDimensionSlider({
   gui,
   sliceCoords: fieldSliceCoords,
   dimensionName: "z",
-  minValue: zLod.translation,
-  maxValue: zLod.translation + (zLod.size - 1) * zLod.scale,
-  stepValue: zLod.scale,
+  lod: zLod,
 });
 
 let activeViewports: Viewport[] = plateViewports;

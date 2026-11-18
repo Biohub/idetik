@@ -189,9 +189,7 @@ addDimensionSlider({
   gui,
   sliceCoords,
   dimensionName: "t",
-  minValue: tLod.translation,
-  maxValue: tLod.translation + (tLod.size - 1) * tLod.scale,
-  stepValue: tLod.scale,
+  lod: tLod,
 });
 const lodInfo = { size: describeLod(controls.lod) };
 gui

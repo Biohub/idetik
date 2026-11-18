@@ -115,17 +115,13 @@ addDimensionSlider({
   gui,
   sliceCoords,
   dimensionName: "z",
-  minValue: zLod.translation,
-  maxValue: zLod.translation + (zLod.size - 1) * zLod.scale,
-  stepValue: zLod.scale,
+  lod: zLod,
 });
 addDimensionSlider({
   gui,
   sliceCoords,
   dimensionName: "t",
-  minValue: tLod.translation,
-  maxValue: tLod.translation + (tLod.size - 1) * tLod.scale,
-  stepValue: tLod.scale,
+  lod: tLod,
   playback: {
     // The playback policy skips prefetching neighbors and favors the LODs
     // that can keep up, trading detail for frame rate.
