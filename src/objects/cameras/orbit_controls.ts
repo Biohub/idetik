@@ -125,6 +125,12 @@ export class OrbitControls implements CameraControls {
     return vec3.clone(this.currCenter_);
   }
 
+  /** Moves the orbit center, keeping the current radius, yaw and pitch. */
+  public set target(value: vec3) {
+    vec3.copy(this.currCenter_, value);
+    this.updateCamera();
+  }
+
   /** Whether any orbit, pan, or zoom velocity remains. */
   public get isMoving(): boolean {
     return (
