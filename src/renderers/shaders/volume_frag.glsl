@@ -49,7 +49,7 @@ uniform vec4 u_valueScale;
 uniform vec4 u_channelOpacity;
 uniform vec3 u_color[4];
 uniform vec4 u_hasColorMap;
-uniform vec3 u_colorMap[4 * 32];
+uniform vec3 u_colorMap[4 * 48];
 
 // Optionally terminate rays at some predetermined scene depth
 uniform bool u_hasSceneDepth;
@@ -165,11 +165,11 @@ void main() {
             sampleColor = linearColors[ch];
 
             if (bool(u_hasColorMap[ch])) {
-                float x = clamp(sampleValues[ch], 0.0, 1.0) * 31.0;
-                int i = min(int(x), 30);
+                float x = clamp(sampleValues[ch], 0.0, 1.0) * 47.0;
+                int i = min(int(x), 46);
                 sampleColor = mix(
-                    srgbToLinear(u_colorMap[ch * 32 + i]),
-                    srgbToLinear(u_colorMap[ch * 32 + i + 1]),
+                    srgbToLinear(u_colorMap[ch * 48 + i]),
+                    srgbToLinear(u_colorMap[ch * 48 + i + 1]),
                     x - float(i)
                 );
             }

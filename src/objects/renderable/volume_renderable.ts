@@ -43,7 +43,7 @@ export class VolumeRenderable extends RenderableObject {
 
   private channels_: Required<Channel>[];
   private loadedChannels_: Set<number> = new Set();
-  private readonly colorMaps_: number[] = new Array(4 * 32 * 3).fill(0);
+  private readonly colorMaps_: number[] = new Array(4 * 48 * 3).fill(0);
 
   private readonly channelToTextureIndex_: Map<number, number> = new Map();
 

@@ -17,7 +17,7 @@ uniform mediump sampler3D u_imageSampler;
 
 uniform vec3 u_color;
 uniform bool u_hasColorMap;
-uniform vec3 u_colorMap[32];
+uniform vec3 u_colorMap[48];
 uniform float u_valueOffset;
 uniform float u_valueScale;
 uniform float u_opacity;
@@ -32,8 +32,8 @@ void main() {
     fragColor = vec4(srgbToLinear(displayColor), u_opacity);
 
     if (u_hasColorMap) {
-        float x = clamp(value, 0.0, 1.0) * 31.0;
-        int i = min(int(x), 30);
+        float x = clamp(value, 0.0, 1.0) * 47.0;
+        int i = min(int(x), 46);
         fragColor.rgb = mix(
             srgbToLinear(u_colorMap[i]),
             srgbToLinear(u_colorMap[i + 1]),
