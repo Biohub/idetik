@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Orthogonal Views of Zebrafish Embryo</title>
+    <title>Orthogonal Views of a Mouse Brain</title>
     <link rel="stylesheet" href="../lil_gui_theme.css" />
     <style>
       body {
@@ -34,6 +34,21 @@
         margin-top: -1px;
       }
 
+      /* Round the outer corners to match the docs site's iframe (12px radius
+         minus its 1px border), so the active border isn't clipped. */
+      .viewport:nth-child(1) {
+        border-top-left-radius: 11px;
+      }
+      .viewport:nth-child(2) {
+        border-top-right-radius: 11px;
+      }
+      .viewport:nth-child(3) {
+        border-bottom-left-radius: 11px;
+      }
+      .viewport:nth-child(4) {
+        border-bottom-right-radius: 11px;
+      }
+
       .viewport.active {
         border-color: #ffee66;
         z-index: 1;
@@ -43,6 +58,10 @@
         position: absolute;
         top: 10px;
         left: 10px;
+        padding: 3px 6px;
+        border-radius: 3px;
+        background-color: rgba(0, 0, 0, 0.6);
+        color: #dddddd;
         font-weight: bold;
         font-size: 12px;
         letter-spacing: 2px;
@@ -51,15 +70,15 @@
       }
 
       .axis-x {
-        color: #ff0000;
+        color: #ff6b6b;
       }
 
       .axis-y {
-        color: #00ff00;
+        color: #6bd96b;
       }
 
       .axis-z {
-        color: #0000ff;
+        color: #5c8dff;
       }
 
       canvas {
@@ -79,16 +98,18 @@
           <span class="axis-x">X</span><span class="axis-y">Y</span>
         </span>
       </div>
-      <div class="viewport" id="viewport-3d"></div>
+      <div class="viewport" id="viewport-slice-yz">
+        <span class="viewport-label">
+          <span class="axis-y">Y</span><span class="axis-z">Z</span>
+        </span>
+      </div>
       <div class="viewport" id="viewport-slice-xz">
         <span class="viewport-label">
           <span class="axis-x">X</span><span class="axis-z">Z</span>
         </span>
       </div>
-      <div class="viewport" id="viewport-slice-yz">
-        <span class="viewport-label">
-          <span class="axis-y">Y</span><span class="axis-z">Z</span>
-        </span>
+      <div class="viewport" id="viewport-3d">
+        <span class="viewport-label">VOL</span>
       </div>
     </div>
     <canvas id="canvas"></canvas>

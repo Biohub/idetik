@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>2D Image of Zebrafish Embryo</title>
+    <title>2D Timelapse of a Zebrafish Embryo</title>
     <link rel="stylesheet" href="../lil_gui_theme.css" />
     <style>
       html,
@@ -19,8 +19,7 @@
       }
 
       #time-point,
-      #scale-bar-box,
-      #dataset-info {
+      #scale-bar-box {
         border: 1px solid rgb(255 255 255 / 0.1);
         border-radius: 8px;
       }
@@ -28,6 +27,22 @@
       canvas {
         width: 100%;
         height: 100%;
+      }
+
+      #loading-bar {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background-color: rgb(155 133 251 / 0.2);
+      }
+
+      #loading-fill {
+        height: 100%;
+        width: 0;
+        background-color: #9b85fb;
+        transition: width 0.1s;
       }
 
       #left-overlays {
@@ -68,38 +83,12 @@
         height: 1em;
         background-color: white;
       }
-
-      #dataset-info {
-        position: absolute;
-        bottom: 0.5em;
-        right: 0.5em;
-        margin: 1em;
-        padding: 1em;
-        max-width: 30em;
-        color: white;
-        background-color: rgba(0, 0, 0, 0.5);
-        white-space: pre-line;
-        line-height: 1.4;
-      }
-
-      #dataset-info .label {
-        font-weight: bold;
-      }
-
-      #dataset-info .meta {
-        opacity: 0.85;
-      }
-
-      #dataset-info,
-      #left-overlays {
-        display: none;
-      }
     </style>
   </head>
 
   <body>
     <canvas id="canvas"></canvas>
-    <div id="dataset-info">Loading...</div>
+    <div id="loading-bar"><div id="loading-fill"></div></div>
     <div id="left-overlays">
       <div id="time-point"></div>
       <div id="scale-bar-box">

@@ -16,12 +16,12 @@ import {
 import { vec3 } from "gl-matrix";
 import GUI from "lil-gui";
 
-const baseUrl =
-  "https://files.cryoetdataportal.cziscience.com/10445/TS_100_3/Reconstructions/VoxelSpacing4.990";
-const imageUrl = `${baseUrl}/Tomograms/100/TS_100_3.zarr`;
-const ribosomesUrl = `${baseUrl}/Annotations/104/cytosolic_ribosome-1.0_point.ndjson`;
-const ferritinUrl = `${baseUrl}/Annotations/101/ferritin_complex-1.0_point.ndjson`;
-const virusLikeUrl = `${baseUrl}/Annotations/106/pp7_vlp-1.0_point.ndjson`;
+// CryoET Data Portal dataset 10445, run TS_100_3, re-chunked for 2D slicing.
+const baseUrl = "https://data.idetik.org/examples/cryoet10445-czii-particles";
+const imageUrl = `${baseUrl}/TS_100_3.ome.zarr`;
+const ribosomesUrl = `${baseUrl}/cytosolic_ribosome-1.0_point.ndjson`;
+const ferritinUrl = `${baseUrl}/ferritin_complex-1.0_point.ndjson`;
+const virusLikeUrl = `${baseUrl}/pp7_vlp-1.0_point.ndjson`;
 
 // image scale for the highest res image --
 // point coordinates are stored in the pixel-space of
@@ -121,7 +121,10 @@ ribosomes.setDepth(INITIAL_Z_POSITION);
 ferritin.setDepth(INITIAL_Z_POSITION);
 virusLike.setDepth(INITIAL_Z_POSITION);
 
-const imageSource = await OmeZarrImageSource.fromHttp({ url: imageUrl });
+const imageSource = await OmeZarrImageSource.fromHttp({
+  url: imageUrl,
+  version: "0.5",
+});
 const dimensions = imageSource.getDimensions();
 
 const zDimName = "z";

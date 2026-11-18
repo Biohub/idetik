@@ -26,14 +26,15 @@ Add the folder, then an entry to [`examples.ts`](examples.ts). The list's order 
 ```ts
 {
   id: "my_example",
-  title: "Full title, e.g. Segmented Nuclei in a Mouse Blastocyst",
+  title: "Full title, e.g. Segmented CryoET Tomogram",
   label: "Short name",
   description: "One sentence on what the example shows.",
-  data: "Where the data comes from, e.g. IDR idr0062A · EBI",
+  data: "Where the data comes from, e.g. CryoET Data Portal 10490 · Stojanovska et al. 2025 · CC0",
+  dataUrl: "https://… (optional) link to the dataset's README or license",
   tags: ["2d", "labels"],
 },
 ```
 
-`id` is the folder name and gives the docs page `/examples/<id>`. `title` heads the docs page and the gallery card and names the example in the `npm run examples` picker; match it to the `<title>` in `index.html`. `label` is the short name in the docs sidebar; keep it to one line (about 18 characters). `description` appears under the title on the example's page. `data` appears under the viewer and as the gallery card's subtitle. `tags` are short lowercase feature names shown on the gallery card; keep to two or three and reuse existing ones where they fit.
+`id` is the folder name and gives the docs page `/examples/<id>`. `title` heads the docs page and the gallery card and names the example in the `npm run examples` picker; match it to the `<title>` in `index.html`. `label` is the short name in the docs sidebar; keep it to one line (about 18 characters). `description` appears under the title on the example's page. `data` appears under the viewer and as the gallery card's subtitle; if `dataUrl` is set, the line under the viewer links to it (use it for a README or license page). `tags` are short lowercase feature names shown on the gallery card; keep to two or three and reuse existing ones where they fit.
 
 Preview with `npm run docs:dev`.

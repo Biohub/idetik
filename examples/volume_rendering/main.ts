@@ -10,38 +10,70 @@ import {
   createExplorationPolicy,
   Viewport,
 } from "idetik";
+import { addDimensionSlider } from "../lil_gui_utils";
 
+// A zebrafish embryo imaged over 270 timepoints with multi-view light-sheet
+// microscopy: a 5-level Zarr v2 pyramid of 396 × 1,624 × 1,552 voxels at
+// 1.97 × 0.485 × 0.485 µm with two channels (h2afva nuclei, mezzo).
 const url =
-  "https://public.czbiohub.org/organelle_box/datasets/A549/organelle_box_crop_v1.zarr/CLTA/PFA/002000/";
+  "https://public.czbiohub.org/royerlab/zebrahub/imaging/multi-view/ZMNS001.ome.zarr/";
 const source = await OmeZarrImageSource.fromHttp({ url });
+
+const dims = source.getDimensions();
+const axisRange = (axis: "x" | "y" | "z"): readonly [number, number] => {
+  const d = dims[axis]!.lods[0];
+  return [d.translation, d.translation + d.size * d.scale] as const;
+};
+const [xMin, xMax] = axisRange("x");
+const [yMin, yMax] = axisRange("y");
+const [zMin, zMax] = axisRange("z");
+const center = vec3.fromValues(
+  (xMin + xMax) / 2,
+  (yMin + yMax) / 2,
+  (zMin + zMax) / 2
+);
+const tLod = dims.t!.lods[0];
+
 const sliceCoords = {
-  t: 0,
+  t: 133,
   z: undefined,
   c: undefined, // Show all channels
 };
+// Level 0 is about 4 GB per timepoint, so the volume starts two levels down.
+// The LOD slider shows the size of each level as a hint.
 const controls = { lod: 2 };
+const maxLod = dims.numLods - 1;
+const BYTES_PER_VOXEL = 2; // uint16
+
+function describeLod(lod: number): string {
+  const voxels = (["x", "y", "z"] as const).reduce(
+    (count, axis) => count * dims[axis]!.lods[lod].size,
+    1
+  );
+  const bytes = voxels * channelProps.length * BYTES_PER_VOXEL;
+  const size =
+    bytes >= 1e9
+      ? `${(bytes / 1e9).toFixed(1)} GB`
+      : `${Math.round(bytes / 1e6)} MB`;
+  return `${size} per timepoint`;
+}
 
 const camera = new PerspectiveCamera();
 const policy = createExplorationPolicy({
   lod: { min: controls.lod, max: controls.lod },
 });
 
-const channelNames = ["Phase 3D", "Prime DAPI", "Prime GFP"];
+const channelNames = ["h2afva (nuclei)", "mezzo"];
 const channelProps: ChannelProps[] = [
   {
-    visible: false,
-    color: "#ffffff",
-    contrastLimits: [-1.5, 10.0],
+    visible: true,
+    color: "#00b3ff",
+    contrastLimits: [0, 1200],
   },
   {
     visible: true,
-    color: "#0000ff",
-    contrastLimits: [108, 353],
-  },
-  {
-    visible: true,
-    color: "#00ff00",
-    contrastLimits: [144, 3825],
+    color: "#ff00bb",
+    contrastLimits: [0, 400],
   },
 ];
 
@@ -51,6 +83,7 @@ const volumeLayer = new VolumeLayer({
   policy,
   channelProps,
 });
+volumeLayer.opacityMultiplier = 0.02;
 
 const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
 const idetik = new Idetik({
@@ -60,8 +93,10 @@ const idetik = new Idetik({
       domElement: canvas,
       camera,
       cameraControls: new OrbitControls(camera, {
-        radius: 100,
-        target: vec3.fromValues(40, 40, 10), // Volume center,
+        radius: 0.65 * Math.hypot(xMax - xMin, yMax - yMin, zMax - zMin),
+        yaw: 0.4,
+        pitch: 0.1,
+        target: center,
       }),
       layers: [volumeLayer],
     }),
@@ -150,15 +185,29 @@ function createChannelControls(
 
 // Add GUI controls to manipulate rendering
 const gui = new GUI({ width: 320, closeFolders: true }).close();
+addDimensionSlider({
+  gui,
+  sliceCoords,
+  dimensionName: "t",
+  minValue: tLod.translation,
+  maxValue: tLod.translation + (tLod.size - 1) * tLod.scale,
+  stepValue: tLod.scale,
+});
+const lodInfo = { size: describeLod(controls.lod) };
 gui
-  .add(controls, "lod", 0, 2, 1)
+  .add(controls, "lod", 0, maxLod, 1)
   .name("Level of Detail (LOD)")
-  .onChange(
-    (lod: number) =>
-      (volumeLayer.imageSourcePolicy = createExplorationPolicy({
-        lod: { min: lod, max: lod },
-      }))
-  );
+  .onChange((lod: number) => {
+    volumeLayer.imageSourcePolicy = createExplorationPolicy({
+      lod: { min: lod, max: lod },
+    });
+    lodInfo.size = describeLod(lod);
+    lodInfoController.updateDisplay();
+  });
+const lodInfoController = gui
+  .add(lodInfo, "size")
+  .name("Volume size")
+  .disable();
 
 const volumeFolder = gui.addFolder("Volume Rendering");
 volumeFolder

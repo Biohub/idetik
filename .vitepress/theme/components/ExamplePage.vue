@@ -37,7 +37,17 @@ const source = computed(
       </div>
     </div>
     <iframe :src="src" :title="params.title" allow="fullscreen" />
-    <p class="data">Data: {{ params.data }}</p>
+    <p class="data">
+      Data:
+      <a
+        v-if="params.dataUrl"
+        :href="params.dataUrl"
+        target="_blank"
+        rel="noopener"
+        >{{ params.data }}</a
+      >
+      <template v-else>{{ params.data }}</template>
+    </p>
   </div>
 </template>
 

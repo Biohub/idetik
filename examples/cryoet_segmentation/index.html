@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Segmented CryoET Tomogram</title>
+    <link rel="stylesheet" href="../lil_gui_theme.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        font-family: monospace;
+        font-size: 12px;
+      }
+      html {
+        background-color: black;
+      }
+      #main {
+        display: flex;
+        width: 100%;
+        height: 100%;
+      }
+      .viewport {
+        flex: 1;
+        min-width: 0;
+        min-height: 0;
+      }
+      .viewport + .viewport {
+        border-left: 1px solid #333;
+      }
+      @media (max-aspect-ratio: 1/1) {
+        #main {
+          flex-direction: column;
+        }
+        .viewport + .viewport {
+          border-left: none;
+          border-top: 1px solid #333;
+        }
+      }
+      #canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -1;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+    <div id="main">
+      <div class="viewport" id="viewport-3d"></div>
+      <div class="viewport" id="viewport-xy"></div>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
