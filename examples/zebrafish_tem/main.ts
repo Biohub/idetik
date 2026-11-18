@@ -6,7 +6,7 @@ import {
   PanZoomControls,
   Viewport,
 } from "idetik";
-import { ScaleBar } from "./scale_bar";
+import { ScaleBar } from "../scale_bar";
 import GUI from "lil-gui";
 
 // A 2D viewer for a 350-gigapixel TEM virtual slide: 380,928 × 921,600
