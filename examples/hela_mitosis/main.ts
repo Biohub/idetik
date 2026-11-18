@@ -1,5 +1,6 @@
 import GUI from "lil-gui";
 import {
+  ChannelProps,
   Idetik,
   ImageLayer,
   LabelLayer,
@@ -37,7 +38,7 @@ const sliceCoords = {
   t: coord(tLod, 20),
 };
 
-const channels = [
+const channels: (ChannelProps & { name: string })[] = [
   {
     name: "NCAPD2-mEGFP",
     color: "#00ff00",
@@ -58,17 +59,11 @@ const channels = [
     visible: false,
   },
 ];
-const channelProps = () =>
-  channels.map(({ color, visible, contrastLimits }) => ({
-    color,
-    visible,
-    contrastLimits: contrastLimits as [number, number],
-  }));
 
 const imageLayer = new ImageLayer({
   source: image,
   sliceCoords,
-  channelProps: channelProps(),
+  channelProps: channels,
 });
 const labelLayer = new LabelLayer({
   source: labels,
@@ -129,5 +124,5 @@ for (const channel of channels) {
   channelFolder
     .add(channel, "visible")
     .name(channel.name)
-    .onChange(() => imageLayer.setChannelProps(channelProps()));
+    .onChange(() => imageLayer.setChannelProps(channels));
 }
