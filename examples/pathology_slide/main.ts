@@ -6,6 +6,7 @@ import {
   PanZoomControls,
   Viewport,
 } from "idetik";
+import { Minimap } from "../minimap";
 
 // A 46000 × 32914 brightfield whole-slide image (OpenSlide's CMU-1 test slide)
 // stored as three channels. Drawing them as red, green and blue blends them
@@ -45,58 +46,15 @@ const viewport = new Viewport({
   layers: [rgb()],
 });
 
-// The minimap is a second viewport framed to the whole slide. A viewport
-// can't share a layer, so it gets its own; the small viewport only loads the
-// coarsest tiles.
-const minimapDiv = document.querySelector<HTMLDivElement>("#minimap")!;
-const minimapView = document.querySelector<HTMLDivElement>("#minimap-view")!;
-const width = extent.right - extent.left;
-const height = extent.bottom - extent.top;
-minimapDiv.style.aspectRatio = `${width} / ${height}`;
-const minimap = new Viewport({
-  domElement: minimapDiv,
-  camera: new OrthographicCamera(extent),
-  layers: [rgb()],
+const minimap = new Minimap({
+  camera,
+  extent,
+  layer: rgb(),
+  element: document.querySelector<HTMLDivElement>("#minimap")!,
 });
-
-const minimapOverlay = {
-  update() {
-    const { min, max } = camera.getWorldViewRect();
-    const left = (Math.min(min[0], max[0]) - extent.left) / width;
-    const top = (Math.min(min[1], max[1]) - extent.top) / height;
-    const w = Math.abs(max[0] - min[0]) / width;
-    const h = Math.abs(max[1] - min[1]) / height;
-    // Tolerance for float error in the initial fit-to-slide view.
-    const eps = 1e-6;
-    const showsWholeSlide =
-      left <= eps && top <= eps && left + w >= 1 - eps && top + h >= 1 - eps;
-    minimapDiv.style.visibility = showsWholeSlide ? "hidden" : "";
-    minimapView.style.left = `${100 * left}%`;
-    minimapView.style.top = `${100 * top}%`;
-    minimapView.style.width = `${100 * w}%`;
-    minimapView.style.height = `${100 * h}%`;
-  },
-};
-
-// Click or drag in the minimap to center the main view there.
-function panTo(e: PointerEvent) {
-  if (!(e.buttons & 1)) return;
-  const target = minimap.clientToWorld([e.clientX, e.clientY]);
-  const { min, max } = camera.getWorldViewRect();
-  camera.pan([
-    target[0] - (min[0] + max[0]) / 2,
-    target[1] - (min[1] + max[1]) / 2,
-    0,
-  ]);
-}
-minimapDiv.addEventListener("pointerdown", (e) => {
-  minimapDiv.setPointerCapture(e.pointerId);
-  panTo(e);
-});
-minimapDiv.addEventListener("pointermove", panTo);
 
 new Idetik({
   canvas,
-  viewports: [viewport, minimap],
-  overlays: [minimapOverlay],
+  viewports: [viewport, minimap.viewport],
+  overlays: [minimap],
 }).start();
