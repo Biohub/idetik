@@ -14,10 +14,10 @@ import {
 } from "idetik";
 import { addDimensionSlider } from "../lil_gui_utils";
 
-// A 60-well plate browsed in three levels, each a set of viewports on one
-// canvas: the plate as a grid of one field per well at the coarsest
-// resolution, a well as its nine fields, and a single field with pan, zoom
-// and a z slider.
+// A plate browsed in three levels, each a set of viewports on one canvas: the
+// plate as one field per well at the coarsest resolution, a well as all of
+// its fields, and a single field with pan, zoom and a z slider. The plate and
+// well grids size themselves to fit their tiles in the window.
 const plateUrl =
   "https://public.czbiohub.org/organelle_box/datasets/A549/organelle_box_crop_v1.zarr";
 
@@ -37,8 +37,6 @@ await Promise.all(
   })
 );
 
-// Display windows vary by orders of magnitude between wells, so each field
-// takes its channel colors and windows from its own omero metadata.
 type Field = { source: OmeZarrImageSource; channelProps: ChannelProps[] };
 const fields = new Map<string, Promise<Field>>();
 function openField(wellPath: string, fieldPath: string): Promise<Field> {
@@ -84,8 +82,7 @@ const frame = {
 };
 const midZ = zLod.translation + Math.floor((zLod.size - 1) / 2) * zLod.scale;
 
-// Tiles are pinned to the coarsest level and never prefetch, so the plate
-// costs one chunk per channel per well.
+// Tiles are pinned to the coarsest level without any prefetch
 const coarsestPolicy = createNoPrefetchPolicy({
   lod: { min: Number.MAX_SAFE_INTEGER },
 });
@@ -170,11 +167,26 @@ addDimensionSlider({
   lod: zLod,
 });
 
+function fitGrid(container: HTMLDivElement) {
+  const count = container.childElementCount;
+  const { width, height } = container.getBoundingClientRect();
+  if (count === 0 || height === 0) return;
+  const columns = Math.min(
+    count,
+    Math.ceil(Math.sqrt((count * width) / height))
+  );
+  container.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
+  container.style.gridTemplateRows = `repeat(${Math.ceil(count / columns)}, 1fr)`;
+}
+
+let activeLevel: Level = "plate";
 let activeViewports: Viewport[] = plateViewports;
 function setLevel(level: Level, viewports: Viewport[], crumbs: Crumb[]) {
   for (const [name, container] of Object.entries(containers)) {
     container.classList.toggle("hidden", name !== level);
   }
+  activeLevel = level;
+  if (level !== "field") fitGrid(containers[level]);
   for (const viewport of activeViewports) idetik.removeViewport(viewport);
   for (const viewport of viewports) idetik.addViewport(viewport);
   activeViewports = viewports;
@@ -233,5 +245,9 @@ async function showField(wellPath: string, field: string) {
     new ImageLayer({ source, sliceCoords: fieldSliceCoords, channelProps })
   );
 }
+
+window.addEventListener("resize", () => {
+  if (activeLevel !== "field") fitGrid(containers[activeLevel]);
+});
 
 showPlate();
