@@ -82,10 +82,6 @@ const frame = {
 };
 const midZ = zLod.translation + Math.floor((zLod.size - 1) / 2) * zLod.scale;
 
-// Tiles are pinned to the coarsest level without any prefetch
-const coarsestPolicy = createNoPrefetchPolicy({
-  lod: { min: Number.MAX_SAFE_INTEGER },
-});
 const tilePolicy = createNoPrefetchPolicy();
 const tileSliceCoords = { t: 0, z: midZ, c: [1, 2] };
 
@@ -115,8 +111,7 @@ function createTile(
 
 function createTileViewport(
   tile: HTMLDivElement,
-  field: Promise<Field>,
-  policy: ReturnType<typeof createNoPrefetchPolicy>
+  field: Promise<Field>
 ): Viewport {
   const viewport = new Viewport({
     domElement: tile,
@@ -128,7 +123,7 @@ function createTileViewport(
         source,
         sliceCoords: tileSliceCoords,
         channelProps,
-        policy,
+        policy: tilePolicy,
       })
     );
   });
@@ -140,7 +135,7 @@ const plateViewports = wellPaths.map((wellPath) => {
     showWell(wellPath)
   );
   const field = wellFields.get(wellPath)![0];
-  return createTileViewport(tile, openField(wellPath, field), coarsestPolicy);
+  return createTileViewport(tile, openField(wellPath, field));
 });
 
 const fieldCamera = new OrthographicCamera(frame);
@@ -220,7 +215,7 @@ function showWell(wellPath: string) {
     const tile = createTile(containers.well, field, () =>
       showField(wellPath, field)
     );
-    return createTileViewport(tile, openField(wellPath, field), tilePolicy);
+    return createTileViewport(tile, openField(wellPath, field));
   });
   setLevel("well", wellViewports, [
     { label: "Plate", onClick: showPlate },
