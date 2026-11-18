@@ -31,22 +31,8 @@ const extent = {
   bottom: yLod.translation + yLod.scale * yLod.size,
 };
 
-const channelState = { contrastMin: 0, contrastMax: 255, color: "#ffffff" };
-const channelProps = () => [
-  {
-    visible: true,
-    contrastLimits: [channelState.contrastMin, channelState.contrastMax] as [
-      number,
-      number,
-    ],
-    color: channelState.color,
-  },
-];
-const imageLayer = new ImageLayer({
-  source,
-  sliceCoords: { c: [0] },
-  channelProps: channelProps(),
-});
+const tem = () => new ImageLayer({ source, sliceCoords: { c: [0] } });
+const imageLayer = tem();
 
 const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
 const camera = new OrthographicCamera(extent);
@@ -64,15 +50,10 @@ const scaleBar = new ScaleBar({
   unit: dimensions.x.unit ?? "",
 });
 
-const minimapLayer = new ImageLayer({
-  source,
-  sliceCoords: { c: [0] },
-  channelProps: channelProps(),
-});
 const minimap = new Minimap({
   camera,
   extent,
-  layer: minimapLayer,
+  layer: tem(),
   element: document.querySelector<HTMLDivElement>("#minimap")!,
 });
 
@@ -83,32 +64,6 @@ const idetik = new Idetik({
 });
 idetik.start();
 
-const gui = new GUI({ width: 380 }).close();
-const channelFolder = gui.addFolder("Channel");
-channelFolder
-  .add(channelState, "contrastMin", 0, 255, 1)
-  .name("Contrast min")
-  .onChange(updateChannel);
-channelFolder
-  .add(channelState, "contrastMax", 0, 255, 1)
-  .name("Contrast max")
-  .onChange(updateChannel);
-channelFolder
-  .addColor(channelState, "color")
-  .name("Color")
-  .onChange(updateChannel);
-
-function updateChannel() {
-  if (channelState.contrastMin >= channelState.contrastMax) return;
-  imageLayer.setChannelProps(channelProps());
-  minimapLayer.setChannelProps(channelProps());
-}
-
+const gui = new GUI({ width: 280 }).close();
 gui.add(minimap, "enabled").name("Show minimap");
-
-const debugState = { showWireframes: imageLayer.debugMode };
-gui
-  .addFolder("Debug")
-  .add(debugState, "showWireframes")
-  .name("Show tile wireframes")
-  .onChange((show: boolean) => (imageLayer.debugMode = show));
+gui.add(imageLayer, "debugMode").name("Show tile wireframes");
