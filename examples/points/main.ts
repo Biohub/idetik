@@ -1,140 +1,155 @@
 import {
-  Idetik,
+  Color,
   ColorLike,
+  Idetik,
+  ImageLayer,
+  LabelLayer,
   Layer,
+  OmeZarrImageSource,
+  OrthographicCamera,
   PanZoomControls,
   PointsRenderable,
-  OrthographicCamera,
-  OmeZarrImageSource,
-  ImageLayer,
-  Color,
-  createNoPrefetchPolicy,
   Viewport,
 } from "idetik";
-
-import { vec3 } from "gl-matrix";
 import GUI from "lil-gui";
-import { addDimensionSlider } from "../lil_gui_utils";
 
-// CryoET Data Portal dataset 10445, run TS_100_3, re-chunked for 2D slicing.
-const baseUrl = "https://data.idetik.org/examples/cryoet10445-czii-particles";
+// Molecular Cartography of a mouse liver section: a DAPI image, a nucleus
+// segmentation, and 1.15 million transcripts across 100 genes, each a single
+// detected molecule.
 
-const imageSource = await OmeZarrImageSource.fromHttp({
-  url: `${baseUrl}/TS_100_3.ome.zarr`,
-  version: "0.5",
-});
-const dimensions = imageSource.getDimensions();
-const [xLod, yLod, zLod] = [dimensions.x, dimensions.y, dimensions.z!].map(
-  (d) => d.lods[0]
+const DATA_URL =
+  "https://data.idetik.org/examples/mouse-liver-molecular-cartography";
+
+const [dapi, nuclei] = await Promise.all(
+  ["dapi", "labels"].map((name) =>
+    OmeZarrImageSource.fromHttp({
+      url: `${DATA_URL}/${name}.ome.zarr`,
+      version: "0.5",
+    })
+  )
 );
 
-// Start on the middle slice.
-const sliceCoords = {
-  z: zLod.translation + Math.floor((zLod.size - 1) / 2) * zLod.scale,
+// transcripts.bin holds uint16 (x, y) pixel pairs grouped by gene;
+// transcripts.json gives each gene's offset and count into it.
+type GeneIndex = {
+  pixelSize: number;
+  genes: { name: string; count: number; offset: number }[];
 };
+const [index, xy] = await Promise.all([
+  fetch(`${DATA_URL}/transcripts.json`).then(
+    (r) => r.json() as Promise<GeneIndex>
+  ),
+  fetch(`${DATA_URL}/transcripts.bin`)
+    .then((r) => r.arrayBuffer())
+    .then((b) => new Uint16Array(b)),
+]);
 
-// Point locations are full-resolution voxel indices, so scale them by the
-// level-0 voxel size into world units (ångström).
-const fetchPositions = async (name: string): Promise<vec3[]> => {
-  const text = await fetch(`${baseUrl}/${name}-1.0_point.ndjson`).then((r) =>
-    r.text()
-  );
-  return text
-    .split("\n")
-    .filter((line) => line.length > 0)
-    .map((line) => {
-      const { x, y, z } = JSON.parse(line).location;
-      return [x * xLod.scale, y * yLod.scale, z * zLod.scale];
-    });
-};
+class Transcripts extends Layer {
+  public readonly type = "Transcripts";
 
-type Marker = "circle" | "square" | "triangle";
-
-// Draws each particle as a marker that shrinks and dims with its distance
-// from the current slice.
-class Particles extends Layer {
-  public readonly type = "Particles";
-  private readonly points_: vec3[];
-  private readonly color_: Color;
-  private readonly marker_: Marker;
-  private depth_?: number;
-
-  constructor(points: vec3[], color: ColorLike, marker: Marker) {
+  constructor(gene: string, color: ColorLike, size: number) {
     super();
-    this.points_ = points;
-    this.color_ = Color.from(color);
-    this.marker_ = marker;
-    this.update();
+    const { offset, count } = index.genes.find((g) => g.name === gene)!;
+    const points = [];
+    for (let i = offset; i < offset + count; i++) {
+      points.push({
+        position: [
+          xy[2 * i] * index.pixelSize,
+          xy[2 * i + 1] * index.pixelSize,
+          0,
+        ] as [number, number, number],
+        color,
+        size,
+        marker: "circle" as const,
+      });
+    }
+    this.addObject(new PointsRenderable(points));
     this.setState("ready");
   }
 
   public update(): boolean {
-    if (this.depth_ === sliceCoords.z) return false;
-    this.depth_ = sliceCoords.z;
-
-    // TODO: change this to not re-create the renderable object
-    // once Geometry supports updating buffers
-    const { r, g, b } = this.color_;
-    const scaledPoints = this.points_.map((p) => {
-      const zDist = Math.abs(p[2] - sliceCoords.z);
-      // 64 is just a magic number that looks okay
-      const zScale = zDist / 64.0 + 1.0;
-      return {
-        position: p,
-        color: Color.from([r / zScale, g / zScale, b / zScale]),
-        size: 20.0 / zScale,
-        marker: this.marker_,
-      };
-    });
-    this.clearObjects();
-    this.addObject(new PointsRenderable(scaledPoints));
-    return true;
+    return false;
   }
 }
 
-const particles = [
-  new Particles(
-    await fetchPositions("cytosolic_ribosome"),
-    Color.RED,
-    "circle"
-  ),
-  new Particles(
-    await fetchPositions("ferritin_complex"),
-    Color.GREEN,
-    "triangle"
-  ),
-  new Particles(await fetchPositions("pp7_vlp"), Color.MAGENTA, "square"),
-];
-
-const imageLayer = new ImageLayer({
-  source: imageSource,
-  sliceCoords,
-  policy: createNoPrefetchPolicy(),
-  channelProps: [{ color: Color.WHITE, contrastLimits: [-0.00001, 0.00001] }],
+const image = new ImageLayer({
+  source: dapi,
+  sliceCoords: {},
+  channelProps: [{ color: Color.WHITE, contrastLimits: [100, 6500] }],
+});
+const labels = new LabelLayer({
+  source: nuclei,
+  sliceCoords: {},
+  opacity: 0.3,
+  blendMode: "normal",
+  outlineSelected: true,
 });
 
-// The particles sit at their own z, so the camera's depth range spans the
-// whole tomogram.
+const { x, y } = dapi.getDimensions();
+const [xLod, yLod] = [x.lods[0], y.lods[0]];
 const camera = new OrthographicCamera({
   left: xLod.translation,
   right: xLod.translation + xLod.size * xLod.scale,
   top: yLod.translation,
   bottom: yLod.translation + yLod.size * yLod.scale,
-  near: -10000,
-  far: 10000,
 });
 const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
 const viewport = new Viewport({
   domElement: canvas,
   camera,
   cameraControls: new PanZoomControls(camera),
-  layers: [imageLayer, ...particles],
+  layers: [image, labels],
 });
 new Idetik({ canvas, viewports: [viewport] }).start();
 
-addDimensionSlider({
-  gui: new GUI({ width: 280 }).close(),
-  sliceCoords,
-  dimensionName: "z",
-  lod: zLod,
-});
+// Markers of the liver lobule's zones and its resident macrophages, drawn
+// in this order so the rarer genes sit on top.
+const genes = [
+  { name: "Pck1", note: "periportal", color: "#3fc8ff" },
+  { name: "Cyp2e1", note: "pericentral", color: "#ff3fb4" },
+  { name: "Glul", note: "central vein", color: "#ffd23f" },
+  { name: "Clec4f", note: "Kupffer cells", color: "#7dff3f" },
+];
+const settings = {
+  nuclei: true,
+  pointSize: 2,
+  ...Object.fromEntries(genes.map((g) => [g.name, true])),
+} as Record<string, boolean | number>;
+
+let cache = new Map<string, Transcripts>();
+const hideGenes = () => {
+  for (const layer of cache.values()) {
+    if (viewport.layers.includes(layer)) viewport.removeLayer(layer);
+  }
+};
+const updateGenes = () => {
+  hideGenes();
+  for (const { name, color } of genes) {
+    if (!settings[name]) continue;
+    if (!cache.has(name)) {
+      cache.set(
+        name,
+        new Transcripts(name, color, settings.pointSize as number)
+      );
+    }
+    viewport.addLayer(cache.get(name)!);
+  }
+};
+updateGenes();
+
+const gui = new GUI({ width: 280 });
+gui
+  .add(settings, "nuclei")
+  .onChange((on: boolean) => (labels.opacity = on ? 0.3 : 0));
+gui
+  .add(settings, "pointSize", 1, 10, 1)
+  .name("point size")
+  .onFinishChange(() => {
+    hideGenes();
+    cache = new Map();
+    updateGenes();
+  });
+const folder = gui.addFolder("genes");
+for (const { name, note } of genes) {
+  folder.add(settings, name).name(`${name} (${note})`).onChange(updateGenes);
+}
