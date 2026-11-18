@@ -63,16 +63,19 @@ const policy = createExplorationPolicy({
   lod: { min: controls.lod, max: controls.lod },
 });
 
-const channelNames = ["h2afva (nuclei)", "mezzo"];
-const channelProps: ChannelProps[] = [
+const channelProps: (ChannelProps & { name: string })[] = [
   {
+    name: "h2afva (nuclei)",
     visible: true,
     color: "#00b3ff",
+    opacity: 1,
     contrastLimits: [0, 1200],
   },
   {
+    name: "mezzo",
     visible: true,
     color: "#ff00bb",
+    opacity: 1,
     contrastLimits: [0, 400],
   },
 ];
@@ -81,7 +84,7 @@ const volumeLayer = new VolumeLayer({
   source,
   sliceCoords,
   policy,
-  channelProps,
+  channelProps: structuredClone(channelProps),
 });
 volumeLayer.opacityMultiplier = 0.02;
 
@@ -104,84 +107,6 @@ const idetik = new Idetik({
 });
 
 idetik.start();
-
-function updateChannelProperty<K extends keyof ChannelProps>(
-  channelIndex: number,
-  property: K,
-  value: ChannelProps[K]
-) {
-  let safeValue = value;
-  if (property === "contrastLimits") {
-    const [min, max] = value as [number, number];
-    if (min >= max) return;
-    safeValue = [min, max] as ChannelProps[K];
-  }
-
-  channelProps[channelIndex][property] = safeValue;
-  volumeLayer.setChannelProps(channelProps);
-}
-
-function createChannelControls(
-  folder: GUI,
-  config: (typeof channelProps)[number],
-  index: number
-) {
-  const channelName = channelNames[index] || `Channel ${index}`;
-  const channelFolder = folder.addFolder(channelName);
-
-  // Local version of the channel config to avoid mutating the original when adjusting contrast limits, e.g. if setting the max below the min
-  const guiConfig: ChannelProps = {
-    ...config,
-    opacity: config.opacity ?? 1,
-    contrastLimits: config.contrastLimits
-      ? [config.contrastLimits[0], config.contrastLimits[1]]
-      : undefined,
-  };
-
-  channelFolder
-    .add(guiConfig, "visible")
-    .name("Visible")
-    .onChange((visible: boolean) => {
-      updateChannelProperty(index, "visible", visible);
-    });
-
-  channelFolder
-    .addColor(guiConfig, "color")
-    .name("Color")
-    .onChange((hex: string) => {
-      updateChannelProperty(index, "color", hex);
-    });
-
-  channelFolder
-    .add(guiConfig, "opacity", 0, 1, 0.01)
-    .name("Opacity")
-    .onChange((opacity: number) => {
-      updateChannelProperty(index, "opacity", opacity);
-    });
-
-  if (guiConfig.contrastLimits) {
-    channelFolder
-      .add(guiConfig.contrastLimits, "0")
-      .name("Contrast Min")
-      .onChange(() => {
-        updateChannelProperty(
-          index,
-          "contrastLimits",
-          guiConfig.contrastLimits
-        );
-      });
-    channelFolder
-      .add(guiConfig.contrastLimits, "1")
-      .name("Contrast Max")
-      .onChange(() => {
-        updateChannelProperty(
-          index,
-          "contrastLimits",
-          guiConfig.contrastLimits
-        );
-      });
-  }
-}
 
 // Add GUI controls to manipulate rendering
 const gui = new GUI({ width: 320, closeFolders: true }).close();
@@ -229,10 +154,32 @@ volumeFolder
   .add(volumeLayer, "earlyTerminationAlpha", 0.8, 1.0, 0.01)
   .name("Early termination threshold");
 
+// The controls edit channelProps in place, and the layer gets a copy so it
+// never sees an inverted contrast pair while one is being edited.
+const updateChannels = () => {
+  const valid = channelProps.every(
+    ({ contrastLimits: [min, max] = [0, 1] }) => min < max
+  );
+  if (valid) volumeLayer.setChannelProps(structuredClone(channelProps));
+};
 const channelsFolder = gui.addFolder("Channels");
-channelProps.forEach((config, index) => {
-  createChannelControls(channelsFolder, config, index);
-});
+for (const channel of channelProps) {
+  const folder = channelsFolder.addFolder(channel.name);
+  folder.add(channel, "visible").name("Visible").onChange(updateChannels);
+  folder.addColor(channel, "color").name("Color").onChange(updateChannels);
+  folder
+    .add(channel, "opacity", 0, 1, 0.01)
+    .name("Opacity")
+    .onChange(updateChannels);
+  folder
+    .add(channel.contrastLimits!, "0")
+    .name("Contrast Min")
+    .onChange(updateChannels);
+  folder
+    .add(channel.contrastLimits!, "1")
+    .name("Contrast Max")
+    .onChange(updateChannels);
+}
 
 const overlaysFolder = gui.addFolder("Debug");
 overlaysFolder
