@@ -69,7 +69,7 @@
     "jsdom": "^24.1.1",
     "json-schema-to-zod": "^2.6.1",
     "lil-gui": "^0.20.0",
-    "playwright": "1.60.0",
+    "playwright": "1.65.1",
     "prettier": "^3.3.2",
     "rollup": "^4.59.0",
     "rollup-plugin-dts": "^6.1.1",
