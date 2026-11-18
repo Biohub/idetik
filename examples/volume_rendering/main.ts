@@ -1,4 +1,3 @@
-import { vec3 } from "gl-matrix";
 import GUI from "lil-gui";
 import {
   ChannelProps,
@@ -27,11 +26,11 @@ const axisRange = (axis: "x" | "y" | "z"): readonly [number, number] => {
 const [xMin, xMax] = axisRange("x");
 const [yMin, yMax] = axisRange("y");
 const [zMin, zMax] = axisRange("z");
-const center = vec3.fromValues(
+const center: [number, number, number] = [
   (xMin + xMax) / 2,
   (yMin + yMax) / 2,
-  (zMin + zMax) / 2
-);
+  (zMin + zMax) / 2,
+];
 const tLod = dims.t!.lods[0];
 
 const sliceCoords = {
