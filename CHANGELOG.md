@@ -11,6 +11,7 @@ While the project is pre-1.0, breaking changes bump the minor version.
 ### Changed
 
 - `multiply` and `subtractive` blending now preserve destination alpha.
+- Input colors are treated as sRGB and decoded in shaders. Layers are blended in linear space before the result is converted back to sRGB for display.
 
 ### Fixed
 
