@@ -5,8 +5,9 @@ precision mediump float;
 layout (location = 0) out vec4 fragColor;
 
 uniform float u_opacity;
-uniform vec3 u_wireframeColor;
+
+flat in highp vec3 v_color;
 
 void main() {
-    fragColor = vec4(u_wireframeColor, u_opacity);
+    fragColor = vec4(v_color, u_opacity);
 }

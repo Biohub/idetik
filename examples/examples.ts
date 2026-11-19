@@ -39,6 +39,16 @@ export const examples = [
     tags: ["viewports", "slices", "volume"],
   },
   {
+    id: "cell_tracking",
+    title: "Cell Tracks in a Zebrafish Tail",
+    label: "Zebrafish Tracks",
+    description:
+      "Click a nucleus in a light-sheet timelapse to follow its track and lineage through time.",
+    data: "Zebrahub ZSNS001 tail · Royer lab, CZ Biohub",
+    dataUrl: "https://data.idetik.org/examples/zebrahub-tail-tracks/README.md",
+    tags: ["2d", "points", "picking", "playback"],
+  },
+  {
     id: "image2d_from_omezarr4d_hcs",
     title: "HCS Plate of A549 Cells",
     label: "HCS Plate",

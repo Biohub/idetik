@@ -1,5 +1,7 @@
 #version 300 es
 
+#include ./common/srgb_to_linear.glsl
+
 layout (location = 0) in vec3 a_position;
 layout (location = 3) in vec3 a_prevPosition;
 layout (location = 4) in vec3 a_nextPosition;
@@ -9,9 +11,13 @@ uniform mat4 u_projection;
 uniform mat4 u_modelView;
 uniform vec2 u_resolution;
 uniform float u_lineWidth;
+uniform vec3 u_lineColor;
+
+flat out highp vec3 v_color;
 
 // adapted from https://github.com/mattdesl/webgl-lines
 void main() {
+    v_color = srgbToLinear(u_lineColor);
     mat4 projModelView = u_projection * u_modelView;
 
     vec4 prevPos = projModelView * vec4(a_prevPosition, 1.0);
@@ -43,10 +49,19 @@ void main() {
         // middle point on the path: add miter along the bisector
         vec2 prevDir = normalize(currScreen - prevScreen);
         vec2 nextDir = normalize(nextScreen - currScreen);
-        vec2 tangent = normalize(prevDir + nextDir);
-        normal = vec2(-tangent.y, tangent.x);
         vec2 perpPrev = vec2(-prevDir.y, prevDir.x);
-        miterLength = 1.0 / max(dot(normal, perpPrev), 0.1);
+        vec2 bisector = prevDir + nextDir;
+        if (dot(bisector, bisector) < 1e-6) {
+            // the path doubles back on itself: no bisector, so use the
+            // incoming segment's normal
+            normal = perpPrev;
+        } else {
+            vec2 tangent = normalize(bisector);
+            normal = vec2(-tangent.y, tangent.x);
+            // cap the miter so sharp corners don't spike; beyond the cap the
+            // join is simply cut short
+            miterLength = min(1.0 / max(dot(normal, perpPrev), 1e-3), 2.0);
+        }
     }
 
     // `normal * u_lineWidth / u_resolution` means u_lineWidth is in pixels

@@ -12,6 +12,7 @@ import {
   Viewport,
 } from "idetik";
 import GUI from "lil-gui";
+import { addDimensionSlider } from "../lil_gui_utils";
 
 // Molecular Cartography of a mouse liver section: a DAPI image, a nucleus
 // segmentation, and 1.15 million transcripts across 100 genes, each a single
