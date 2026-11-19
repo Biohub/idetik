@@ -3,6 +3,8 @@
 
 precision highp float;
 
+#include ./common/srgb_to_linear.glsl
+
 layout (location = 0) out vec4 fragColor;
 
 #if defined TEXTURE_DATA_TYPE_INT
@@ -24,8 +26,7 @@ in vec3 v_texCoords;
 void main() {
     float texel = float(texture(u_imageSampler, v_texCoords).r);
     float value = (texel + u_valueOffset) * u_valueScale;
-    fragColor = vec4(value * u_color, u_opacity);
-    if (u_premultiplyAlpha) {
-        fragColor.rgb = clamp(fragColor.rgb, 0.0, 1.0) * fragColor.a;
-    }
+    vec3 displayColor = clamp(value * u_color, 0.0, 1.0);
+    fragColor = vec4(srgbToLinear(displayColor), u_opacity);
+    if (u_premultiplyAlpha) fragColor.rgb *= fragColor.a;
 }

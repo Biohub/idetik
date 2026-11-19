@@ -4,6 +4,8 @@
 precision highp float;
 precision highp int;
 
+#include ./common/srgb_to_linear.glsl
+
 layout (location = 0) out vec4 fragColor;
 
 #if defined TEXTURE_DATA_TYPE_INT
@@ -85,7 +87,7 @@ void main() {
             // If this is the selected segment and outlining is enabled, make it slightly transparent
             float alpha = isSelectedValue ? u_opacity * color.a * 0.9 : u_opacity * color.a;
 
-            fragColor = vec4(color.rgb, alpha);
+            fragColor = vec4(srgbToLinear(color.rgb), alpha);
             if (u_premultiplyAlpha) fragColor.rgb *= fragColor.a;
             return;
         }
@@ -98,6 +100,6 @@ void main() {
     // If this is the selected segment and outlining is enabled, make it slightly transparent
     float alpha = isSelectedValue ? u_opacity * color.a * 0.9 : u_opacity * color.a;
 
-    fragColor = vec4(color.rgb, alpha);
+    fragColor = vec4(srgbToLinear(color.rgb), alpha);
     if (u_premultiplyAlpha) fragColor.rgb *= fragColor.a;
 }
