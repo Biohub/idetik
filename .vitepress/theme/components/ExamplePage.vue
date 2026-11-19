@@ -7,8 +7,7 @@ const { params } = useData();
 const appPath = computed(() => `/examples/live/${params.value.id}/index.html`);
 const src = computed(() => withBase(appPath.value));
 const source = computed(
-  () =>
-    `https://github.com/chanzuckerberg/idetik/tree/main/examples/${params.value.id}`
+  () => `https://github.com/Biohub/idetik/tree/main/examples/${params.value.id}`
 );
 </script>
 

@@ -13,10 +13,10 @@ examples/<id>/
 
 Other modules (e.g. the shared `scale_bar.ts`) are fine, but only `main.ts` is shown on the docs page. Import the library as `idetik` so the code can be copied as-is.
 
-Use [lil-gui](https://lil-gui.georgealways.com/) for controls and link the shared theme from `index.html` so every example matches the docs:
+Link the shared page styles from `index.html`. They include a theme for [lil-gui](https://lil-gui.georgealways.com/), which the examples use for controls, so every example matches the docs:
 
 ```html
-<link rel="stylesheet" href="../lil_gui_theme.css" />
+<link rel="stylesheet" href="../example.css" />
 ```
 
 ## Adding an example

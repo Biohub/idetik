@@ -4,92 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Virtual TEM Slide of a Zebrafish Embryo</title>
-    <link rel="stylesheet" href="../lil_gui_theme.css" />
-    <style>
-      html,
-      body {
-        margin: 0;
-        padding: 0;
-        display: flex;
-        width: 100%;
-        height: 100%;
-        font-family: ui-monospace, Menlo, monospace;
-        font-size: 12px;
-        background-color: black;
-      }
-
-      #scale-bar-box {
-        border: 1px solid rgb(255 255 255 / 0.1);
-        border-radius: 8px;
-      }
-
-      canvas {
-        width: 100%;
-        height: 100%;
-      }
-
-      #left-overlays {
-        position: absolute;
-        bottom: 0.5em;
-        left: 0.3em;
-        margin: 1em;
-        display: flex;
-        flex-direction: column;
-        gap: 0.5em;
-        width: 15%;
-      }
-
-      #scale-bar-box {
-        display: flex;
-        flex-direction: column;
-        padding: 1em;
-        gap: 0.5em;
-        align-items: start;
-        justify-content: center;
-        background-color: rgba(0, 0, 0, 0.5);
-        user-select: none;
-      }
-
-      #scale-bar-text {
-        color: white;
-        text-align: start;
-      }
-
-      #scale-bar-line {
-        width: 100%;
-        height: 1em;
-        background-color: white;
-      }
-
-      #minimap {
-        position: absolute;
-        right: 1.3em;
-        bottom: 1.5em;
-        height: 18%;
-        overflow: hidden;
-        /* A dark ring inside a light one, so one always contrasts with the
-           image behind it. */
-        box-shadow:
-          0 0 0 1px black,
-          0 0 0 2px white;
-        cursor: crosshair;
-        touch-action: none;
-      }
-
-      #minimap-view {
-        position: absolute;
-        box-sizing: border-box;
-        border: 2px solid #ff0;
-        background-color: rgb(255 255 0 / 0.2);
-        pointer-events: none;
-      }
-    </style>
+    <link rel="stylesheet" href="../example.css" />
   </head>
-
   <body>
     <canvas id="canvas"></canvas>
     <div id="left-overlays">
-      <div id="scale-bar-box">
+      <div id="scale-bar-box" class="overlay-box">
         <div id="scale-bar-text"></div>
         <div id="scale-bar-line"></div>
       </div>
