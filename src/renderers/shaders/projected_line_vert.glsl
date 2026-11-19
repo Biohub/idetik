@@ -49,10 +49,19 @@ void main() {
         // middle point on the path: add miter along the bisector
         vec2 prevDir = normalize(currScreen - prevScreen);
         vec2 nextDir = normalize(nextScreen - currScreen);
-        vec2 tangent = normalize(prevDir + nextDir);
-        normal = vec2(-tangent.y, tangent.x);
         vec2 perpPrev = vec2(-prevDir.y, prevDir.x);
-        miterLength = 1.0 / max(dot(normal, perpPrev), 0.1);
+        vec2 bisector = prevDir + nextDir;
+        if (dot(bisector, bisector) < 1e-6) {
+            // the path doubles back on itself: no bisector, so use the
+            // incoming segment's normal
+            normal = perpPrev;
+        } else {
+            vec2 tangent = normalize(bisector);
+            normal = vec2(-tangent.y, tangent.x);
+            // cap the miter so sharp corners don't spike; beyond the cap the
+            // join is simply cut short
+            miterLength = min(1.0 / max(dot(normal, perpPrev), 1e-3), 2.0);
+        }
     }
 
     // `normal * u_lineWidth / u_resolution` means u_lineWidth is in pixels

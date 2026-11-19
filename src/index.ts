@@ -1,5 +1,6 @@
 export { Idetik } from "./idetik";
 export { Viewport } from "./core/viewport";
+export { EventContext } from "./core/event_dispatcher";
 export type { ViewportProps } from "./core/viewport";
 
 export { MeshSource } from "./data/mesh/mesh_source";
@@ -50,6 +51,7 @@ export type { LabelImageRenderableProps } from "./objects/renderable/label_image
 export { PointsRenderable } from "./objects/renderable/points_renderable";
 export type { PointProps } from "./objects/renderable/points_renderable";
 export { ProjectedLineRenderable } from "./objects/renderable/projected_line_renderable";
+export { ProjectedLineGeometry } from "./objects/geometry/projected_line_geometry";
 export type { ProjectedLineRenderableProps } from "./objects/renderable/projected_line_renderable";
 export { VolumeRenderable } from "./objects/renderable/volume_renderable";
 export type { VolumeRenderableProps } from "./objects/renderable/volume_renderable";
