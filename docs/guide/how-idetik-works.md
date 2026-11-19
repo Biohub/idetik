@@ -105,6 +105,8 @@ When a layer registers a renderable it may name a coverage group. Objects in the
 
 A source describes an image and knows how to load pieces of it. [`OmeZarrImageSource`](/api/classes/OmeZarrImageSource.html) reads the metadata of a multiscale OME-Zarr group when it is created and exposes, for each axis and each resolution level, the size, the chunk size, and the scale and translation in world units. Nothing else is fetched until a layer asks.
 
+Any object with a [`ChunkLoader`](/api/type-aliases/ChunkLoader.html) is a [`ChunkSource`](/api/type-aliases/ChunkSource.html), so an application can stream chunks from its own storage or service. The loader describes the dimensions and returns the data of one chunk at a time; Idetik stores it, accounts for it, and uploads it. A source whose data changes while it is displayed, such as an acquisition in progress, reports the chunks that changed through `onChunksChanged`. Chunks that are still needed are loaded again and their textures replaced in place, so the old data stays on screen until the new data arrives.
+
 In each frame, a streaming layer asks for the chunks under its view. It picks the resolution level whose elements are closest to one screen pixel at the current zoom, then requests the chunks at that level that intersect the view, padded by the policy's prefetch distance and ranked by category and by distance from the center of the view.
 
 Alongside that level it always requests one coarse level as a backdrop. The backdrop ranks first, so the view is covered quickly at low resolution and refined as finer chunks land. When the slice changes, the layer keeps showing the old one until the new backdrop has fully arrived, so scrubbing through time shows whole frames rather than half-loaded ones.

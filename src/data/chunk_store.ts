@@ -1,4 +1,4 @@
-import { Chunk, SourceDimensionMap } from "./chunk";
+import { Chunk, ChunkKey, SourceDimensionMap } from "./chunk";
 import { SliceAxes } from "../math/axes";
 import { almostEqual } from "../utilities/almost_equal";
 import { Logger } from "../utilities/logger";
@@ -100,6 +100,13 @@ export class ChunkStore {
     c: number
   ): Chunk[][][] | undefined {
     return this.chunks_[lod]?.[t]?.[c];
+  }
+
+  /** Returns the chunk `key` identifies, or `undefined` if it is out of range. */
+  public getChunk(key: ChunkKey): Chunk | undefined {
+    return this.chunks_[key.lod]?.[key.t]?.[key.c]?.[key.z ?? 0]?.[key.y]?.[
+      key.x
+    ];
   }
 
   public hasChunksAtTime(timeIndex: number): boolean {

@@ -8,6 +8,16 @@ While the project is pre-1.0, breaking changes bump the minor version.
 
 ## [Unreleased]
 
+### Added
+
+- Custom chunk sources are a supported API. `Chunk`, `ChunkData`, `ChunkKey`, `ChunkChangeListener`, `ChunkSource` and `ChunkLoader` are exported, so applications can pass their own source to `ImageLayer`, `LabelLayer` and `VolumeLayer`.
+- `Idetik.renderNow()` runs one frame immediately, outside the animation loop, for callers that must show the result of input before the next animation frame.
+- `ChunkSource.onChunksChanged` lets a source report chunks whose data changed, or that all of them may have. Chunks that are still needed are loaded again and their textures replaced in place, keeping the old data on screen until the new data arrives. Loads in flight are restarted and chunks that are no longer needed are dropped.
+
+### Changed
+
+- **BREAKING:** `ChunkLoader.loadChunkData(chunk, signal)` returns the chunk's data instead of storing it on the chunk, and must treat the chunk as read-only. Idetik stores the data, so CPU memory statistics now count chunks from every source. Data a loader returns after its request was cancelled is discarded.
+
 ## [0.53.0] - 2026-10-29
 
 ### Changed

@@ -10,6 +10,12 @@ export type {
   HttpOmeZarrImageSourceProps,
 } from "./data/ome_zarr/image_source";
 export type {
+  Chunk,
+  ChunkChangeListener,
+  ChunkData,
+  ChunkKey,
+  ChunkLoader,
+  ChunkSource,
   SourceDimension,
   SourceDimensionLod,
   SourceDimensionMap,

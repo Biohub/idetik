@@ -2,9 +2,9 @@ import { Chunk, ChunkData } from "./chunk";
 
 // Running totals for CPU-resident chunk voxel data. All mutations of
 // `chunk.data` must route through setChunkData/clearChunkData so these stay
-// accurate. Module-level (not per-store) because chunk loaders are created
-// per-source and have no back-reference to their store; this means the totals
-// are summed across all Idetik instances in the page, which is fine for the
+// accurate. Loaders return data and the ChunkManager stores it, so the totals
+// hold for any source. Module-level (not per-manager): the totals are summed
+// across all Idetik instances in the page, which is fine for the
 // single-instance debug/instrumentation use case.
 
 let cpuChunkBytes = 0;

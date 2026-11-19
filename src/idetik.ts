@@ -343,6 +343,17 @@ export class Idetik {
   }
 
   /**
+   * Runs one frame now, outside the animation loop: camera controls update,
+   * layers update, and the scene draws if anything changed. For callers that
+   * must show the result of input sooner than the next animation frame (a
+   * remote renderer encoding the canvas on input, say). The loop keeps running.
+   */
+  public renderNow(): void {
+    if (!this.running) return;
+    this.step(performance.now());
+  }
+
+  /**
    * Starts the render loop and connects input handlers.
    *
    * @returns The instance, for chaining.
@@ -382,12 +393,22 @@ export class Idetik {
   }
 
   private animate(timestamp: DOMHighResTimeStamp) {
+    this.step(timestamp);
+    this.lastAnimationId_ = requestAnimationFrame((timestamp) =>
+      this.animate(timestamp)
+    );
+  }
+
+  private step(timestamp: DOMHighResTimeStamp) {
     this.stats_?.begin();
 
-    // cap dt to prevent large time-step jumps when resuming from background tabs
-    const dt = Math.min(timestamp - this.lastTimestamp_, 100) / 1000;
+    // cap dt to prevent large time-step jumps when resuming from background tabs;
+    // a frame from renderNow() can be newer than the next animation frame's
+    // timestamp (the frame's start), so time never runs backwards here
+    const dt =
+      Math.max(0, Math.min(timestamp - this.lastTimestamp_, 100)) / 1000;
 
-    this.lastTimestamp_ = timestamp;
+    this.lastTimestamp_ = Math.max(this.lastTimestamp_, timestamp);
     this.detachRemovedLayers();
 
     for (const viewport of this.viewports_) {
@@ -409,9 +430,6 @@ export class Idetik {
     }
 
     this.stats_?.end();
-    this.lastAnimationId_ = requestAnimationFrame((timestamp) =>
-      this.animate(timestamp)
-    );
   }
 
   private invalidate(): void {

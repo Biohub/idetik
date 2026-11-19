@@ -1,8 +1,11 @@
 import * as zarr from "zarrita";
 
-import { Chunk, SourceDimension, SourceDimensionMap } from "../chunk";
-import { setChunkData } from "../chunk_memory";
-import { isTextureUnpackRowAlignment } from "../../objects/textures/texture";
+import {
+  Chunk,
+  ChunkData,
+  SourceDimension,
+  SourceDimensionMap,
+} from "../chunk";
 
 import { Image as OmeZarrImage } from "./0.5/image";
 
@@ -43,7 +46,10 @@ export class OmeZarrImageLoader {
     return this.bytesPerElement_;
   }
 
-  public async loadChunkData(chunk: Chunk, signal: AbortSignal) {
+  public async loadChunkData(
+    chunk: Readonly<Chunk>,
+    signal: AbortSignal
+  ): Promise<ChunkData> {
     const chunkCoords: number[] = [];
     chunkCoords[this.dimensions_.x.index] = chunk.chunkIndex.x;
     chunkCoords[this.dimensions_.y.index] = chunk.chunkIndex.y;
@@ -88,22 +94,9 @@ export class OmeZarrImageLoader {
 
     // NOTE: if source chunks have multiple channels/timepoints
     // this results in duplicate fetching and decompression
-    const data = await fetchAndProcessChunk(
-      array,
-      arrayParams,
-      chunkCoords,
-      sliceSpec,
-      { signal }
-    );
-
-    const rowAlignment = data.BYTES_PER_ELEMENT;
-    if (!isTextureUnpackRowAlignment(rowAlignment)) {
-      throw new Error(
-        "Invalid row alignment value. Possible values are 1, 2, 4, or 8"
-      );
-    }
-    chunk.rowAlignmentBytes = rowAlignment;
-    setChunkData(chunk, data);
+    return fetchAndProcessChunk(array, arrayParams, chunkCoords, sliceSpec, {
+      signal,
+    });
   }
 }
 
