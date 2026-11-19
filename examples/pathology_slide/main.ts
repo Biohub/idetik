@@ -8,14 +8,14 @@ import {
 } from "idetik";
 import { Minimap } from "../minimap";
 
-// A 46000 × 32914 brightfield whole-slide image (OpenSlide's CMU-1 test slide)
-// stored as three channels. Drawing them as red, green and blue blends them
-// back into the slide's true color.
+// A 45056 × 35840 H&E whole-slide image of a lymph node (OpenSlide's Philips-1
+// test slide, from CAMELYON16) stored as three channels. Drawing them as red,
+// green and blue blends them back into the slide's true color.
 
-const DATA_URL = "https://data.idetik.org/examples/openslide-cmu1-pathology";
+const DATA_URL = "https://data.idetik.org/examples/openslide-philips1-lymph-node";
 
 const source = await OmeZarrImageSource.fromHttp({
-  url: `${DATA_URL}/CMU-1.ome.zarr`,
+  url: `${DATA_URL}/Philips-1.ome.zarr`,
   version: "0.5",
 });
 const { x, y } = source.getDimensions();

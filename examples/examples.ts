@@ -63,8 +63,8 @@ export const examples = [
     title: "Whole-Slide Pathology Image",
     label: "Pathology Slide",
     description:
-      "A 1.5-gigapixel H&E slide stored as red, green and blue channels, blended back into true color as you zoom.",
-    data: "OpenSlide test data CMU-1 · Carnegie Mellon University · CC0",
+      "A 1.6-gigapixel H&E slide of a lymph node stored as red, green and blue channels, blended back into true color as you zoom.",
+    data: "OpenSlide test data Philips-1 (CAMELYON16) · Radboud University Medical Center · CC0",
     dataUrl: "https://openslide.cs.cmu.edu/download/openslide-testdata/",
     tags: ["2d", "channels", "multiscale"],
   },
