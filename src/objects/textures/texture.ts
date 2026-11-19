@@ -133,10 +133,6 @@ export function textureDefaultValueRange(texture: Texture): [number, number] {
   }
 }
 
-/**
- * Texture values are uploaded without color-space conversion. Shaders decode
- * sRGB color inputs; scalar data, label IDs, and opacity are not sRGB colors.
- */
 export abstract class Texture extends Node {
   public dataFormat: TextureDataFormat = "rgba";
   public dataType: TextureDataType = "unsigned_byte";

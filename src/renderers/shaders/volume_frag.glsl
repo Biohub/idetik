@@ -147,7 +147,6 @@ void main() {
     vec3 position = entryPoint;
     vec4 accumulatedColor = vec4(0.0);
 
-    // Decode channel tints once per ray, before accumulating samples.
     vec3 linearColors[4];
     for (int ch = 0; ch < 4; ch++) {
         linearColors[ch] = srgbToLinear(u_color[ch]);
