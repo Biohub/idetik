@@ -1,112 +1,230 @@
 import GUI from "lil-gui";
 import {
-  Idetik,
   ChannelProps,
-  OrthographicCamera,
+  Idetik,
+  ImageLayer,
   OmeZarrImageSource,
+  OrthographicCamera,
   PanZoomControls,
+  Viewport,
+  createNoPrefetchPolicy,
   loadOmeroChannels,
-  loadOmeroDefaults,
   loadOmeZarrPlate,
   loadOmeZarrWell,
-  ImageLayer,
-  createNoPrefetchPolicy,
-  Viewport,
 } from "idetik";
+import { addDimensionSlider } from "../lil_gui_utils";
 
+// A plate browsed in three levels, each a set of viewports on one canvas: the
+// plate as one field per well at the coarsest resolution, a well as all of
+// its fields, and a single field with pan, zoom and a z slider. The plate and
+// well grids size themselves to fit their tiles in the window.
 const plateUrl =
-  "https://public.czbiohub.org/organelle_box/datasets/A549/organelle_box_crop_v1.zarr/";
-const initialWellPath = "CLTA/PFA";
-const initialImagePath = "002000";
-const LOW_RES_Z_SCALE = 0.78939; // micrometers per pixel
-const HIGH_RES_NUM_SLICES = 38;
+  "https://public.czbiohub.org/organelle_box/datasets/A549/organelle_box_crop_v1.zarr";
 
-const yScale = 0.1028358051168038;
-const xScale = 0.10319840632897595;
-const ySize = 800;
-const xSize = 800;
+const { plate } = await loadOmeZarrPlate(plateUrl);
+if (!plate) throw new Error("No plate found");
+const wellPaths = plate.wells.map((well) => well.path);
+const wellFields = new Map(
+  await Promise.all(
+    wellPaths.map(async (wellPath) => {
+      const { well } = await loadOmeZarrWell(plateUrl, wellPath);
+      if (!well) throw new Error(`No well at ${wellPath}`);
+      return [wellPath, well.images.map((image) => image.path)] as const;
+    })
+  )
+);
 
-const plate = await loadOmeZarrPlate(plateUrl);
-console.debug("plate", plate);
-if (plate.plate === undefined) {
-  throw new Error(`No plate found: ${plate}`);
+type Field = { source: OmeZarrImageSource; channelProps: ChannelProps[] };
+async function loadField(path: string): Promise<Field> {
+  const source = await OmeZarrImageSource.fromHttp({
+    url: `${plateUrl}/${path}`,
+  });
+  // Channel 0 is label-free phase; the tiles show the two fluorescent ones.
+  const omero = await loadOmeroChannels(source);
+  const channelProps = omero.map(
+    ({ color, window }, index): ChannelProps => ({
+      visible: index > 0,
+      color: `#${color}`,
+      contrastLimits: [window!.start, window!.end],
+    })
+  );
+  return { source, channelProps };
 }
-const wellPaths = plate.plate.wells.map((well) => well.path);
 
-const selection = { well: initialWellPath, image: initialImagePath };
-const gui = new GUI({ width: 280 }).close();
-gui.add(selection, "well", wellPaths).name("Well").onChange(onWellChange);
-const imageController = gui
-  .add(selection, "image", [initialImagePath])
-  .name("Image")
-  .onChange(onImageChange);
+const fields = new Map<string, Promise<Field>>();
+function openField(wellPath: string, fieldPath: string): Promise<Field> {
+  const path = `${wellPath}/${fieldPath}`;
+  if (!fields.has(path)) fields.set(path, loadField(path));
+  return fields.get(path)!;
+}
 
-const policy = createNoPrefetchPolicy();
+// Every field has the same shape, so one image's dimensions frame them all.
+const { source: firstSource } = await openField(
+  wellPaths[0],
+  wellFields.get(wellPaths[0])![0]
+);
+const dims = firstSource.getDimensions();
+const [xLod, yLod, zLod] = [dims.x, dims.y, dims.z!].map((d) => d.lods[0]);
+const frame = {
+  left: xLod.translation,
+  right: xLod.translation + xLod.size * xLod.scale,
+  top: yLod.translation,
+  bottom: yLod.translation + yLod.size * yLod.scale,
+};
+const midZ = zLod.translation + Math.floor((zLod.size - 1) / 2) * zLod.scale;
 
-const camera = new OrthographicCamera({
-  left: 0,
-  right: xSize * xScale,
-  top: 0,
-  bottom: ySize * yScale,
+const tilePolicy = createNoPrefetchPolicy();
+const tileSliceCoords = { t: 0, z: midZ, c: [1, 2] };
+
+type Level = "plate" | "well" | "field";
+const containers: Record<Level, HTMLDivElement> = {
+  plate: document.querySelector<HTMLDivElement>("#plate-grid")!,
+  well: document.querySelector<HTMLDivElement>("#well-grid")!,
+  field: document.querySelector<HTMLDivElement>("#field-view")!,
+};
+const breadcrumb = document.querySelector<HTMLDivElement>("#breadcrumb")!;
+
+function createTile(
+  container: HTMLDivElement,
+  label: string,
+  field: Promise<Field>,
+  onClick: () => void
+): Viewport {
+  const tile = document.createElement("div");
+  tile.className = "tile";
+  const span = document.createElement("span");
+  span.className = "label";
+  span.textContent = label;
+  tile.append(span);
+  tile.addEventListener("click", onClick);
+  container.append(tile);
+
+  const viewport = new Viewport({
+    domElement: tile,
+    camera: new OrthographicCamera(frame),
+  });
+  void field.then(({ source, channelProps }) => {
+    viewport.addLayer(
+      new ImageLayer({
+        source,
+        sliceCoords: tileSliceCoords,
+        channelProps,
+        policy: tilePolicy,
+      })
+    );
+  });
+  return viewport;
+}
+
+const plateViewports = wellPaths.map((wellPath) =>
+  createTile(
+    containers.plate,
+    wellPath.replace("/", " · "),
+    openField(wellPath, wellFields.get(wellPath)![0]),
+    () => showWell(wellPath)
+  )
+);
+
+const fieldCamera = new OrthographicCamera(frame);
+const fieldViewport = new Viewport({
+  domElement: containers.field,
+  camera: fieldCamera,
+  cameraControls: new PanZoomControls(fieldCamera),
 });
+const fieldSliceCoords = { t: 0, z: midZ, c: [1, 2] };
 
-const canvas = document.querySelector<HTMLCanvasElement>("canvas")!;
-const viewport = new Viewport({
-  domElement: canvas,
-  camera,
-  cameraControls: new PanZoomControls(camera),
+const idetik = new Idetik({
+  canvas: document.querySelector<HTMLCanvasElement>("#canvas")!,
+  viewports: plateViewports,
+  maxConcurrentRequests: 16,
 });
-const idetik = new Idetik({ canvas, viewports: [viewport] });
-
 idetik.start();
 
-async function onImageChange() {
-  viewport.removeAllLayers();
-  const imageUrl = `${plateUrl}/${selection.well}/${selection.image}`;
-  const source = await OmeZarrImageSource.fromHttp({ url: imageUrl });
-  const omeroDefaults = await loadOmeroDefaults(source);
-  const omeroDefaultZ = omeroDefaults?.defaultZ ?? 0;
-  const initZ = (omeroDefaultZ / HIGH_RES_NUM_SLICES) * LOW_RES_Z_SCALE;
+const gui = new GUI({ width: 280 }).hide();
+addDimensionSlider({
+  gui,
+  sliceCoords: fieldSliceCoords,
+  dimensionName: "z",
+  lod: zLod,
+});
 
-  const omeroChannels = await loadOmeroChannels(source);
-  const contrastLimits: [number, number][] = [
-    [omeroChannels[1].window!.start, omeroChannels[1].window!.end],
-    [omeroChannels[2].window!.start, omeroChannels[2].window!.end],
-  ];
-
-  const channelProps: ChannelProps[] = [
-    { visible: false },
-    {
-      visible: true,
-      color: [0, 1, 1],
-      contrastLimits: contrastLimits[0],
-    },
-    {
-      visible: true,
-      color: [1, 0, 1],
-      contrastLimits: contrastLimits[1],
-    },
-  ];
-
-  const layer = new ImageLayer({
-    source,
-    sliceCoords: { t: 0, z: initZ, c: [1, 2] },
-    channelProps,
-    policy,
-  });
-  viewport.addLayer(layer);
+// Hidden grids have no size, so this also fires each time a grid is shown.
+for (const container of [containers.plate, containers.well]) {
+  new ResizeObserver(() => {
+    const count = container.childElementCount;
+    const { width, height } = container.getBoundingClientRect();
+    if (count === 0 || height === 0) return;
+    const columns = Math.min(
+      count,
+      Math.ceil(Math.sqrt((count * width) / height))
+    );
+    container.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
+    container.style.gridTemplateRows = `repeat(${Math.ceil(count / columns)}, 1fr)`;
+  }).observe(container);
 }
 
-async function onWellChange() {
-  viewport.removeAllLayers();
-  const well = await loadOmeZarrWell(plateUrl, selection.well);
-  if (well.well === undefined) {
-    throw new Error(`No well found: ${selection.well}`);
+let activeViewports: Viewport[] = plateViewports;
+function setLevel(level: Level, viewports: Viewport[], crumbs: Crumb[]) {
+  for (const [name, container] of Object.entries(containers)) {
+    container.classList.toggle("hidden", name !== level);
   }
-  const imagePaths = well.well.images.map((image) => image.path);
-  if (!imagePaths.includes(selection.image)) selection.image = imagePaths[0];
-  imageController.options(imagePaths);
-  await onImageChange();
+  for (const viewport of activeViewports) idetik.removeViewport(viewport);
+  for (const viewport of viewports) idetik.addViewport(viewport);
+  activeViewports = viewports;
+  gui.show(level === "field");
+  renderBreadcrumb(crumbs);
 }
 
-await onWellChange();
+type Crumb = { label: string; onClick?: () => void };
+function renderBreadcrumb(crumbs: Crumb[]) {
+  breadcrumb.replaceChildren();
+  crumbs.forEach((crumb, index) => {
+    if (index > 0) breadcrumb.append(" › ");
+    const span = document.createElement("span");
+    span.textContent = crumb.label;
+    if (crumb.onClick) {
+      span.className = "link";
+      span.addEventListener("click", crumb.onClick);
+    }
+    breadcrumb.append(span);
+  });
+}
+
+function showPlate() {
+  setLevel("plate", plateViewports, [{ label: "Plate" }]);
+}
+
+function showWell(wellPath: string) {
+  containers.well.replaceChildren();
+  const wellViewports = wellFields
+    .get(wellPath)!
+    .map((field) =>
+      createTile(containers.well, field, openField(wellPath, field), () =>
+        showField(wellPath, field)
+      )
+    );
+  setLevel("well", wellViewports, [
+    { label: "Plate", onClick: showPlate },
+    { label: wellPath },
+  ]);
+}
+
+async function showField(wellPath: string, field: string) {
+  fieldViewport.removeAllLayers();
+  fieldCamera.setFrame(frame);
+  setLevel(
+    "field",
+    [fieldViewport],
+    [
+      { label: "Plate", onClick: showPlate },
+      { label: wellPath, onClick: () => showWell(wellPath) },
+      { label: field },
+    ]
+  );
+  const { source, channelProps } = await openField(wellPath, field);
+  fieldViewport.addLayer(
+    new ImageLayer({ source, sliceCoords: fieldSliceCoords, channelProps })
+  );
+}
+
+showPlate();

@@ -1,6 +1,5 @@
 import {
   ChannelProps,
-  Color,
   Idetik,
   ImageLayer,
   OmeZarrImageSource,
@@ -13,57 +12,57 @@ import {
   createPlaybackPolicy,
   Viewport,
 } from "idetik";
-import { addDimensionSlider } from "../lil_gui_utils";
-import { vec3 } from "gl-matrix";
-
 import GUI from "lil-gui";
+import { addDimensionSlider } from "../lil_gui_utils";
 
+// A whole mouse brain imaged with exaSPIM light-sheet microscopy: a 7-level
+// Zarr v2 pyramid of 21,041 × 40,660 × 66,934 voxels at 1 × 0.75 × 0.75 µm,
+// streamed from the Allen Institute for Neural Dynamics open-data bucket.
+// Dataset exaSPIM_822177_2026-04-24_17-36-07, CC BY 4.0:
+// https://registry.opendata.aws/allen-nd-open-data
 const url =
-  "https://public.czbiohub.org/royerlab/zebrahub/imaging/multi-view/ZMNS001.ome.zarr/";
+  "https://aind-open-data.s3.amazonaws.com/exaSPIM_822177_2026-04-24_17-36-07_processed_2026-05-04_09-30-27/fusion/fused.zarr/";
+
+// Highlight the viewport under the pointer.
+const viewportElements = document.querySelectorAll(".viewport");
+for (const element of viewportElements) {
+  element.addEventListener("mouseenter", () => {
+    viewportElements.forEach((other) =>
+      other.classList.toggle("active", other === element)
+    );
+  });
+}
+viewportElements[0]?.classList.add("active");
 
 const source = await OmeZarrImageSource.fromHttp({ url });
 
-const baseLod = 0;
 const dims = source.getDimensions();
-const axisRange = (axis: "x" | "y" | "z"): readonly [number, number] => {
-  const d = dims[axis]!.lods[baseLod];
-  return [d.translation, d.translation + d.size * d.scale] as const;
+const axes = ["x", "y", "z"] as const;
+type Axis = (typeof axes)[number];
+const range = (axis: Axis): [number, number] => {
+  const { translation, size, scale } = dims[axis]!.lods[0];
+  return [translation, translation + size * scale];
 };
-const [xMin, xMax] = axisRange("x");
-const [yMin, yMax] = axisRange("y");
-const [zMin, zMax] = axisRange("z");
-const step = (axis: "x" | "y" | "z") => dims[axis]!.lods[baseLod].scale;
+const [xRange, yRange, zRange] = axes.map(range);
+const [x, y, z] = axes.map((axis) => (range(axis)[0] + range(axis)[1]) / 2);
 
-const timeCount = dims.t?.lods[baseLod].size ?? 1;
-const center = vec3.fromValues(
-  (xMin + xMax) / 2,
-  (yMin + yMax) / 2,
-  (zMin + zMax) / 2
-);
-
-const currentTime = { t: Math.floor((timeCount - 1) / 2) };
-
-const channelProps: ChannelProps[] = [
-  { color: Color.CYAN, contrastLimits: [0, 1200] },
-  { color: Color.MAGENTA, contrastLimits: [0, 400] },
+// Tissue sits around 5-20 counts over a ~5-count background, so the slices
+// use a tight window and the volume starts above background to stay clear.
+const sliceChannelProps: ChannelProps[] = [
+  { color: "#ffffff", contrastLimits: [2, 20] },
+];
+const volumeChannelProps: ChannelProps[] = [
+  { color: "#00e5ff", contrastLimits: [6, 30] },
 ];
 
-const sliceCoords = {
-  get t() {
-    return currentTime.t;
-  },
-  x: center[0],
-  y: center[1],
-  z: center[2],
-  c: [0, 1],
-};
+const sliceCoords = { t: 0, x, y, z, c: [0] };
 
 function createSliceLayer(orientation: SliceOrientation) {
   return new ImageLayer({
     source,
     sliceCoords,
     policy: createPlaybackPolicy(),
-    channelProps,
+    channelProps: sliceChannelProps,
     orientation,
   });
 }
@@ -71,8 +70,8 @@ function createSliceLayer(orientation: SliceOrientation) {
 function createSliceViewport(
   id: string,
   orientation: SliceOrientation,
-  [uMin, uMax]: readonly [number, number],
-  [vMin, vMax]: readonly [number, number]
+  [uMin, uMax]: [number, number],
+  [vMin, vMax]: [number, number]
 ) {
   const uPad = 0.2 * (uMax - uMin);
   const vPad = 0.2 * (vMax - vMin);
@@ -93,25 +92,44 @@ function createSliceViewport(
   });
 }
 
-const volumeLod = Math.min(2, dims.x!.lods.length - 1);
+// The coarsest level is still 328 × 635 × 1045 voxels (45 chunks), so the
+// volume is pinned there.
+const volumeLod = dims.x!.lods.length - 1;
 const volumeLayer = new VolumeLayer({
   source,
-  sliceCoords: {
-    get t() {
-      return currentTime.t;
-    },
-    c: [0, 1],
-  },
+  sliceCoords: { t: 0, c: [0] },
   policy: createPlaybackPolicy({ lod: { min: volumeLod, max: volumeLod } }),
-  channelProps,
+  channelProps: volumeChannelProps,
 });
 volumeLayer.opacityMultiplier = 0.01;
 
-const xRange = [xMin, xMax] as const;
-const yRange = [yMin, yMax] as const;
-const zRange = [zMin, zMax] as const;
+// World units are micrometers and the brain spans ~50 mm, so push the far
+// plane well past the orbit radius.
+const diagonal = Math.hypot(
+  ...[xRange, yRange, zRange].map(([min, max]) => max - min)
+);
+const camera3D = new PerspectiveCamera({
+  near: diagonal / 1000,
+  far: diagonal * 10,
+});
 
-const camera3D = new PerspectiveCamera({ near: 1.0 });
+const slicesIn3D = [
+  createSliceLayer("XY"),
+  createSliceLayer("XZ"),
+  createSliceLayer("YZ"),
+];
+const viewport3D = new Viewport({
+  id: "3d",
+  domElement: document.querySelector<HTMLDivElement>("#viewport-3d")!,
+  camera: camera3D,
+  cameraControls: new OrbitControls(camera3D, {
+    radius: diagonal,
+    yaw: 0.4,
+    pitch: 0.1,
+    target: [x, y, z],
+  }),
+  layers: [...slicesIn3D, volumeLayer],
+});
 
 new Idetik({
   canvas: document.querySelector<HTMLCanvasElement>("#canvas")!,
@@ -119,64 +137,30 @@ new Idetik({
     createSliceViewport("slice-xy", "XY", xRange, yRange),
     createSliceViewport("slice-xz", "XZ", xRange, zRange),
     createSliceViewport("slice-yz", "YZ", yRange, zRange),
-    new Viewport({
-      id: "3d",
-      domElement: document.querySelector<HTMLDivElement>("#viewport-3d")!,
-      camera: camera3D,
-      cameraControls: new OrbitControls(camera3D, {
-        radius: Math.hypot(xMax - xMin, yMax - yMin, zMax - zMin),
-        yaw: 0.4,
-        pitch: 0.1,
-        target: center,
-      }),
-      layers: [
-        createSliceLayer("XY"),
-        createSliceLayer("XZ"),
-        createSliceLayer("YZ"),
-        volumeLayer,
-      ],
-    }),
+    viewport3D,
   ],
 }).start();
 
 const gui = new GUI({ width: 300 }).close();
 
-addDimensionSlider({
-  gui,
-  sliceCoords: currentTime,
-  dimensionName: "t",
-  minValue: 0,
-  maxValue: timeCount - 1,
-  stepValue: 1,
-  playback: {
-    maxRateHz: 30,
-    stride: 1,
-  },
-});
+// Removing the slice layers from the 3D viewport (rather than fading them)
+// also stops them from streaming chunks while hidden.
+const view3D = { showSlices: true };
+gui
+  .add(view3D, "showSlices")
+  .name("Show slices in 3D")
+  .onChange((show: boolean) => {
+    for (const layer of slicesIn3D) {
+      if (show) viewport3D.addLayer(layer);
+      else viewport3D.removeLayer(layer);
+    }
+  });
 
-addDimensionSlider({
-  gui,
-  sliceCoords,
-  dimensionName: "x",
-  minValue: xMin,
-  maxValue: xMax,
-  stepValue: step("x"),
-});
-
-addDimensionSlider({
-  gui,
-  sliceCoords,
-  dimensionName: "y",
-  minValue: yMin,
-  maxValue: yMax,
-  stepValue: step("y"),
-});
-
-addDimensionSlider({
-  gui,
-  sliceCoords,
-  dimensionName: "z",
-  minValue: zMin,
-  maxValue: zMax,
-  stepValue: step("z"),
-});
+for (const axis of axes) {
+  addDimensionSlider({
+    gui,
+    sliceCoords,
+    dimensionName: axis,
+    lod: dims[axis]!.lods[0],
+  });
+}

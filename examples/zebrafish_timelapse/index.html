@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>2D Timelapse of a Zebrafish Embryo</title>
+    <link rel="stylesheet" href="../example.css" />
+    <style>
+      #loading-bar {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background-color: rgb(155 133 251 / 0.2);
+      }
+
+      #loading-fill {
+        height: 100%;
+        width: 0;
+        background-color: #9b85fb;
+        transition: width 0.1s;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+    <div id="loading-bar"><div id="loading-fill"></div></div>
+    <div id="left-overlays">
+      <div id="time-point" class="overlay-box"></div>
+      <div id="scale-bar-box" class="overlay-box">
+        <div id="scale-bar-text"></div>
+        <div id="scale-bar-line"></div>
+      </div>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

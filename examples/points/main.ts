@@ -6,7 +6,6 @@ import {
   PointsRenderable,
   OrthographicCamera,
   OmeZarrImageSource,
-  LayerState,
   ImageLayer,
   Color,
   createNoPrefetchPolicy,
@@ -15,87 +14,69 @@ import {
 
 import { vec3 } from "gl-matrix";
 import GUI from "lil-gui";
+import { addDimensionSlider } from "../lil_gui_utils";
 
-const baseUrl =
-  "https://files.cryoetdataportal.cziscience.com/10445/TS_100_3/Reconstructions/VoxelSpacing4.990";
-const imageUrl = `${baseUrl}/Tomograms/100/TS_100_3.zarr`;
-const ribosomesUrl = `${baseUrl}/Annotations/104/cytosolic_ribosome-1.0_point.ndjson`;
-const ferritinUrl = `${baseUrl}/Annotations/101/ferritin_complex-1.0_point.ndjson`;
-const virusLikeUrl = `${baseUrl}/Annotations/106/pp7_vlp-1.0_point.ndjson`;
+// CryoET Data Portal dataset 10445, run TS_100_3, re-chunked for 2D slicing.
+const baseUrl = "https://data.idetik.org/examples/cryoet10445-czii-particles";
 
-// image scale for the highest res image --
-// point coordinates are stored in the pixel-space of
-// the highest res image, and need to be scaled
-// by this factor to match our world coordinates
-const IMAGE_SCALE_0 = 4.99; // nm/px
-// image scale for the lowest res --
-// this is the scale of the image we show
-// it is used for scaling of the slice/depth
-const IMAGE_SCALE_2 = 19.96; // nm/px
-const INITIAL_Z_POSITION = 918.16;
+const imageSource = await OmeZarrImageSource.fromHttp({
+  url: `${baseUrl}/TS_100_3.ome.zarr`,
+  version: "0.5",
+});
+const dimensions = imageSource.getDimensions();
+const [xLod, yLod, zLod] = [dimensions.x, dimensions.y, dimensions.z!].map(
+  (d) => d.lods[0]
+);
 
-const fetchPositionsFromNDJson = async (url: string) => {
-  return await fetch(url).then(async (response) => {
-    const allPoints = await response.text();
-    const points = allPoints
-      .split("\n")
-      .filter((line) => line.length > 0)
-      .map((line) => JSON.parse(line));
-    return points.map((point) => {
-      let { x, y, z } = point["location"];
-      x = x * IMAGE_SCALE_0;
-      y = y * IMAGE_SCALE_0;
-      z = z * IMAGE_SCALE_0;
-      return [x, y, z] as vec3;
-    });
-  });
+// Start on the middle slice.
+const sliceCoords = {
+  z: zLod.translation + Math.floor((zLod.size - 1) / 2) * zLod.scale,
 };
 
-const ribosomeLocations = await fetchPositionsFromNDJson(ribosomesUrl);
-const ferritinLocations = await fetchPositionsFromNDJson(ferritinUrl);
-const virusLikeLocations = await fetchPositionsFromNDJson(virusLikeUrl);
+// Point locations are full-resolution voxel indices, so scale them by the
+// level-0 voxel size into world units (ångström).
+const fetchPositions = async (name: string): Promise<vec3[]> => {
+  const text = await fetch(`${baseUrl}/${name}-1.0_point.ndjson`).then((r) =>
+    r.text()
+  );
+  return text
+    .split("\n")
+    .filter((line) => line.length > 0)
+    .map((line) => {
+      const { x, y, z } = JSON.parse(line).location;
+      return [x * xLod.scale, y * yLod.scale, z * zLod.scale];
+    });
+};
 
 type Marker = "circle" | "square" | "triangle";
 
+// Draws each particle as a marker that shrinks and dims with its distance
+// from the current slice.
 class Particles extends Layer {
   public readonly type = "Particles";
-  private readonly points_: vec3[] = [];
+  private readonly points_: vec3[];
   private readonly color_: Color;
   private readonly marker_: Marker;
-  private needsUpdate_: boolean = true;
-  private depth_: number = 0;
+  private depth_?: number;
 
   constructor(points: vec3[], color: ColorLike, marker: Marker) {
     super();
-    this.setState("initialized");
     this.points_ = points;
     this.color_ = Color.from(color);
     this.marker_ = marker;
-    this.refreshPointsRenderable();
+    this.update();
     this.setState("ready");
   }
 
-  public setDepth(z: number) {
-    this.depth_ = z;
-    this.needsUpdate_ = true;
-  }
-
   public update(): boolean {
-    if (!this.needsUpdate_) {
-      return false;
-    }
+    if (this.depth_ === sliceCoords.z) return false;
+    this.depth_ = sliceCoords.z;
 
-    this.refreshPointsRenderable();
-    this.needsUpdate_ = false;
-    return true;
-  }
-
-  private refreshPointsRenderable() {
     // TODO: change this to not re-create the renderable object
     // once Geometry supports updating buffers
     const { r, g, b } = this.color_;
     const scaledPoints = this.points_.map((p) => {
-      const zDist = Math.abs(p[2] - this.depth_);
+      const zDist = Math.abs(p[2] - sliceCoords.z);
       // 64 is just a magic number that looks okay
       const zScale = zDist / 64.0 + 1.0;
       return {
@@ -105,35 +86,25 @@ class Particles extends Layer {
         marker: this.marker_,
       };
     });
-    const pointsRenderable = new PointsRenderable(scaledPoints);
     this.clearObjects();
-    this.addObject(pointsRenderable);
+    this.addObject(new PointsRenderable(scaledPoints));
+    return true;
   }
 }
-const ribosomes = new Particles(ribosomeLocations, Color.RED, "circle");
-const ferritin = new Particles(ferritinLocations, Color.GREEN, "triangle");
-const virusLike = new Particles(
-  virusLikeLocations,
-  new Color(1.0, 0.0, 1.0),
-  "square"
-);
-ribosomes.setDepth(INITIAL_Z_POSITION);
-ferritin.setDepth(INITIAL_Z_POSITION);
-virusLike.setDepth(INITIAL_Z_POSITION);
 
-const imageSource = await OmeZarrImageSource.fromHttp({ url: imageUrl });
-const dimensions = imageSource.getDimensions();
-
-const zDimName = "z";
-const zMin = 0;
-const lowestLod = dimensions.numLods - 1;
-const zMax = dimensions.z!.lods[lowestLod].size;
-const xLod = dimensions.x!.lods[lowestLod];
-const yLod = dimensions.y!.lods[lowestLod];
-const xExtent = xLod.size * xLod.scale;
-const yExtent = yLod.size * yLod.scale;
-
-const sliceCoords = { [zDimName]: INITIAL_Z_POSITION };
+const particles = [
+  new Particles(
+    await fetchPositions("cytosolic_ribosome"),
+    Color.RED,
+    "circle"
+  ),
+  new Particles(
+    await fetchPositions("ferritin_complex"),
+    Color.GREEN,
+    "triangle"
+  ),
+  new Particles(await fetchPositions("pp7_vlp"), Color.MAGENTA, "square"),
+];
 
 const imageLayer = new ImageLayer({
   source: imageSource,
@@ -142,47 +113,28 @@ const imageLayer = new ImageLayer({
   channelProps: [{ color: Color.WHITE, contrastLimits: [-0.00001, 0.00001] }],
 });
 
+// The particles sit at their own z, so the camera's depth range spans the
+// whole tomogram.
 const camera = new OrthographicCamera({
-  left: 0,
-  right: xExtent,
-  top: 0,
-  bottom: yExtent,
+  left: xLod.translation,
+  right: xLod.translation + xLod.size * xLod.scale,
+  top: yLod.translation,
+  bottom: yLod.translation + yLod.size * yLod.scale,
   near: -10000,
   far: 10000,
 });
-const canvas = document.querySelector<HTMLCanvasElement>("canvas")!;
+const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
 const viewport = new Viewport({
   domElement: canvas,
   camera,
-  layers: [imageLayer],
+  cameraControls: new PanZoomControls(camera),
+  layers: [imageLayer, ...particles],
 });
 new Idetik({ canvas, viewports: [viewport] }).start();
 
-const onFirstImageLoad = (newState: LayerState) => {
-  if (newState === "ready") {
-    viewport.cameraControls = new PanZoomControls(camera);
-    camera.update();
-
-    viewport.addLayer(ribosomes);
-    viewport.addLayer(ferritin);
-    viewport.addLayer(virusLike);
-
-    // remove the callback to only set the camera frame once
-    imageLayer.removeStateChangeCallback(onFirstImageLoad);
-  }
-};
-
-imageLayer.addStateChangeCallback(onFirstImageLoad);
-
-const controls = { zIndex: Math.round(INITIAL_Z_POSITION / IMAGE_SCALE_2) };
-new GUI({ width: 280 })
-  .close()
-  .add(controls, "zIndex", zMin, zMax - 1, 1)
-  .name("Z slice")
-  .onChange((index: number) => {
-    const worldZ = index * IMAGE_SCALE_2;
-    sliceCoords[zDimName] = worldZ;
-    ribosomes.setDepth(worldZ);
-    ferritin.setDepth(worldZ);
-    virusLike.setDepth(worldZ);
-  });
+addDimensionSlider({
+  gui: new GUI({ width: 280 }).close(),
+  sliceCoords,
+  dimensionName: "z",
+  lod: zLod,
+});

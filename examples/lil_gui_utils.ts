@@ -1,13 +1,12 @@
-import { SliceCoordinates } from "idetik";
+import { SliceCoordinates, SourceDimensionLod } from "idetik";
 import { Controller, GUI } from "lil-gui";
 
 type DimensionSliderProps = {
   gui: GUI;
   sliceCoords: SliceCoordinates;
   dimensionName: "x" | "y" | "z" | "t";
-  minValue: number;
-  maxValue: number;
-  stepValue: number;
+  /** The level whose voxel centers the slider steps through. */
+  lod: SourceDimensionLod;
   playback?: {
     maxRateHz?: number;
     stride?: number;
@@ -16,22 +15,19 @@ type DimensionSliderProps = {
 };
 
 export function addDimensionSlider(props: DimensionSliderProps) {
+  const { translation, scale, size } = props.lod;
+  const minValue = translation;
+  const maxValue = translation + (size - 1) * scale;
   const controller = props.gui
-    .add(
-      props.sliceCoords,
-      props.dimensionName,
-      props.minValue,
-      props.maxValue,
-      props.stepValue
-    )
+    .add(props.sliceCoords, props.dimensionName, minValue, maxValue, scale)
     .name(`${props.dimensionName}-coord`);
 
   if (props.playback) {
     const playbackController = new PlaybackController({
       controller,
-      start: props.minValue,
-      stop: props.maxValue,
-      step: props.stepValue * (props.playback.stride ?? 1),
+      start: minValue,
+      stop: maxValue,
+      step: scale * (props.playback.stride ?? 1),
     });
     const maxRateHz = props.playback.maxRateHz ?? 30;
     props.gui
