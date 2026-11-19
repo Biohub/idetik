@@ -89,12 +89,13 @@ export const examples = [
   },
   {
     id: "points",
-    title: "CryoET Tomogram with Particle Annotations",
-    label: "CryoET Particles",
+    title: "Spatial Transcriptomics of a Mouse Liver",
+    label: "Liver Transcripts",
     description:
-      "Ribosome and ferritin annotations drawn over a CryoET tomogram.",
-    data: "CryoET Data Portal 10445 · CZII Object Identification Challenge · CC0",
-    dataUrl: "https://cryoetdataportal.czscience.com/runs/17682",
-    tags: ["points", "custom layer"],
+      "Single-molecule transcripts of four marker genes over DAPI-stained nuclei and their segmentation, showing the zones of the liver lobule.",
+    data: "Molecular Cartography · Guilliams et al. 2022, Pollaris et al. 2024 · CC BY 4.0",
+    dataUrl:
+      "https://spatialdata.scverse.org/en/latest/tutorials/notebooks/datasets/README.html",
+    tags: ["points", "labels", "custom layer"],
   },
 ];
