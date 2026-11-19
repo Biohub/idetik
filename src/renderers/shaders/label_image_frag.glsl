@@ -4,6 +4,8 @@
 precision highp float;
 precision highp int;
 
+#include ./common/srgb_to_linear.glsl
+
 layout (location = 0) out vec4 fragColor;
 
 #if defined TEXTURE_DATA_TYPE_INT
@@ -22,14 +24,6 @@ uniform float u_outlineSelected;
 uniform float u_selectedValue;
 
 in vec3 v_texCoords;
-
-vec3 srgbToLinear(vec3 color) {
-    return mix(
-        color / 12.92,
-        pow((color + 0.055) / 1.055, vec3(2.4)),
-        greaterThan(color, vec3(0.04045))
-    );
-}
 
 vec4 unpackRgba(uint packed) {
     uint r = (packed >> 24u) & 0xFFu;
