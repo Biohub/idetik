@@ -159,7 +159,7 @@ export class VolumeRenderable extends RenderableObject {
       if (!channel.visible) continue;
 
       const k = samplerUniforms.length;
-      const [r, g, b] = channel.color.linearRgb;
+      const [r, g, b] = channel.color.rgb;
       colors[k * 3] = r;
       colors[k * 3 + 1] = g;
       colors[k * 3 + 2] = b;

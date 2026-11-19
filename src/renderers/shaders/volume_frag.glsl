@@ -2,6 +2,8 @@
 #pragma inject_defines
 precision highp float;
 
+#include ./common/srgb_to_linear.glsl
+
 layout (location = 0) out vec4 fragColor;
 
 // This shader could be optimised by creating four separate shader variants
@@ -145,6 +147,12 @@ void main() {
     vec3 position = entryPoint;
     vec4 accumulatedColor = vec4(0.0);
 
+    // Decode channel tints once per ray, before accumulating samples.
+    vec3 linearColors[4];
+    for (int ch = 0; ch < 4; ch++) {
+        linearColors[ch] = srgbToLinear(u_color[ch]);
+    }
+
     vec3 sampleColor = vec3(0.0);
     float sampleAlpha, blendedSampleAlpha;
     for (int i = 0; i < numSamples && accumulatedColor.a < u_earlyTerminationAlpha; i++) {
@@ -153,7 +161,7 @@ void main() {
         // Combine color per channel
         for (int ch = 0; ch < 4; ch++) {
             if (!bool(u_visible[ch]) || sampleValues[ch] == 0.0) continue;
-            sampleColor = u_color[ch];
+            sampleColor = linearColors[ch];
             sampleAlpha = clamp(sampleValues[ch] * intensityScale * u_channelOpacity[ch], 0.0, 1.0);
             blendedSampleAlpha = (1.0 - accumulatedColor.a) * sampleAlpha;
 

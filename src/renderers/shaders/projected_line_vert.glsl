@@ -1,5 +1,7 @@
 #version 300 es
 
+#include ./common/srgb_to_linear.glsl
+
 layout (location = 0) in vec3 a_position;
 layout (location = 3) in vec3 a_prevPosition;
 layout (location = 4) in vec3 a_nextPosition;
@@ -9,9 +11,13 @@ uniform mat4 u_projection;
 uniform mat4 u_modelView;
 uniform vec2 u_resolution;
 uniform float u_lineWidth;
+uniform vec3 u_lineColor;
+
+flat out highp vec3 v_color;
 
 // adapted from https://github.com/mattdesl/webgl-lines
 void main() {
+    v_color = srgbToLinear(u_lineColor);
     mat4 projModelView = u_projection * u_modelView;
 
     vec4 prevPos = projModelView * vec4(a_prevPosition, 1.0);

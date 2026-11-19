@@ -310,7 +310,7 @@ export class WebGLRenderer extends Renderer {
       const wireframeProgram = this.programs_.use("wireframe");
       wireframeProgram.setUniform(
         "u_wireframeColor",
-        object.wireframeColor.linearRgb
+        object.wireframeColor.rgb
       );
       this.drawGeometry(
         object.wireframeGeometry,

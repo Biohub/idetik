@@ -14,7 +14,7 @@ export type ColorLike = Color | vec3 | vec4 | string;
  * {@link ColorLike} so hex strings and component arrays coerce automatically
  * through {@link from}. Common colors are available as static presets.
  * RGB components, hex strings, and packed bytes use the sRGB encoding.
- * Use {@link linearRgb} or {@link linearRgba} for rendering calculations.
+ * Shaders decode input colors to linear RGB for lighting and blending.
  *
  * @group Math
  */
@@ -40,8 +40,6 @@ export class Color {
 
   // sRGB components and linear alpha in the range [0, 1].
   private readonly rgba_: readonly [number, number, number, number];
-  private linearRgb_?: readonly [number, number, number];
-  private linearRgba_?: readonly [number, number, number, number];
 
   /**
    * Creates a color from sRGB components and linear alpha in `[0, 1]`.
@@ -69,22 +67,6 @@ export class Color {
   /** The sRGB components and linear alpha as a four-element array. */
   public get rgba(): readonly [number, number, number, number] {
     return this.rgba_;
-  }
-
-  /** The cached RGB components decoded to linear sRGB for rendering calculations. */
-  public get linearRgb(): readonly [number, number, number] {
-    this.linearRgb_ ??= Object.freeze([
-      srgbToLinear(this.r),
-      srgbToLinear(this.g),
-      srgbToLinear(this.b),
-    ] as const);
-    return this.linearRgb_;
-  }
-
-  /** The cached linear sRGB components with the original, unchanged alpha. */
-  public get linearRgba(): readonly [number, number, number, number] {
-    this.linearRgba_ ??= Object.freeze([...this.linearRgb, this.a] as const);
-    return this.linearRgba_;
   }
 
   /** The sRGB red component. */
@@ -167,8 +149,4 @@ export class Color {
       .padStart(2, "0");
     return hex.length === 1 ? "0" + hex : hex;
   }
-}
-
-function srgbToLinear(value: number): number {
-  return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
 }
