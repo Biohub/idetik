@@ -48,6 +48,8 @@ uniform vec4 u_valueOffset;
 uniform vec4 u_valueScale;
 uniform vec4 u_channelOpacity;
 uniform vec3 u_color[4];
+uniform vec4 u_hasColorMap;
+uniform vec3 u_colorMap[4 * 48];
 
 // Optionally terminate rays at some predetermined scene depth
 uniform bool u_hasSceneDepth;
@@ -161,6 +163,17 @@ void main() {
         for (int ch = 0; ch < 4; ch++) {
             if (!bool(u_visible[ch]) || sampleValues[ch] == 0.0) continue;
             sampleColor = linearColors[ch];
+
+            if (bool(u_hasColorMap[ch])) {
+                float x = clamp(sampleValues[ch], 0.0, 1.0) * 47.0;
+                int i = min(int(x), 46);
+                sampleColor = mix(
+                    srgbToLinear(u_colorMap[ch * 48 + i]),
+                    srgbToLinear(u_colorMap[ch * 48 + i + 1]),
+                    x - float(i)
+                );
+            }
+
             sampleAlpha = clamp(sampleValues[ch] * intensityScale * u_channelOpacity[ch], 0.0, 1.0);
             blendedSampleAlpha = (1.0 - accumulatedColor.a) * sampleAlpha;
 

@@ -4,6 +4,7 @@ import { Texture } from "../../objects/textures/texture";
 import {
   Channel,
   ChannelProps,
+  getColorMapColors,
   validateChannel,
   validateChannels,
 } from "../../core/channel";
@@ -26,6 +27,8 @@ export type ImageRenderableProps = {
 
 type UniformValues = {
   u_color: vec3;
+  u_hasColorMap: number;
+  "u_colorMap[0]"?: number[];
   u_imageSampler: number;
   Opacity: number;
   u_valueOffset: number;
@@ -118,12 +121,14 @@ export class ImageRenderable extends RenderableObject {
       throw new Error("No texture set");
     }
 
-    const { color, contrastLimits, opacity } =
+    const { color, colorMap, contrastLimits, opacity } =
       this.channels_[0] ?? validateChannel(texture, {});
 
     return {
       u_imageSampler: 0,
       u_color: color.rgb,
+      u_hasColorMap: Number(colorMap !== undefined),
+      ...(colorMap && { "u_colorMap[0]": getColorMapColors(colorMap) }),
       u_valueOffset: -contrastLimits[0],
       u_valueScale: 1 / (contrastLimits[1] - contrastLimits[0]),
       Opacity: opacity,

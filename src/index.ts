@@ -83,7 +83,8 @@ export type {
   PriorityCategory,
 } from "./core/image_source_policy";
 
-export type { ChannelProps } from "./core/channel";
+export { ColorMapPreset } from "./core/channel";
+export type { ChannelProps, ColorMapProps } from "./core/channel";
 export type { LayerState } from "./core/layer";
 export type { CaptureFrameBlobOptions, IdetikProps, Overlay } from "./idetik";
 export type { MemoryStats, RuntimeStats } from "./core/stats";
