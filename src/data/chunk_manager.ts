@@ -25,7 +25,7 @@ export type QueueStats = {
 const DEFAULT_MAX_CONCURRENT_REQUESTS = 8;
 const DEFAULT_MAX_GPU_UPLOADS_PER_UPDATE = 4;
 
-type Candidate = {
+type WantedChunk = {
   source: ChunkSource;
   store: ChunkStore;
   key: ChunkKey;
@@ -101,7 +101,7 @@ export class ChunkManager {
   }
 
   public update() {
-    const candidates: Candidate[] = [];
+    const candidates: WantedChunk[] = [];
 
     for (const { source, store } of this.stores_) {
       store.updateDemand();
@@ -159,7 +159,7 @@ export class ChunkManager {
     store.retire(chunk);
   }
 
-  private enqueueWithinBudget(candidates: Candidate[]) {
+  private enqueueWithinBudget(candidates: WantedChunk[]) {
     if (candidates.length === 0) {
       this.oversizedWarned_ = false;
       return;
