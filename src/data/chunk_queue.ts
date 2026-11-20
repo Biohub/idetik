@@ -5,7 +5,9 @@ type LoaderFn = (signal: AbortSignal) => Promise<void>;
 
 type PendingItem = { chunk: Chunk; fn: LoaderFn };
 
-export function comparePriority(a: Chunk, b: Chunk) {
+type Ranked = Pick<Chunk, "priority" | "orderKey">;
+
+export function comparePriority(a: Ranked, b: Ranked) {
   const priorityA = a.priority ?? Number.MAX_SAFE_INTEGER;
   const priorityB = b.priority ?? Number.MAX_SAFE_INTEGER;
 

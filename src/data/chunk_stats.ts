@@ -1,5 +1,5 @@
-import { Chunk, ChunkSource } from "./chunk";
-import type { ChunkStore } from "./chunk_store";
+import { ChunkSource } from "./chunk";
+import type { ChunkKey, ChunkStore } from "./chunk_store";
 import type { ChunkStoreView } from "./chunk_store_view";
 
 /**
@@ -85,14 +85,14 @@ export function computeSourceChunkStats(
 
   const views = store.views;
   for (let i = 0; i < views.length; i++) {
-    for (const [chunk, state] of views[i].chunkViewStates) {
+    for (const [key, state] of views[i].chunkViewStates) {
       if (state.priority === null) continue;
-      if (isRequestedByEarlierView(chunk, views, i)) continue;
+      if (isRequestedByEarlierView(key, views, i)) continue;
 
-      const t = chunk.chunkIndex.t;
+      const t = store.timeOfKey(key);
       requested += 1;
       timepoints.requested[t] += 1;
-      if (chunk.texture !== undefined) {
+      if (store.getEntry(key)?.texture !== undefined) {
         resident += 1;
         timepoints.resident[t] += 1;
       }
@@ -104,12 +104,12 @@ export function computeSourceChunkStats(
 
 // avoids allocating a set per call to count chunks shared by views once
 function isRequestedByEarlierView(
-  chunk: Chunk,
+  key: ChunkKey,
   views: ReadonlyArray<ChunkStoreView>,
   index: number
 ): boolean {
   for (let i = 0; i < index; i++) {
-    const state = views[i].chunkViewStates.get(chunk);
+    const state = views[i].chunkViewStates.get(key);
     if (state !== undefined && state.priority !== null) return true;
   }
   return false;
@@ -131,15 +131,15 @@ export function computeViewportChunkStats(
 
   for (const view of views) {
     const currentLOD = view.currentLOD;
-    for (const [chunk, state] of view.chunkViewStates) {
+    for (const [key, state] of view.chunkViewStates) {
       if (state.priority === null) continue;
-      const isResident = chunk.texture !== undefined;
+      const isResident = view.getEntry(key)?.texture !== undefined;
       requested += 1;
       if (isResident) resident += 1;
 
       // only the current timepoint is marked visible, so this skips temporal
       // prefetch as well as spatial prefetch and fallback
-      if (!state.visible || chunk.lod !== currentLOD) continue;
+      if (!state.visible || view.lodOfKey(key) !== currentLOD) continue;
       current.requested += 1;
       if (isResident) current.resident += 1;
     }
