@@ -5,7 +5,7 @@ import { type Texture, TextureDataType } from "../textures/texture";
 import {
   Channel,
   ChannelProps,
-  COLOR_MAPS,
+  getColorMapColors,
   validateChannel,
   validateChannels,
 } from "../../core/channel";
@@ -167,7 +167,7 @@ export class VolumeRenderable extends RenderableObject {
       colors[k * 3 + 1] = g;
       colors[k * 3 + 2] = b;
       if (channel.colorMap !== undefined) {
-        const mapColors = COLOR_MAPS[channel.colorMap];
+        const mapColors = getColorMapColors(channel.colorMap);
         for (let j = 0; j < mapColors.length; j++) {
           this.colorMaps_[k * mapColors.length + j] = mapColors[j];
         }

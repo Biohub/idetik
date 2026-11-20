@@ -4,7 +4,7 @@ import { Texture } from "../../objects/textures/texture";
 import {
   Channel,
   ChannelProps,
-  COLOR_MAPS,
+  getColorMapColors,
   validateChannel,
   validateChannels,
 } from "../../core/channel";
@@ -128,7 +128,7 @@ export class ImageRenderable extends RenderableObject {
       u_imageSampler: 0,
       u_color: color.rgb,
       u_hasColorMap: Number(colorMap !== undefined),
-      ...(colorMap && { "u_colorMap[0]": COLOR_MAPS[colorMap] }),
+      ...(colorMap && { "u_colorMap[0]": getColorMapColors(colorMap) }),
       u_valueOffset: -contrastLimits[0],
       u_valueScale: 1 / (contrastLimits[1] - contrastLimits[0]),
       Opacity: opacity,
