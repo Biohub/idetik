@@ -1,8 +1,8 @@
-import { Chunk, ChunkSource } from "./chunk";
+import { Chunk, ChunkSource, ChunkViewState } from "./chunk";
 import { SliceAxes } from "../math/axes";
 import { ChunkQueue, comparePriority } from "./chunk_queue";
 import { chunkMemoryStats, clearChunkData } from "./chunk_memory";
-import { ChunkStore } from "./chunk_store";
+import { ChunkKey, ChunkStore } from "./chunk_store";
 import { computeSourceChunkStats, SourceChunkStats } from "./chunk_stats";
 import { ChunkStoreView } from "./chunk_store_view";
 import { ImageSourcePolicy } from "../core/image_source_policy";
@@ -24,6 +24,14 @@ export type QueueStats = {
 
 const DEFAULT_MAX_CONCURRENT_REQUESTS = 8;
 const DEFAULT_MAX_GPU_UPLOADS_PER_UPDATE = 4;
+
+type Candidate = {
+  source: ChunkSource;
+  store: ChunkStore;
+  key: ChunkKey;
+  demand: ChunkViewState;
+  entry?: Chunk;
+};
 
 export class ChunkManager {
   private readonly stores_: { source: ChunkSource; store: ChunkStore }[] = [];
@@ -93,28 +101,33 @@ export class ChunkManager {
   }
 
   public update() {
-    const candidates: {
-      source: ChunkSource;
-      store: ChunkStore;
-      chunk: Chunk;
-    }[] = [];
+    const candidates: Candidate[] = [];
 
     for (const { source, store } of this.stores_) {
-      const updatedChunks = store.updateAndCollectChunkChanges();
+      store.updateDemand();
 
-      for (const chunk of updatedChunks) {
+      for (const chunk of [...store.entries.values()]) {
         if (chunk.priority === null) {
-          this.releaseChunk(chunk);
+          this.releaseChunk(store, chunk);
         } else {
           chunk.releasedAt = undefined;
-          if (chunk.state === "queued") {
-            candidates.push({ source, store, chunk });
-          }
+        }
+      }
+
+      for (const [key, demand] of store.demand) {
+        const entry = store.getEntry(key);
+        if (
+          entry === undefined ||
+          entry.state === "queued" ||
+          entry.state === "unloaded"
+        ) {
+          candidates.push({ source, store, key, demand, entry });
         }
       }
     }
 
     this.uploadLoadedChunks();
+
     this.enqueueWithinBudget(candidates);
     this.queue_.flush();
 
@@ -125,40 +138,42 @@ export class ChunkManager {
       for (const chunk of [...store.residentChunks]) {
         this.disposeChunkTexture(store, chunk);
         chunk.state = "unloaded";
+        store.retire(chunk);
       }
       this.stores_.splice(i, 1);
     }
   }
 
-  private releaseChunk(chunk: Chunk) {
+  private releaseChunk(store: ChunkStore, chunk: Chunk) {
     this.queue_.cancel(chunk);
 
     if (chunk.texture !== undefined) {
       chunk.releasedAt ??= performance.now();
       return;
     }
+    if (chunk.state === "loading") return;
 
     this.awaitingUpload_.delete(chunk);
     clearChunkData(chunk);
-    if (chunk.state === "loaded") chunk.state = "unloaded";
+    chunk.state = "unloaded";
+    store.retire(chunk);
   }
 
-  private enqueueWithinBudget(
-    candidates: { source: ChunkSource; store: ChunkStore; chunk: Chunk }[]
-  ) {
+  private enqueueWithinBudget(candidates: Candidate[]) {
     if (candidates.length === 0) {
       this.oversizedWarned_ = false;
       return;
     }
 
-    candidates.sort((a, b) => comparePriority(a.chunk, b.chunk));
+    candidates.sort((a, b) => comparePriority(a.demand, b.demand));
 
     let committedBytes = this.getGpuResidentBytes_();
     const victims = this.evictionCandidates();
     let oversized = false;
 
-    for (const { source, store, chunk } of candidates) {
-      const bytes = this.chunkBytes(source, chunk);
+    for (const { source, store, key, demand, entry } of candidates) {
+      const bytes =
+        store.elementCount(key) * source.loader.getBytesPerElement();
 
       // A chunk that can never fit must not trigger eviction. It would drain
       // the entire cache and still be skipped.
@@ -171,7 +186,7 @@ export class ChunkManager {
         committedBytes = this.evictWorseChunks(
           committedBytes,
           bytes,
-          chunk,
+          demand,
           victims
         );
       }
@@ -179,9 +194,13 @@ export class ChunkManager {
       if (committedBytes + bytes > this.memoryLimitBytes_) continue;
 
       committedBytes += bytes;
+      const chunk = entry ?? store.admit(key, demand);
+      chunk.state = "queued";
       this.queue_.enqueue(chunk, async (signal) => {
         await source.loader.loadChunkData(chunk, signal);
-        if (!signal.aborted) this.awaitingUpload_.set(chunk, store);
+        // a loader may finish despite the abort
+        signal.throwIfAborted();
+        this.awaitingUpload_.set(chunk, store);
       });
     }
 
@@ -222,7 +241,7 @@ export class ChunkManager {
   private evictWorseChunks(
     committedBytes: number,
     pendingBytes: number,
-    candidate: Chunk,
+    candidate: ChunkViewState,
     victims: { store: ChunkStore; chunk: Chunk; drawn: boolean }[]
   ): number {
     while (
@@ -238,14 +257,10 @@ export class ChunkManager {
       this.disposeChunkTexture(victim.store, victim.chunk);
       victim.chunk.state = "unloaded";
       victim.chunk.releasedAt = undefined;
+      victim.store.retire(victim.chunk);
     }
 
     return committedBytes;
-  }
-
-  private chunkBytes(source: ChunkSource, chunk: Chunk): number {
-    const bytesPerElement = source.loader.getBytesPerElement();
-    return chunk.shape.x * chunk.shape.y * chunk.shape.z * bytesPerElement;
   }
 
   private uploadLoadedChunks() {

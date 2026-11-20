@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { ChunkStore } from "@/data/chunk_store";
+import { ChunkKey, ChunkStore } from "@/data/chunk_store";
 import { ChunkStoreView } from "@/data/chunk_store_view";
 import { ChunkSource, SourceDimensionMap } from "@/data/chunk";
 import {
@@ -32,7 +32,13 @@ function updateView(view: ChunkStoreView) {
 function visibleChunks(view: ChunkStoreView) {
   return [...view.chunkViewStates]
     .filter(([, state]) => state.visible)
-    .map(([chunk]) => chunk);
+    .map(([key]) => key);
+}
+
+function makeResident(store: ChunkStore, key: ChunkKey) {
+  const chunk = store.admit(key, store.views[0].chunkViewStates.get(key)!);
+  chunk.state = "loaded";
+  store.setChunkTexture(chunk, {} as Texture);
 }
 
 describe("chunk stats", () => {
@@ -43,7 +49,7 @@ describe("chunk stats", () => {
 
     const visible = visibleChunks(view);
     expect(visible.length).toBeGreaterThan(0);
-    visible[0].texture = {} as Texture;
+    makeResident(store, visible[0]);
 
     const stats = computeViewportChunkStats("viewport", [view]);
 
@@ -71,19 +77,19 @@ describe("chunk stats", () => {
 
     const states = [...view.chunkViewStates];
     const drawn = states.filter(
-      ([chunk, state]) => state.visible && chunk.lod === 0
+      ([key, state]) => state.visible && store.lodOfKey(key) === 0
     );
     const fallback = states.filter(
-      ([chunk, state]) => state.visible && chunk.lod === 1
+      ([key, state]) => state.visible && store.lodOfKey(key) === 1
     );
-    const prefetched = states.filter(([chunk]) => chunk.chunkIndex.t !== 0);
+    const prefetched = states.filter(([key]) => store.timeOfKey(key) !== 0);
     expect(drawn).toHaveLength(4);
     expect(fallback).toHaveLength(1);
     expect(prefetched).toHaveLength(8);
 
-    drawn[0][0].texture = {} as Texture;
-    fallback[0][0].texture = {} as Texture;
-    prefetched[0][0].texture = {} as Texture;
+    makeResident(store, drawn[0][0]);
+    makeResident(store, fallback[0][0]);
+    makeResident(store, prefetched[0][0]);
 
     const stats = computeViewportChunkStats("viewport", [view]);
 
@@ -100,7 +106,7 @@ describe("chunk stats", () => {
     updateView(view2);
 
     const visible = visibleChunks(view1);
-    visible[0].texture = {} as Texture;
+    makeResident(store, visible[0]);
 
     const stats = computeSourceChunkStats(source, store);
 
