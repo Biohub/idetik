@@ -104,9 +104,9 @@ async function copy() {
   pointer-events: none;
   background:
     radial-gradient(
-      40% 60% at 75% 50%,
-      rgb(var(--brand-rgb) / 0.1),
-      transparent 72%
+      50% 90% at 92% 100%,
+      rgb(var(--brand-rgb) / 0.08),
+      transparent 70%
     ),
     radial-gradient(
       50% 90% at 8% 0%,

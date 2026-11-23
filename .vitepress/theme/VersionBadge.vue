@@ -14,7 +14,7 @@ const version = __IDETIK_VERSION__;
   vertical-align: 3px;
   margin-left: 8px;
   padding: 2px 10px;
-  border: 1px solid var(--vp-button-alt-border);
+  border: 1px solid var(--vp-c-border);
   border-radius: var(--radius-pill);
   font-size: 12px;
   font-weight: 500;

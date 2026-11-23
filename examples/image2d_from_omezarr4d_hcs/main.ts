@@ -140,7 +140,7 @@ const idetik = new Idetik({
 });
 idetik.start();
 
-const gui = new GUI({ width: 280 }).hide();
+const gui = new GUI({ width: 280 }).close().hide();
 addDimensionSlider({
   gui,
   sliceCoords: fieldSliceCoords,

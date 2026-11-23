@@ -2,8 +2,8 @@
 layout: home
 
 hero:
-  text: Build interactive viewers for <span class="hero-highlight">massive bioimaging data</span>
-  tagline: High-performance visualization library for exploring <span style="white-space:nowrap">multi-dimensional</span> <span style="white-space:nowrap">OME-Zarr</span> datasets right in the browser.
+  text: Interactive visualization for massive bioimaging data
+  tagline: A high-performance library for exploring <span style="white-space:nowrap">multi-dimensional</span> <span style="white-space:nowrap">OME-Zarr</span> datasets, right in the browser.
   actions:
     - theme: brand
       text: Get Started

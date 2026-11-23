@@ -81,6 +81,25 @@ h1 {
   text-decoration: none;
 }
 
+@media (max-width: 639px) {
+  .actions {
+    width: 100%;
+  }
+
+  .actions :deep(.VPButton) {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 12px;
+  }
+}
+
+@media (max-width: 359px) {
+  .actions :deep(.VPButton) {
+    padding: 0 8px;
+    font-size: 13px;
+  }
+}
+
 iframe {
   display: block;
   width: 100%;

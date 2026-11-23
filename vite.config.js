@@ -65,11 +65,14 @@ export default defineConfig(({ mode }) => {
     const copyThumbnails = {
       name: 'copy-example-thumbnails',
       closeBundle() {
-        for (const { id } of examples) {
-          copyFileSync(
-            path.resolve(_dirname, 'examples', id, 'thumbnail.jpg'),
-            path.resolve(outDir, id, 'thumbnail.jpg'),
-          )
+        for (const { id, sidebarThumbnail } of examples) {
+          for (const file of ['thumbnail.jpg', sidebarThumbnail]) {
+            if (!file) continue
+            copyFileSync(
+              path.resolve(_dirname, 'examples', id, file),
+              path.resolve(outDir, id, file),
+            )
+          }
         }
       },
     }

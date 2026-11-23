@@ -114,7 +114,7 @@ idetik.start();
 
 // === Controls ===
 const state = { z: zMid, annotations: true };
-const gui = new GUI({ width: 320 });
+const gui = new GUI({ width: 320 }).close();
 gui
   .add(state, "z", 0, zLod.size - 1, 1)
   .name("Z slice")
