@@ -1,9 +1,5 @@
 import type { ChunkManager, QueueStats } from "../data/chunk_manager";
-import {
-  computeViewportChunkStats,
-  type ChunkStats,
-  type ViewportChunkStats,
-} from "../data/chunk_stats";
+import type { ChunkStats, ViewportChunkStats } from "../data/chunk_stats";
 import { ImageLayer } from "../layers/image_layer";
 import { LabelLayer } from "../layers/label_layer";
 import { VolumeLayer } from "../layers/volume_layer";
@@ -151,7 +147,7 @@ export class Stats {
         if (layer.chunkStoreView) views.push(layer.chunkStoreView);
       }
       if (views.length === 0) continue;
-      viewports.push(computeViewportChunkStats(viewport.id, views));
+      viewports.push(this.chunkManager_.viewportChunkStats(viewport.id, views));
     }
     return { sources: this.chunkManager_.sourceChunkStats, viewports };
   }

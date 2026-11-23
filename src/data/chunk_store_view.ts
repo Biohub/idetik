@@ -83,14 +83,6 @@ export class ChunkStoreView {
     return this.chunkViewStates_;
   }
 
-  public getEntry(key: ChunkKey): Chunk | undefined {
-    return this.store_.getEntry(key);
-  }
-
-  public lodOfKey(key: ChunkKey): number {
-    return this.store_.lodOfKey(key);
-  }
-
   public get isDisposed(): boolean {
     return this.isDisposed_;
   }

@@ -51,7 +51,7 @@ describe("chunk stats", () => {
     expect(visible.length).toBeGreaterThan(0);
     makeResident(store, visible[0]);
 
-    const stats = computeViewportChunkStats("viewport", [view]);
+    const stats = computeViewportChunkStats("viewport", [{ view, store }]);
 
     expect(stats.requested).toBe(visible.length);
     expect(stats.resident).toBe(1);
@@ -91,7 +91,7 @@ describe("chunk stats", () => {
     makeResident(store, fallback[0][0]);
     makeResident(store, prefetched[0][0]);
 
-    const stats = computeViewportChunkStats("viewport", [view]);
+    const stats = computeViewportChunkStats("viewport", [{ view, store }]);
 
     expect(stats.requested).toBe(13);
     expect(stats.resident).toBe(3);

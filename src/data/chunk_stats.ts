@@ -119,27 +119,27 @@ function isRequestedByEarlierView(
  * Sums the chunks requested by a viewport's views.
  *
  * @param viewportId - The viewport the views render into.
- * @param views - The viewport's views.
+ * @param views - The viewport's views, each with the store it views.
  */
 export function computeViewportChunkStats(
   viewportId: string,
-  views: readonly ChunkStoreView[]
+  views: readonly { view: ChunkStoreView; store: ChunkStore }[]
 ): ViewportChunkStats {
   let requested = 0;
   let resident = 0;
   const current = { requested: 0, resident: 0 };
 
-  for (const view of views) {
+  for (const { view, store } of views) {
     const currentLOD = view.currentLOD;
     for (const [key, state] of view.chunkViewStates) {
       if (state.priority === null) continue;
-      const isResident = view.getEntry(key)?.texture !== undefined;
+      const isResident = store.getEntry(key)?.texture !== undefined;
       requested += 1;
       if (isResident) resident += 1;
 
       // only the current timepoint is marked visible, so this skips temporal
       // prefetch as well as spatial prefetch and fallback
-      if (!state.visible || view.lodOfKey(key) !== currentLOD) continue;
+      if (!state.visible || store.lodOfKey(key) !== currentLOD) continue;
       current.requested += 1;
       if (isResident) current.resident += 1;
     }
