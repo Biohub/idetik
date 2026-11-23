@@ -35,7 +35,6 @@ type WantedChunk = {
 
 export class ChunkManager {
   private readonly stores_: { source: ChunkSource; store: ChunkStore }[] = [];
-  private readonly awaitingUpload_ = new Map<Chunk, ChunkStore>();
   private readonly queue_: ChunkQueue;
 
   private readonly uploadTexture_?: (texture: Texture) => void;
@@ -73,7 +72,7 @@ export class ChunkManager {
     return {
       pending: this.queue_.pendingCount,
       running: this.queue_.runningCount,
-      awaitingUpload: this.awaitingUpload_.size,
+      awaitingUpload: this.awaitingUpload().length,
     };
   }
 
@@ -135,8 +134,8 @@ export class ChunkManager {
       const { store } = this.stores_[i];
       if (!store.canDispose()) continue;
 
-      for (const chunk of [...store.residentChunks]) {
-        this.disposeChunkTexture(store, chunk);
+      for (const chunk of store.residentChunks) {
+        this.disposeChunkTexture(chunk);
         chunk.state = "unloaded";
         store.retire(chunk);
       }
@@ -153,7 +152,6 @@ export class ChunkManager {
     }
     if (chunk.state === "loading") return;
 
-    this.awaitingUpload_.delete(chunk);
     clearChunkData(chunk);
     chunk.state = "unloaded";
     store.retire(chunk);
@@ -196,12 +194,9 @@ export class ChunkManager {
       committedBytes += bytes;
       const chunk = entry ?? store.admit(key, demand);
       chunk.state = "queued";
-      this.queue_.enqueue(chunk, async (signal) => {
-        await source.loader.loadChunkData(chunk, signal);
-        // a loader may finish despite the abort
-        signal.throwIfAborted();
-        this.awaitingUpload_.set(chunk, store);
-      });
+      this.queue_.enqueue(chunk, (signal) =>
+        source.loader.loadChunkData(chunk, signal)
+      );
     }
 
     if (oversized && !this.oversizedWarned_) {
@@ -254,7 +249,7 @@ export class ChunkManager {
       if (victim.chunk.texture === undefined) continue;
 
       committedBytes -= textureStorageBytes(victim.chunk.texture);
-      this.disposeChunkTexture(victim.store, victim.chunk);
+      this.disposeChunkTexture(victim.chunk);
       victim.chunk.state = "unloaded";
       victim.chunk.releasedAt = undefined;
       victim.store.retire(victim.chunk);
@@ -263,25 +258,28 @@ export class ChunkManager {
     return committedBytes;
   }
 
+  private awaitingUpload(): Chunk[] {
+    return this.stores_.flatMap(({ store }) =>
+      [...store.entries.values()].filter(
+        (chunk) => chunk.state === "loaded" && chunk.texture === undefined
+      )
+    );
+  }
+
   private uploadLoadedChunks() {
-    if (!this.uploadTexture_ || this.awaitingUpload_.size === 0) return;
+    if (!this.uploadTexture_) return;
 
-    const pending = [...this.awaitingUpload_.keys()].sort(comparePriority);
-    const count = Math.min(pending.length, this.maxGpuUploadsPerUpdate_);
-
-    for (let i = 0; i < count; i++) {
-      const chunk = pending[i];
-      const store = this.awaitingUpload_.get(chunk)!;
-      this.awaitingUpload_.delete(chunk);
-      const texture = Texture3D.createWithChunk(chunk);
-      this.uploadTexture_(texture);
-      store.setChunkTexture(chunk, texture);
+    const pending = this.awaitingUpload().sort(comparePriority);
+    for (const chunk of pending.slice(0, this.maxGpuUploadsPerUpdate_)) {
+      chunk.texture = Texture3D.createWithChunk(chunk);
+      this.uploadTexture_(chunk.texture);
       clearChunkData(chunk);
     }
   }
 
-  private disposeChunkTexture(store: ChunkStore, chunk: Chunk) {
-    const texture = store.clearChunkTexture(chunk);
+  private disposeChunkTexture(chunk: Chunk) {
+    const texture = chunk.texture;
+    chunk.texture = undefined;
     if (texture !== undefined) this.disposeTexture_?.(texture);
   }
 }

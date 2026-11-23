@@ -122,7 +122,7 @@ function makeResident(store: ChunkStore, lod: number) {
       orderKey: null,
     });
     chunk.state = "loaded";
-    store.setChunkTexture(chunk, {} as Texture);
+    chunk.texture = {} as Texture;
   });
 }
 
