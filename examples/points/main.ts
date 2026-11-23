@@ -87,11 +87,14 @@ const labels = new LabelLayer({
 
 const { x, y } = dapi.getDimensions();
 const [xLod, yLod] = [x.lods[0], y.lods[0]];
+const centerX = xLod.translation + 0.5 * xLod.size * xLod.scale;
+const centerY = yLod.translation + 0.52 * yLod.size * yLod.scale;
+const halfSize = 0.09 * yLod.size * yLod.scale;
 const camera = new OrthographicCamera({
-  left: xLod.translation,
-  right: xLod.translation + xLod.size * xLod.scale,
-  top: yLod.translation,
-  bottom: yLod.translation + yLod.size * yLod.scale,
+  left: centerX - halfSize,
+  right: centerX + halfSize,
+  top: centerY - halfSize,
+  bottom: centerY + halfSize,
 });
 const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
 const viewport = new Viewport({
@@ -137,7 +140,7 @@ const updateGenes = () => {
 };
 updateGenes();
 
-const gui = new GUI({ width: 280 });
+const gui = new GUI({ width: 280 }).close();
 gui
   .add(settings, "nuclei")
   .onChange((on: boolean) => (labels.opacity = on ? 0.3 : 0));

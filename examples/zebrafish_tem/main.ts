@@ -1,4 +1,6 @@
 import {
+  type ChannelProps,
+  ColorMapPreset,
   Idetik,
   ImageLayer,
   OmeZarrImageSource,
@@ -31,8 +33,12 @@ const extent = {
   bottom: yLod.translation + yLod.scale * yLod.size,
 };
 
-const tem = () => new ImageLayer({ source, sliceCoords: { c: [0] } });
+const channel: ChannelProps = { colorMap: ColorMapPreset.magma };
+
+const tem = () =>
+  new ImageLayer({ source, sliceCoords: { c: [0] }, channelProps: [channel] });
 const imageLayer = tem();
+const minimapLayer = tem();
 
 const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
 const camera = new OrthographicCamera(extent);
@@ -53,7 +59,7 @@ const scaleBar = new ScaleBar({
 const minimap = new Minimap({
   camera,
   extent,
-  layer: tem(),
+  layer: minimapLayer,
   element: document.querySelector<HTMLDivElement>("#minimap")!,
 });
 
@@ -65,5 +71,12 @@ const idetik = new Idetik({
 idetik.start();
 
 const gui = new GUI({ width: 280 }).close();
+gui
+  .add(channel, "colorMap", { None: undefined, ...ColorMapPreset })
+  .name("Color map")
+  .onChange(() => {
+    imageLayer.setChannelProps([channel]);
+    minimapLayer.setChannelProps([channel]);
+  });
 gui.add(minimap, "enabled").name("Show minimap");
 gui.add(imageLayer, "debugMode").name("Show tile wireframes");

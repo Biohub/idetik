@@ -21,7 +21,7 @@ Link the shared page styles from `index.html`. They include a theme for [lil-gui
 
 ## Adding an example
 
-Add the folder, then an entry to [`examples.ts`](examples.ts). The list's order is the order everywhere: the `npm run examples` picker, the docs gallery, and the docs sidebar.
+Add the folder, then an entry to [`examples.ts`](examples.ts). The list's order is the order everywhere: the `npm run examples` picker, the docs gallery, and the docs sidebar. An entry with `hidden: true` is left out of all three.
 
 ```ts
 {
@@ -35,6 +35,6 @@ Add the folder, then an entry to [`examples.ts`](examples.ts). The list's order 
 },
 ```
 
-`id` is the folder name and gives the docs page `/examples/<id>`. `title` heads the docs page and the gallery card and names the example in the `npm run examples` picker; match it to the `<title>` in `index.html`. `label` is the short name in the docs sidebar; keep it to one line (about 18 characters). `description` appears under the title on the example's page. `data` appears under the viewer and as the gallery card's subtitle; if `dataUrl` is set, the line under the viewer links to it (use it for a README or license page). `tags` are short lowercase feature names shown on the gallery card; keep to two or three and reuse existing ones where they fit.
+`id` is the folder name and gives the docs page `/examples/<id>`. `title` heads the docs page and the gallery card and names the example in the `npm run examples` picker; match it to the `<title>` in `index.html`. `label` is the short name in the docs sidebar; keep it to one line (about 18 characters). `description` appears under the title on the example's page. `data` appears under the viewer and as the gallery card's subtitle; if `dataUrl` is set, the line under the viewer links to it (use it for a README or license page). `tags` are short lowercase feature names shown on the gallery card; keep to two or three and reuse existing ones where they fit. The sidebar icon is the center of `thumbnail.jpg`. To use a different image there, add it to the folder and name it in an optional `sidebarThumbnail` field.
 
 Preview with `npm run docs:dev`.

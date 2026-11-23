@@ -22,8 +22,8 @@ function getLatestVersion() {
 const thumb = (src) => `<span class="example-thumb"><img src="..${src}" alt=""></span>`
 
 function examplesSidebar() {
-  const items = examples.map(({ id, label }) => ({
-    text: `${thumb(`/examples/live/${id}/thumbnail.jpg`)}${label}`,
+  const items = examples.map(({ id, label, sidebarThumbnail = 'thumbnail.jpg' }) => ({
+    text: `${thumb(`/examples/live/${id}/${sidebarThumbnail}`)}${label}`,
     link: `/examples/${id}`,
   }))
   return [{ items }]

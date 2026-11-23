@@ -173,8 +173,8 @@ void main() {
   float specks = puncta(p + parallax * .035 + drift, 62., 5.)
     + .6 * puncta(p + parallax * .02 + drift * .7, 96., 9.);
 
-  float exposure = .32 + .55 * light + .8 * focus;
-  vec3 col = BG + glow * .42;
+  float exposure = .335 + .575 * light + .835 * focus;
+  vec3 col = BG + glow * .44;
   col += far * .045 * exposure;
   col += near * .03 * exposure;
   col += mid * .19 * exposure;

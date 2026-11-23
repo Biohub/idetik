@@ -172,10 +172,22 @@ onBeforeUnmount(() => cleanup());
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(410px 310px at 90% 44%, rgb(110 79 249 / 9%), transparent),
-    radial-gradient(280px 220px at 70% 18%, rgb(217 70 239 / 5%), transparent),
-    radial-gradient(380px 300px at 12% 58%, rgb(34 211 238 / 7%), transparent),
-    radial-gradient(260px 200px at 30% 8%, rgb(110 79 249 / 5%), transparent);
+    radial-gradient(
+      410px 310px at 90% 44%,
+      rgb(110 79 249 / 9.5%),
+      transparent
+    ),
+    radial-gradient(
+      280px 220px at 70% 18%,
+      rgb(217 70 239 / 5.5%),
+      transparent
+    ),
+    radial-gradient(
+      380px 300px at 12% 58%,
+      rgb(34 211 238 / 7.5%),
+      transparent
+    ),
+    radial-gradient(260px 200px at 30% 8%, rgb(110 79 249 / 5.5%), transparent);
   -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent);
   mask-image: linear-gradient(to bottom, #000 70%, transparent);
 }

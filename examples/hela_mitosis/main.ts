@@ -93,7 +93,7 @@ const viewport = new Viewport({
 });
 new Idetik({ canvas, viewports: [viewport] }).start();
 
-const gui = new GUI({ width: 320 });
+const gui = new GUI({ width: 320 }).close();
 addDimensionSlider({
   gui,
   sliceCoords,
