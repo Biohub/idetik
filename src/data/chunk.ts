@@ -33,12 +33,12 @@ export function isChunkData(value: unknown): value is ChunkData {
 }
 
 // What a view wants from one chunk, or all of a store's views combined.
-export type ChunkDemand = {
+export type ChunkDemand = Readonly<{
   visible: boolean;
   prefetch: boolean;
   priority: number;
   orderKey: number;
-};
+}>;
 
 export type Chunk = {
   data?: ChunkData;
@@ -70,12 +70,8 @@ export type Chunk = {
     y: number;
     z: number;
   };
-  // the store's combined demand for this chunk; priority and orderKey are
-  // null when no view wants it
-  visible: boolean;
-  prefetch: boolean;
-  priority: number | null;
-  orderKey: number | null;
+  // the store's combined demand for this chunk, null when no view wants it
+  demand: ChunkDemand | null;
 };
 
 // Maps Idetik spatial dimensions (x, y, z) and non-spatial dimensions (c, t)

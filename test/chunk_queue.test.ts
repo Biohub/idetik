@@ -19,7 +19,7 @@ describe("ChunkQueue", () => {
   test("successful load sets state to loaded", async () => {
     const queue = new ChunkQueue(8);
     const ctl = makeControllableLoader();
-    const chunk = makeChunk({ state: "queued", priority: 0 });
+    const chunk = makeChunk({ state: "queued", demand: { priority: 0 } });
 
     queue.enqueue(chunk, ctl.loader);
     expect(queue.pendingCount).toBe(1);
@@ -58,9 +58,18 @@ describe("ChunkQueue", () => {
     const ctl1 = makeControllableLoader(() => started.push(1));
     const ctl5 = makeControllableLoader(() => started.push(5));
 
-    queue.enqueue(makeChunk({ state: "queued", priority: 5 }), ctl5.loader);
-    queue.enqueue(makeChunk({ state: "queued", priority: 1 }), ctl1.loader);
-    queue.enqueue(makeChunk({ state: "queued", priority: 0 }), ctl0.loader);
+    queue.enqueue(
+      makeChunk({ state: "queued", demand: { priority: 5 } }),
+      ctl5.loader
+    );
+    queue.enqueue(
+      makeChunk({ state: "queued", demand: { priority: 1 } }),
+      ctl1.loader
+    );
+    queue.enqueue(
+      makeChunk({ state: "queued", demand: { priority: 0 } }),
+      ctl0.loader
+    );
 
     queue.flush();
     await expectCounts(queue, { pending: 0, running: 3 });
@@ -80,9 +89,18 @@ describe("ChunkQueue", () => {
     const ctl1 = makeControllableLoader(() => started.push(1));
     const ctl5 = makeControllableLoader(() => started.push(5));
 
-    queue.enqueue(makeChunk({ state: "queued", priority: 5 }), ctl5.loader);
-    queue.enqueue(makeChunk({ state: "queued", priority: 1 }), ctl1.loader);
-    queue.enqueue(makeChunk({ state: "queued", priority: 0 }), ctl0.loader);
+    queue.enqueue(
+      makeChunk({ state: "queued", demand: { priority: 5 } }),
+      ctl5.loader
+    );
+    queue.enqueue(
+      makeChunk({ state: "queued", demand: { priority: 1 } }),
+      ctl1.loader
+    );
+    queue.enqueue(
+      makeChunk({ state: "queued", demand: { priority: 0 } }),
+      ctl0.loader
+    );
 
     queue.flush();
     await expectCounts(queue, { pending: 2, running: 1 });
@@ -109,15 +127,15 @@ describe("ChunkQueue", () => {
     const ctl1 = makeControllableLoader(() => started.push(1));
 
     queue.enqueue(
-      makeChunk({ state: "queued", priority: 1, orderKey: 2 }),
+      makeChunk({ state: "queued", demand: { priority: 1, orderKey: 2 } }),
       ctl2.loader
     );
     queue.enqueue(
-      makeChunk({ state: "queued", priority: 1, orderKey: 0 }),
+      makeChunk({ state: "queued", demand: { priority: 1, orderKey: 0 } }),
       ctl0.loader
     );
     queue.enqueue(
-      makeChunk({ state: "queued", priority: 1, orderKey: 1 }),
+      makeChunk({ state: "queued", demand: { priority: 1, orderKey: 1 } }),
       ctl1.loader
     );
 
@@ -133,7 +151,7 @@ describe("ChunkQueue", () => {
 
   test("does not process the same chunk twice", async () => {
     const queue = new ChunkQueue(8);
-    const chunk = makeChunk({ state: "queued", priority: 0 });
+    const chunk = makeChunk({ state: "queued", demand: { priority: 0 } });
 
     const ctl = makeControllableLoader();
     queue.enqueue(chunk, ctl.loader);
@@ -149,8 +167,14 @@ describe("ChunkQueue", () => {
   test("cancel pending request prevents it from starting", async () => {
     const queue = new ChunkQueue(1);
 
-    const pendingChunk = makeChunk({ state: "queued", priority: 0 });
-    const blockerChunk = makeChunk({ state: "queued", priority: 0 });
+    const pendingChunk = makeChunk({
+      state: "queued",
+      demand: { priority: 0 },
+    });
+    const blockerChunk = makeChunk({
+      state: "queued",
+      demand: { priority: 0 },
+    });
     const blockerCtl = makeControllableLoader();
 
     queue.enqueue(blockerChunk, blockerCtl.loader);

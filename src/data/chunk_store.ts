@@ -134,7 +134,7 @@ export class ChunkStore {
     const { lod, t, c, z, y, x } = this.indicesOfKey(key);
     const chunk: Chunk = {
       ...this.placement(lod, t, c, z, y, x),
-      ...(this.demand_.get(key) ?? UNWANTED),
+      demand: this.demand_.get(key) ?? null,
       state: "unloaded",
       rowAlignmentBytes: 1,
     };
@@ -263,7 +263,7 @@ export class ChunkStore {
     }
 
     for (const [key, chunk] of this.entries_) {
-      Object.assign(chunk, demand.get(key) ?? UNWANTED);
+      chunk.demand = demand.get(key) ?? null;
     }
 
     this.removeDisposedViews();
@@ -338,13 +338,6 @@ export class ChunkStore {
     return this.dimensions_.c?.lods[0].size ?? 1;
   }
 }
-
-const UNWANTED = {
-  visible: false,
-  prefetch: false,
-  priority: null,
-  orderKey: null,
-};
 
 function inRange(i: number, size: number): boolean {
   return Number.isInteger(i) && i >= 0 && i < size;

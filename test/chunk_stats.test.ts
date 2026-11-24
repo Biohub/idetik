@@ -31,7 +31,7 @@ function updateView(view: ChunkStoreView) {
 
 function visibleChunks(view: ChunkStoreView) {
   return [...view.demand]
-    .filter(([, state]) => state.visible)
+    .filter(([, demand]) => demand.visible)
     .map(([key]) => key);
 }
 
@@ -77,10 +77,10 @@ describe("chunk stats", () => {
 
     const states = [...view.demand];
     const drawn = states.filter(
-      ([key, state]) => state.visible && store.lodOfKey(key) === 0
+      ([key, demand]) => demand.visible && store.lodOfKey(key) === 0
     );
     const fallback = states.filter(
-      ([key, state]) => state.visible && store.lodOfKey(key) === 1
+      ([key, demand]) => demand.visible && store.lodOfKey(key) === 1
     );
     const prefetched = states.filter(
       ([key]) => store.indicesOfKey(key).t !== 0
