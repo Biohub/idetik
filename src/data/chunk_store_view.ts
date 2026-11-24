@@ -516,7 +516,6 @@ export class ChunkStoreView {
   ): void {
     const range = this.chunkIndexRange(bounds, lod);
     if (!range) return;
-    if (!this.store_.hasChunksAtTime(timeIndex)) return;
     for (const c of channels)
       this.store_.forEachChunkInRange(lod, timeIndex, c, range, callback);
   }
@@ -527,7 +526,6 @@ export class ChunkStoreView {
     channels: number[],
     callback: (key: ChunkKey, chunk: ChunkGeometry) => void
   ): void {
-    if (!this.store_.hasChunksAtTime(timeIndex)) return;
     for (const c of channels)
       this.store_.forEachSpatialChunk(lod, timeIndex, c, callback);
   }

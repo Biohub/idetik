@@ -35,7 +35,6 @@ type WantedChunk = {
   store: ChunkStore;
   key: ChunkKey;
   demand: ChunkViewState;
-  entry?: Chunk;
 };
 
 export class ChunkManager {
@@ -123,7 +122,7 @@ export class ChunkManager {
     for (const { source, store } of this.stores_) {
       store.updateDemand();
 
-      for (const chunk of [...store.entries.values()]) {
+      for (const chunk of store.entries.values()) {
         if (chunk.priority === null) {
           this.releaseChunk(store, chunk);
         } else {
@@ -138,7 +137,7 @@ export class ChunkManager {
           entry.state === "queued" ||
           entry.state === "unloaded"
         ) {
-          candidates.push({ source, store, key, demand, entry });
+          candidates.push({ source, store, key, demand });
         }
       }
     }
@@ -154,7 +153,6 @@ export class ChunkManager {
 
       for (const chunk of store.residentChunks) {
         this.disposeChunkTexture(chunk);
-        chunk.state = "unloaded";
         store.retire(chunk);
       }
       this.stores_.splice(i, 1);
@@ -171,7 +169,6 @@ export class ChunkManager {
     if (chunk.state === "loading") return;
 
     clearChunkData(chunk);
-    chunk.state = "unloaded";
     store.retire(chunk);
   }
 
@@ -187,7 +184,7 @@ export class ChunkManager {
     const victims = this.evictionCandidates();
     let oversized = false;
 
-    for (const { source, store, key, demand, entry } of candidates) {
+    for (const { source, store, key, demand } of candidates) {
       const bytes =
         store.elementCount(key) * source.loader.getBytesPerElement();
 
@@ -210,7 +207,7 @@ export class ChunkManager {
       if (committedBytes + bytes > this.memoryLimitBytes_) continue;
 
       committedBytes += bytes;
-      const chunk = entry ?? store.admit(key, demand);
+      const chunk = store.getEntry(key) ?? store.admit(key, demand);
       chunk.state = "queued";
       this.queue_.enqueue(chunk, (signal) =>
         source.loader.loadChunkData(chunk, signal)
@@ -268,8 +265,6 @@ export class ChunkManager {
 
       committedBytes -= textureStorageBytes(victim.chunk.texture);
       this.disposeChunkTexture(victim.chunk);
-      victim.chunk.state = "unloaded";
-      victim.chunk.releasedAt = undefined;
       victim.store.retire(victim.chunk);
     }
 

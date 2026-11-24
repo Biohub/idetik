@@ -23,7 +23,7 @@ interface LodGrid {
   baseKey: number;
 }
 
-export interface ChunkIndexRange {
+interface ChunkIndexRange {
   xMin: number;
   xMax: number;
   yMin: number;
@@ -101,7 +101,7 @@ export class ChunkStore {
   }
 
   public timeOfKey(key: ChunkKey): number {
-    return this.geometryOf(key).chunkIndex.t;
+    return this.indicesOf(key).t;
   }
 
   public getEntry(key: ChunkKey): Chunk | undefined {
@@ -132,12 +132,12 @@ export class ChunkStore {
 
   public retire(chunk: Chunk): void {
     const { t, c, z, y, x } = chunk.chunkIndex;
-    const key = this.keyOf(chunk.lod, t, c, z, y, x);
-    if (this.entries_.get(key) === chunk) this.entries_.delete(key);
+    this.entries_.delete(this.keyOf(chunk.lod, t, c, z, y, x));
   }
 
   public elementCount(key: ChunkKey): number {
-    const { shape } = this.geometryOf(key);
+    const { lod, z, y, x } = this.indicesOf(key);
+    const shape = this.shape(lod, z, y, x);
     return shape.x * shape.y * shape.z;
   }
 
@@ -176,6 +176,11 @@ export class ChunkStore {
   }
 
   private geometryOf(key: ChunkKey): ChunkGeometry {
+    const { lod, t, c, z, y, x } = this.indicesOf(key);
+    return this.geometry(lod, t, c, z, y, x);
+  }
+
+  private indicesOf(key: ChunkKey) {
     const lod = this.lodOfKey(key);
     const g = this.grids_[lod];
     let rest = key - g.baseKey;
@@ -187,7 +192,20 @@ export class ChunkStore {
     rest = (rest - z) / g.chunksZ;
     const c = rest % this.chunksC_;
     const t = (rest - c) / this.chunksC_;
-    return this.geometry(lod, t, c, z, y, x);
+    return { lod, t, c, z, y, x };
+  }
+
+  private shape(lod: number, z: number, y: number, x: number) {
+    const xLod = this.dimensions_.x.lods[lod];
+    const yLod = this.dimensions_.y.lods[lod];
+    const zLod = this.dimensions_.z?.lods[lod];
+    const { chunkWidth, chunkHeight, chunkDepth } = this.grids_[lod];
+    return {
+      x: Math.min(chunkWidth, xLod.size - x * chunkWidth),
+      y: Math.min(chunkHeight, yLod.size - y * chunkHeight),
+      z: Math.min(chunkDepth, (zLod?.size ?? 1) - z * chunkDepth),
+      c: 1,
+    };
   }
 
   private geometry(
@@ -204,12 +222,7 @@ export class ChunkStore {
     const { chunkWidth, chunkHeight, chunkDepth } = this.grids_[lod];
     return {
       lod,
-      shape: {
-        x: Math.min(chunkWidth, xLod.size - x * chunkWidth),
-        y: Math.min(chunkHeight, yLod.size - y * chunkHeight),
-        z: Math.min(chunkDepth, (zLod?.size ?? 1) - z * chunkDepth),
-        c: 1,
-      },
+      shape: this.shape(lod, z, y, x),
       chunkIndex: { x, y, z, c, t },
       scale: { x: xLod.scale, y: yLod.scale, z: zLod?.scale ?? 1 },
       offset: {
