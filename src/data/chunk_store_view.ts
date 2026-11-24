@@ -49,6 +49,8 @@ export class ChunkStoreView {
   private readonly sourceMaxSquareDistance2D_: number;
   private readonly chunkViewStates_: Map<ChunkKey, ChunkViewState> = new Map();
 
+  private chunkViewStatesChanged_ = false;
+
   private isDisposed_ = false;
 
   constructor(
@@ -86,6 +88,17 @@ export class ChunkStoreView {
 
   public get chunkViewStates(): ReadonlyMap<ChunkKey, ChunkViewState> {
     return this.chunkViewStates_;
+  }
+
+  public consumeChunkViewStatesChanged(): boolean {
+    const changed = this.chunkViewStatesChanged_;
+    this.chunkViewStatesChanged_ = false;
+    return changed;
+  }
+
+  private resetChunkViewStates(): void {
+    this.chunkViewStates_.clear();
+    this.chunkViewStatesChanged_ = true;
   }
 
   public get isDisposed(): boolean {
@@ -189,7 +202,7 @@ export class ChunkStoreView {
         "updateChunkViewStates called with no chunks initialized"
       );
       this.mode_ = null;
-      this.chunkViewStates_.clear();
+      this.resetChunkViewStates();
       return;
     }
 
@@ -198,7 +211,7 @@ export class ChunkStoreView {
 
     const viewBounds3D = this.makeViewBounds3D(viewBounds2D, sliceBounds);
 
-    this.chunkViewStates_.clear();
+    this.resetChunkViewStates();
 
     const channels = this.channelsOfInterest(sliceCoords.c);
     const fallbackLOD = this.lodRange().max;
@@ -279,7 +292,7 @@ export class ChunkStoreView {
         "updateChunksForVolume called with no chunks initialized"
       );
       this.mode_ = null;
-      this.chunkViewStates_.clear();
+      this.resetChunkViewStates();
       return;
     }
 
@@ -288,7 +301,7 @@ export class ChunkStoreView {
     // Currently uses a fixed LOD from policy.
     this.targetLOD_ = this.policy_.lod.min;
 
-    this.chunkViewStates_.clear();
+    this.resetChunkViewStates();
 
     const channels = this.channelsOfInterest(sliceCoords.c);
     const fallbackLOD = this.lodRange().max;
@@ -355,7 +368,7 @@ export class ChunkStoreView {
   public dispose(): void {
     this.isDisposed_ = true;
     this.mode_ = null;
-    this.chunkViewStates_.clear();
+    this.resetChunkViewStates();
   }
 
   public setImageSourcePolicy(newPolicy: ImageSourcePolicy, key: symbol) {

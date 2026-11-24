@@ -257,6 +257,12 @@ export class ChunkStore {
   }
 
   public updateDemand(): void {
+    let changed = false;
+    for (const view of this.views_) {
+      if (view.consumeChunkViewStatesChanged()) changed = true;
+    }
+    if (!changed) return;
+
     const demand = this.demand_;
     demand.clear();
     for (const view of this.views_) {
