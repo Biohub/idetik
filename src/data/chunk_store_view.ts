@@ -145,7 +145,7 @@ export class ChunkStoreView {
     const chunks: Chunk[] = [];
     for (const [key, demand] of this.demand_) {
       if (!demand.visible) continue;
-      const chunk = this.store_.getEntry(key);
+      const chunk = this.store_.entries.get(key);
       if (chunk?.state === "loaded" && chunk.texture) chunks.push(chunk);
     }
     return chunks;
@@ -355,7 +355,7 @@ export class ChunkStoreView {
     for (const [key, demand] of this.demand_) {
       if (!demand.visible || this.store_.lodOfKey(key) !== lod) continue;
       foundAny = true;
-      if (this.store_.getEntry(key)?.texture === undefined) return false;
+      if (this.store_.entries.get(key)?.texture === undefined) return false;
     }
     return foundAny;
   }

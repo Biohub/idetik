@@ -131,7 +131,7 @@ export class ChunkManager {
       }
 
       for (const [key, demand] of store.demand) {
-        const entry = store.getEntry(key);
+        const entry = store.entries.get(key);
         if (
           entry === undefined ||
           entry.state === "queued" ||
@@ -207,7 +207,7 @@ export class ChunkManager {
       if (committedBytes + bytes > this.memoryLimitBytes_) continue;
 
       committedBytes += bytes;
-      const chunk = store.getEntry(key) ?? store.admit(key);
+      const chunk = store.entries.get(key) ?? store.admit(key);
       chunk.state = "queued";
       this.queue_.enqueue(chunk, (signal) =>
         source.loader.loadChunkData(chunk, signal)

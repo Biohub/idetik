@@ -87,7 +87,7 @@ export function computeSourceChunkStats(
     const t = store.indicesOfKey(key).t;
     requested += 1;
     timepoints.requested[t] += 1;
-    if (store.getEntry(key)?.texture !== undefined) {
+    if (store.entries.get(key)?.texture !== undefined) {
       resident += 1;
       timepoints.resident[t] += 1;
     }
@@ -113,7 +113,7 @@ export function computeViewportChunkStats(
   for (const { view, store } of views) {
     const currentLOD = view.currentLOD;
     for (const [key, demand] of view.demand) {
-      const isResident = store.getEntry(key)?.texture !== undefined;
+      const isResident = store.entries.get(key)?.texture !== undefined;
       requested += 1;
       if (isResident) resident += 1;
 

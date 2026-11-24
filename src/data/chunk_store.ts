@@ -121,10 +121,6 @@ export class ChunkStore {
     return { lod, t, c, z, y, x };
   }
 
-  public getEntry(key: ChunkKey): Chunk | undefined {
-    return this.entries_.get(key);
-  }
-
   public get entries(): ReadonlyMap<ChunkKey, Chunk> {
     return this.entries_;
   }
