@@ -6,7 +6,7 @@ import {
   SourceDimension,
 } from "./chunk";
 import { AxisComponent, SliceAxes, SpatialAxis } from "../math/axes";
-import type { ChunkGeometry, ChunkKey, ChunkStore } from "./chunk_store";
+import type { ChunkPlacement, ChunkKey, ChunkStore } from "./chunk_store";
 import { ImageSourcePolicy } from "../core/image_source_policy";
 import { ReadonlyVec2, vec2, vec3, mat4 } from "gl-matrix";
 import { Box2 } from "../math/box2";
@@ -289,7 +289,7 @@ export class ChunkStoreView {
     const fallbackLOD = this.lodRange().max;
     const currentLOD = this.currentLOD;
 
-    const markVolumeChunkVisible = (key: ChunkKey, chunk: ChunkGeometry) => {
+    const markVolumeChunkVisible = (key: ChunkKey, chunk: ChunkPlacement) => {
       const isFallbackLOD = chunk.lod === fallbackLOD;
       const isCurrentLOD = chunk.lod === currentLOD;
       const priority = this.computePriority(
@@ -470,7 +470,9 @@ export class ChunkStoreView {
   }
 
   private channelsOfInterest(c: number[] | undefined): number[] {
-    return c ?? Array.from({ length: this.store_.channelCount }, (_, i) => i);
+    const count = this.store_.channelCount;
+    if (c === undefined) return Array.from({ length: count }, (_, i) => i);
+    return c.filter((i) => Number.isInteger(i) && i >= 0 && i < count);
   }
 
   // Half-open chunk-index range [min, max) at a given LOD that covers `bounds`.
@@ -512,7 +514,7 @@ export class ChunkStoreView {
     lod: number,
     channels: number[],
     bounds: Box3,
-    callback: (key: ChunkKey, chunk: ChunkGeometry) => void
+    callback: (key: ChunkKey, chunk: ChunkPlacement) => void
   ): void {
     const range = this.chunkIndexRange(bounds, lod);
     if (!range) return;
@@ -524,7 +526,7 @@ export class ChunkStoreView {
     timeIndex: number,
     lod: number,
     channels: number[],
-    callback: (key: ChunkKey, chunk: ChunkGeometry) => void
+    callback: (key: ChunkKey, chunk: ChunkPlacement) => void
   ): void {
     for (const c of channels)
       this.store_.forEachSpatialChunk(lod, timeIndex, c, callback);
@@ -635,7 +637,10 @@ export class ChunkStoreView {
     );
   }
 
-  private squareDistance2D(chunk: ChunkGeometry, center: ReadonlyVec2): number {
+  private squareDistance2D(
+    chunk: ChunkPlacement,
+    center: ReadonlyVec2
+  ): number {
     function axisCenter(axis: SpatialAxis) {
       return chunk.offset[axis] + 0.5 * chunk.shape[axis] * chunk.scale[axis];
     }
@@ -673,7 +678,7 @@ class VisibleSliceRegion {
     }
   }
 
-  public contains(chunk: ChunkGeometry): boolean {
+  public contains(chunk: ChunkPlacement): boolean {
     const { u, v, w } = this.axes_;
     const sliceCoordW = this.sliceCoordByLod_?.[chunk.lod];
     if (
@@ -699,6 +704,6 @@ function ceilIndex(value: number): number {
   return Math.ceil(value - CHUNK_EDGE_TOLERANCE);
 }
 
-function chunkEnd(chunk: ChunkGeometry, axis: SpatialAxis): number {
+function chunkEnd(chunk: ChunkPlacement, axis: SpatialAxis): number {
   return chunk.offset[axis] + chunk.shape[axis] * chunk.scale[axis];
 }

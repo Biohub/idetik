@@ -8,7 +8,7 @@ import { ImageSourcePolicy } from "../core/image_source_policy";
 // (lod, t, c, z, y, x) packed into one integer
 export type ChunkKey = number;
 
-export type ChunkGeometry = Pick<
+export type ChunkPlacement = Pick<
   Chunk,
   "lod" | "shape" | "chunkIndex" | "scale" | "offset"
 >;
@@ -87,6 +87,18 @@ export class ChunkStore {
     x: number
   ): ChunkKey {
     const g = this.grids_[lod];
+    if (
+      g === undefined ||
+      !inRange(t, this.chunksT_) ||
+      !inRange(c, this.chunksC_) ||
+      !inRange(z, g.chunksZ) ||
+      !inRange(y, g.chunksY) ||
+      !inRange(x, g.chunksX)
+    ) {
+      throw new RangeError(
+        `Chunk index out of range: lod=${lod} t=${t} c=${c} z=${z} y=${y} x=${x}`
+      );
+    }
     return (
       g.baseKey +
       (((t * this.chunksC_ + c) * g.chunksZ + z) * g.chunksY + y) * g.chunksX +
@@ -122,7 +134,7 @@ export class ChunkStore {
     }
     const { lod, t, c, z, y, x } = this.indicesOf(key);
     const chunk: Chunk = {
-      ...this.geometry(lod, t, c, z, y, x),
+      ...this.placement(lod, t, c, z, y, x),
       ...demand,
       state: "unloaded",
       rowAlignmentBytes: 1,
@@ -147,14 +159,14 @@ export class ChunkStore {
     t: number,
     c: number,
     range: ChunkIndexRange,
-    callback: (key: ChunkKey, geometry: ChunkGeometry) => void
+    callback: (key: ChunkKey, placement: ChunkPlacement) => void
   ): void {
     for (let z = range.zMin; z < range.zMax; ++z)
       for (let y = range.yMin; y < range.yMax; ++y)
         for (let x = range.xMin; x < range.xMax; ++x)
           callback(
             this.keyOf(lod, t, c, z, y, x),
-            this.geometry(lod, t, c, z, y, x)
+            this.placement(lod, t, c, z, y, x)
           );
   }
 
@@ -162,7 +174,7 @@ export class ChunkStore {
     lod: number,
     t: number,
     c: number,
-    callback: (key: ChunkKey, geometry: ChunkGeometry) => void
+    callback: (key: ChunkKey, placement: ChunkPlacement) => void
   ): void {
     const { chunksX, chunksY, chunksZ } = this.grids_[lod];
     const range = {
@@ -204,14 +216,14 @@ export class ChunkStore {
     };
   }
 
-  private geometry(
+  private placement(
     lod: number,
     t: number,
     c: number,
     z: number,
     y: number,
     x: number
-  ): ChunkGeometry {
+  ): ChunkPlacement {
     const xLod = this.dimensions_.x.lods[lod];
     const yLod = this.dimensions_.y.lods[lod];
     const zLod = this.dimensions_.z?.lods[lod];
@@ -371,6 +383,10 @@ const UNWANTED: ChunkViewState = {
   priority: null,
   orderKey: null,
 };
+
+function inRange(i: number, size: number): boolean {
+  return Number.isInteger(i) && i >= 0 && i < size;
+}
 
 function combine(a: ChunkViewState, b: ChunkViewState): ChunkViewState {
   const best = b.priority! < a.priority! ? b : a;

@@ -105,6 +105,27 @@ describe("ChunkStoreView slice chunk range", () => {
   });
 });
 
+describe("ChunkStoreView disposal", () => {
+  test("demand survives disposing one of two views that want the same chunks", () => {
+    const store = new ChunkStore(createPyramidDimensions());
+    const view1 = store.addView(createNoPrefetchPolicy());
+    const view2 = store.addView(createNoPrefetchPolicy());
+    view1.updateChunksForImage({ z: 0, c: [0] }, viewOfWidth(512));
+    view2.updateChunksForImage({ z: 0, c: [0] }, viewOfWidth(512));
+    store.updateDemand();
+    const demanded = new Set(store.demand.keys());
+    expect(demanded.size).toBeGreaterThan(0);
+
+    view1.dispose();
+    store.updateDemand();
+    expect(new Set(store.demand.keys())).toEqual(demanded);
+
+    view2.dispose();
+    store.updateDemand();
+    expect(store.demand.size).toBe(0);
+  });
+});
+
 // A 512-unit view over `bufferWidthPx` pixels: 256 selects LOD 1, 512 LOD 0.
 function viewOfWidth(bufferWidthPx: number) {
   return {
