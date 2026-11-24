@@ -108,6 +108,7 @@ describe("chunk stats", () => {
     const visible = visibleChunks(view1);
     makeResident(store, visible[0]);
 
+    store.updateDemand();
     const stats = computeSourceChunkStats(source, store);
 
     expect(stats.requested).toBe(visible.length);

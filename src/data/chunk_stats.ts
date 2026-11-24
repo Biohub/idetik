@@ -1,5 +1,5 @@
 import { ChunkSource } from "./chunk";
-import type { ChunkKey, ChunkStore } from "./chunk_store";
+import type { ChunkStore } from "./chunk_store";
 import type { ChunkStoreView } from "./chunk_store_view";
 
 /**
@@ -83,36 +83,17 @@ export function computeSourceChunkStats(
   let requested = 0;
   let resident = 0;
 
-  const views = store.views;
-  for (let i = 0; i < views.length; i++) {
-    for (const [key, state] of views[i].chunkViewStates) {
-      if (state.priority === null) continue;
-      if (isRequestedByEarlierView(key, views, i)) continue;
-
-      const t = store.timeOfKey(key);
-      requested += 1;
-      timepoints.requested[t] += 1;
-      if (store.getEntry(key)?.texture !== undefined) {
-        resident += 1;
-        timepoints.resident[t] += 1;
-      }
+  for (const key of store.demand.keys()) {
+    const t = store.timeOfKey(key);
+    requested += 1;
+    timepoints.requested[t] += 1;
+    if (store.getEntry(key)?.texture !== undefined) {
+      resident += 1;
+      timepoints.resident[t] += 1;
     }
   }
 
   return { source, requested, resident, timepoints };
-}
-
-// avoids allocating a set per call to count chunks shared by views once
-function isRequestedByEarlierView(
-  key: ChunkKey,
-  views: ReadonlyArray<ChunkStoreView>,
-  index: number
-): boolean {
-  for (let i = 0; i < index; i++) {
-    const state = views[i].chunkViewStates.get(key);
-    if (state !== undefined && state.priority !== null) return true;
-  }
-  return false;
 }
 
 /**
