@@ -196,10 +196,10 @@ export class ChunkStoreView {
     if (!changed) return;
 
     const currentTimeIndex = this.timeIndex(sliceCoords.t);
-    if (!this.store_.hasChunksAtTime(currentTimeIndex)) {
+    if (!this.hasTimeIndex(currentTimeIndex)) {
       Logger.warn(
         "ChunkStoreView",
-        "updateChunkDemands called with no chunks initialized"
+        `Time index ${currentTimeIndex} is outside the source`
       );
       this.mode_ = null;
       this.resetDemand();
@@ -286,10 +286,10 @@ export class ChunkStoreView {
     if (!changed) return;
 
     const currentTimeIndex = this.timeIndex(sliceCoords.t);
-    if (!this.store_.hasChunksAtTime(currentTimeIndex)) {
+    if (!this.hasTimeIndex(currentTimeIndex)) {
       Logger.warn(
         "ChunkStoreView",
-        "updateChunksForVolume called with no chunks initialized"
+        `Time index ${currentTimeIndex} is outside the source`
       );
       this.mode_ = null;
       this.resetDemand();
@@ -405,7 +405,7 @@ export class ChunkStoreView {
     viewBounds3D: Box3,
     viewBoundsCenter2D: ReadonlyVec2
   ): void {
-    const numTimePoints = this.store_.dimensions.t?.lods[0].size ?? 1;
+    const numTimePoints = this.store_.timepointCount;
     const windowSize = Math.min(this.policy_.prefetch.t, numTimePoints - 1);
     const priority = this.policy_.priorityMap["prefetchTime"];
     const channels = this.channelsOfInterest(sliceCoords.c);
@@ -444,7 +444,7 @@ export class ChunkStoreView {
     currentTimeIndex: number,
     sliceCoords: SliceCoordinates
   ) {
-    const numTimePoints = this.store_.dimensions.t?.lods[0].size ?? 1;
+    const numTimePoints = this.store_.timepointCount;
     const windowSize = Math.min(this.policy_.prefetch.t, numTimePoints - 1);
     const priority = this.policy_.priorityMap["prefetchTime"];
     const channels = this.channelsOfInterest(sliceCoords.c);
@@ -545,6 +545,10 @@ export class ChunkStoreView {
     const min = Math.max(0, Math.min(lowestResLOD, this.policy_.lod.min));
     const max = Math.max(min, Math.min(lowestResLOD, this.policy_.lod.max));
     return { min, max };
+  }
+
+  private hasTimeIndex(timeIndex: number): boolean {
+    return timeIndex >= 0 && timeIndex < this.store_.timepointCount;
   }
 
   private timeIndex(t: number | undefined): number {
