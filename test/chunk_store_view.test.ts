@@ -135,13 +135,17 @@ function viewOfWidth(bufferWidthPx: number) {
 }
 
 function makeResident(store: ChunkStore, lod: number) {
-  store.forEachSpatialChunk(lod, 0, 0, (key) => {
-    const chunk = store.admit(key, {
-      visible: false,
-      prefetch: false,
-      priority: null,
-      orderKey: null,
-    });
+  // the pyramid fixture has 8 × 8 × 4 chunks at LOD 0, halving per LOD
+  const range = {
+    xMin: 0,
+    xMax: 8 >> lod,
+    yMin: 0,
+    yMax: 8 >> lod,
+    zMin: 0,
+    zMax: 4 >> lod,
+  };
+  store.forEachChunkInRange(lod, 0, 0, range, (key) => {
+    const chunk = store.admit(key);
     chunk.state = "loaded";
     chunk.texture = {} as Texture;
   });

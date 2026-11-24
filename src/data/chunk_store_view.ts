@@ -26,6 +26,11 @@ export const INTERNAL_POLICY_KEY = Symbol("INTERNAL_POLICY_KEY");
 // just past it. In chunk-index units, this keeps it from adding a neighbour.
 const CHUNK_EDGE_TOLERANCE = 1e-6;
 
+const WHOLE_VOLUME = new Box3(
+  vec3.fromValues(-Infinity, -Infinity, -Infinity),
+  vec3.fromValues(Infinity, Infinity, Infinity)
+);
+
 export class ChunkStoreView {
   private readonly store_: ChunkStore;
   private policy_: ImageSourcePolicy;
@@ -145,7 +150,7 @@ export class ChunkStoreView {
     );
 
     const chunks: Chunk[] = [];
-    for (const chunk of this.store_.residentChunks) {
+    for (const chunk of this.store_.residentChunks()) {
       if (chunk.lod < minLOD || chunk.lod > maxLOD) continue;
       if (chunk.chunkIndex.t !== timeIndex) continue;
       if (!channels.has(chunk.chunkIndex.c)) continue;
@@ -289,38 +294,32 @@ export class ChunkStoreView {
     const fallbackLOD = this.lodRange().max;
     const currentLOD = this.currentLOD;
 
-    const markVolumeChunkVisible = (key: ChunkKey, chunk: ChunkPlacement) => {
-      const isFallbackLOD = chunk.lod === fallbackLOD;
-      const isCurrentLOD = chunk.lod === currentLOD;
+    const markVolumeChunksVisible = (lod: number) => {
       const priority = this.computePriority(
-        isFallbackLOD,
-        isCurrentLOD,
+        lod === fallbackLOD,
+        lod === currentLOD,
         true,
         false,
         true
       );
       if (priority === null) return;
-      this.chunkViewStates_.set(key, {
-        visible: true,
-        prefetch: false,
-        priority,
-        orderKey: 0,
-      });
-    };
-    this.iterateAllChunksAtLod(
-      currentTimeIndex,
-      currentLOD,
-      channels,
-      markVolumeChunkVisible
-    );
-    if (currentLOD !== fallbackLOD) {
-      this.iterateAllChunksAtLod(
+      this.iterateChunksInBox(
         currentTimeIndex,
-        fallbackLOD,
+        lod,
         channels,
-        markVolumeChunkVisible
+        WHOLE_VOLUME,
+        (key) => {
+          this.chunkViewStates_.set(key, {
+            visible: true,
+            prefetch: false,
+            priority,
+            orderKey: 0,
+          });
+        }
       );
-    }
+    };
+    markVolumeChunksVisible(currentLOD);
+    if (currentLOD !== fallbackLOD) markVolumeChunksVisible(fallbackLOD);
 
     this.markTimeChunksForPrefetchVolume(currentTimeIndex, sliceCoords);
 
@@ -439,15 +438,21 @@ export class ChunkStoreView {
 
     for (let i = 1; i <= windowSize; ++i) {
       const t = (currentTimeIndex + i) % numTimePoints;
-      this.iterateAllChunksAtLod(t, this.currentLOD, channels, (key) => {
-        const orderKey = i; // nearer along the playback loop first
-        this.chunkViewStates_.set(key, {
-          visible: false,
-          prefetch: true,
-          priority,
-          orderKey,
-        });
-      });
+      this.iterateChunksInBox(
+        t,
+        this.currentLOD,
+        channels,
+        WHOLE_VOLUME,
+        (key) => {
+          const orderKey = i; // nearer along the playback loop first
+          this.chunkViewStates_.set(key, {
+            visible: false,
+            prefetch: true,
+            priority,
+            orderKey,
+          });
+        }
+      );
     }
   }
 
@@ -520,16 +525,6 @@ export class ChunkStoreView {
     if (!range) return;
     for (const c of channels)
       this.store_.forEachChunkInRange(lod, timeIndex, c, range, callback);
-  }
-
-  private iterateAllChunksAtLod(
-    timeIndex: number,
-    lod: number,
-    channels: number[],
-    callback: (key: ChunkKey, chunk: ChunkPlacement) => void
-  ): void {
-    for (const c of channels)
-      this.store_.forEachSpatialChunk(lod, timeIndex, c, callback);
   }
 
   private lodRange(): { min: number; max: number } {

@@ -17,9 +17,6 @@ interface LodGrid {
   chunksX: number;
   chunksY: number;
   chunksZ: number;
-  chunkWidth: number;
-  chunkHeight: number;
-  chunkDepth: number;
   baseKey: number;
 }
 
@@ -60,9 +57,6 @@ export class ChunkStore {
         chunksX: Math.ceil(xLod.size / xLod.chunkSize),
         chunksY: Math.ceil(yLod.size / yLod.chunkSize),
         chunksZ: zLod ? Math.ceil(zLod.size / zLod.chunkSize) : 1,
-        chunkWidth: xLod.chunkSize,
-        chunkHeight: yLod.chunkSize,
-        chunkDepth: zLod?.chunkSize ?? 1,
         baseKey,
       };
       this.grids_.push(grid);
@@ -139,14 +133,14 @@ export class ChunkStore {
     return this.demand_;
   }
 
-  public admit(key: ChunkKey, demand: ChunkViewState): Chunk {
+  public admit(key: ChunkKey): Chunk {
     if (this.entries_.has(key)) {
       throw new Error(`Chunk ${key} is already admitted`);
     }
     const { lod, t, c, z, y, x } = this.indicesOfKey(key);
     const chunk: Chunk = {
       ...this.placement(lod, t, c, z, y, x),
-      ...demand,
+      ...(this.demand_.get(key) ?? UNWANTED),
       state: "unloaded",
       rowAlignmentBytes: 1,
     };
@@ -181,32 +175,14 @@ export class ChunkStore {
           );
   }
 
-  public forEachSpatialChunk(
-    lod: number,
-    t: number,
-    c: number,
-    callback: (key: ChunkKey, placement: ChunkPlacement) => void
-  ): void {
-    const { chunksX, chunksY, chunksZ } = this.grids_[lod];
-    const range = {
-      xMin: 0,
-      xMax: chunksX,
-      yMin: 0,
-      yMax: chunksY,
-      zMin: 0,
-      zMax: chunksZ,
-    };
-    this.forEachChunkInRange(lod, t, c, range, callback);
-  }
-
   private shape(lod: number, z: number, y: number, x: number) {
     const xLod = this.dimensions_.x.lods[lod];
     const yLod = this.dimensions_.y.lods[lod];
     const zLod = this.dimensions_.z?.lods[lod];
-    const { chunkWidth, chunkHeight, chunkDepth } = this.grids_[lod];
+    const chunkDepth = zLod?.chunkSize ?? 1;
     return {
-      x: Math.min(chunkWidth, xLod.size - x * chunkWidth),
-      y: Math.min(chunkHeight, yLod.size - y * chunkHeight),
+      x: Math.min(xLod.chunkSize, xLod.size - x * xLod.chunkSize),
+      y: Math.min(yLod.chunkSize, yLod.size - y * yLod.chunkSize),
       z: Math.min(chunkDepth, (zLod?.size ?? 1) - z * chunkDepth),
       c: 1,
     };
@@ -223,18 +199,17 @@ export class ChunkStore {
     const xLod = this.dimensions_.x.lods[lod];
     const yLod = this.dimensions_.y.lods[lod];
     const zLod = this.dimensions_.z?.lods[lod];
-    const { chunkWidth, chunkHeight, chunkDepth } = this.grids_[lod];
     return {
       lod,
       shape: this.shape(lod, z, y, x),
       chunkIndex: { x, y, z, c, t },
       scale: { x: xLod.scale, y: yLod.scale, z: zLod?.scale ?? 1 },
       offset: {
-        x: xLod.translation + x * chunkWidth * xLod.scale,
-        y: yLod.translation + y * chunkHeight * yLod.scale,
+        x: xLod.translation + x * xLod.chunkSize * xLod.scale,
+        y: yLod.translation + y * yLod.chunkSize * yLod.scale,
         z:
           zLod !== undefined
-            ? zLod.translation + z * chunkDepth * zLod.scale
+            ? zLod.translation + z * zLod.chunkSize * zLod.scale
             : 0,
       },
     };
@@ -271,10 +246,10 @@ export class ChunkStore {
     return this.views_;
   }
 
-  public get residentChunks(): Chunk[] {
-    return [...this.entries_.values()].filter(
-      (chunk) => chunk.texture !== undefined
-    );
+  public *residentChunks(): IterableIterator<Chunk> {
+    for (const chunk of this.entries_.values()) {
+      if (chunk.texture !== undefined) yield chunk;
+    }
   }
 
   public canDispose(): boolean {
@@ -286,7 +261,6 @@ export class ChunkStore {
     demand.clear();
     for (const view of this.views_) {
       for (const [key, state] of view.chunkViewStates) {
-        if (state.priority === null) continue;
         const other = demand.get(key);
         demand.set(key, other === undefined ? state : combine(other, state));
       }

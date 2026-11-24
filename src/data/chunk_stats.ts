@@ -113,7 +113,6 @@ export function computeViewportChunkStats(
   for (const { view, store } of views) {
     const currentLOD = view.currentLOD;
     for (const [key, state] of view.chunkViewStates) {
-      if (state.priority === null) continue;
       const isResident = store.getEntry(key)?.texture !== undefined;
       requested += 1;
       if (isResident) resident += 1;

@@ -151,7 +151,7 @@ export class ChunkManager {
       const { store } = this.stores_[i];
       if (!store.canDispose()) continue;
 
-      for (const chunk of store.residentChunks) {
+      for (const chunk of store.residentChunks()) {
         this.disposeChunkTexture(chunk);
         store.retire(chunk);
       }
@@ -160,12 +160,12 @@ export class ChunkManager {
   }
 
   private releaseChunk(store: ChunkStore, chunk: Chunk) {
-    this.queue_.cancel(chunk);
-
     if (chunk.texture !== undefined) {
       chunk.releasedAt ??= performance.now();
       return;
     }
+
+    this.queue_.cancel(chunk);
     if (chunk.state === "loading") return;
 
     clearChunkData(chunk);
@@ -207,7 +207,7 @@ export class ChunkManager {
       if (committedBytes + bytes > this.memoryLimitBytes_) continue;
 
       committedBytes += bytes;
-      const chunk = store.getEntry(key) ?? store.admit(key, demand);
+      const chunk = store.getEntry(key) ?? store.admit(key);
       chunk.state = "queued";
       this.queue_.enqueue(chunk, (signal) =>
         source.loader.loadChunkData(chunk, signal)
@@ -234,7 +234,7 @@ export class ChunkManager {
       const drawn = new Set(
         store.views.flatMap((view) => view.getChunksToRender())
       );
-      for (const chunk of store.residentChunks) {
+      for (const chunk of store.residentChunks()) {
         if (chunk.visible) continue;
         victims.push({ store, chunk, drawn: drawn.has(chunk) });
       }
@@ -272,11 +272,15 @@ export class ChunkManager {
   }
 
   private awaitingUpload(): Chunk[] {
-    return this.stores_.flatMap(({ store }) =>
-      [...store.entries.values()].filter(
-        (chunk) => chunk.state === "loaded" && chunk.texture === undefined
-      )
-    );
+    const chunks: Chunk[] = [];
+    for (const { store } of this.stores_) {
+      for (const chunk of store.entries.values()) {
+        if (chunk.state === "loaded" && chunk.texture === undefined) {
+          chunks.push(chunk);
+        }
+      }
+    }
+    return chunks;
   }
 
   private uploadLoadedChunks() {

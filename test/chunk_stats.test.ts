@@ -36,7 +36,7 @@ function visibleChunks(view: ChunkStoreView) {
 }
 
 function makeResident(store: ChunkStore, key: ChunkKey) {
-  const chunk = store.admit(key, store.views[0].chunkViewStates.get(key)!);
+  const chunk = store.admit(key);
   chunk.state = "loaded";
   chunk.texture = {} as Texture;
 }
