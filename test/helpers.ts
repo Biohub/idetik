@@ -4,8 +4,6 @@ import { Layer } from "@/core/layer";
 import { OrthographicCamera } from "@/objects/cameras/orthographic_camera";
 import { ChunkManager } from "@/data/chunk_manager";
 import type { IdetikContext } from "@/idetik";
-import { Box2 } from "@/math/box2";
-import { vec2 } from "gl-matrix";
 
 type ChunkOverrides = Partial<
   Omit<Chunk, "shape" | "chunkIndex" | "scale" | "offset">
@@ -127,14 +125,4 @@ export function createTestViewport(id: string = "test-viewport"): Viewport {
     domElement: createTestElement(id),
     camera: createTestCamera(),
   });
-}
-
-export function viewOf(x: number, y: number, width: number, height: number) {
-  return {
-    worldViewRect: new Box2(
-      vec2.fromValues(x, y),
-      vec2.fromValues(x + width, y + height)
-    ),
-    bufferWidthPx: width,
-  };
 }
