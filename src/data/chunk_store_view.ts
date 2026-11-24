@@ -541,7 +541,7 @@ export class ChunkStoreView {
   }
 
   private lodRange(): { min: number; max: number } {
-    const lowestResLOD = this.store_.getLowestResLOD();
+    const lowestResLOD = this.store_.lodCount - 1;
     const min = Math.max(0, Math.min(lowestResLOD, this.policy_.lod.min));
     const max = Math.max(min, Math.min(lowestResLOD, this.policy_.lod.max));
     return { min, max };

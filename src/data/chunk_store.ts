@@ -35,14 +35,12 @@ export class ChunkStore {
   private readonly grids_: LodGrid[] = [];
   private readonly chunksT_: number;
   private readonly chunksC_: number;
-  private readonly lowestResLOD_: number;
   private readonly dimensions_: SourceDimensionMap;
   private readonly views_: ChunkStoreView[] = [];
   private hasHadViews_ = false;
 
   constructor(dimensions: SourceDimensionMap) {
     this.dimensions_ = dimensions;
-    this.lowestResLOD_ = this.dimensions_.numLods - 1;
 
     this.validateXYScaleRatios();
     this.chunksT_ = this.validatedTimepointCount();
@@ -215,8 +213,8 @@ export class ChunkStore {
     return this.chunksT_;
   }
 
-  public get lodCount() {
-    return this.lowestResLOD_ + 1;
+  public get lodCount(): number {
+    return this.dimensions_.numLods;
   }
 
   public get channelCount(): number {
@@ -225,10 +223,6 @@ export class ChunkStore {
 
   public get dimensions() {
     return this.dimensions_;
-  }
-
-  public getLowestResLOD(): number {
-    return this.lowestResLOD_;
   }
 
   public addView(policy: ImageSourcePolicy, axes?: SliceAxes): ChunkStoreView {
