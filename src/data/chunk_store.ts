@@ -120,8 +120,9 @@ export class ChunkStore {
     if (this.entries_.has(key)) {
       throw new Error(`Chunk ${key} is already admitted`);
     }
+    const { lod, t, c, z, y, x } = this.indicesOf(key);
     const chunk: Chunk = {
-      ...this.geometryOf(key),
+      ...this.geometry(lod, t, c, z, y, x),
       ...demand,
       state: "unloaded",
       rowAlignmentBytes: 1,
@@ -173,11 +174,6 @@ export class ChunkStore {
       zMax: chunksZ,
     };
     this.forEachChunkInRange(lod, t, c, range, callback);
-  }
-
-  private geometryOf(key: ChunkKey): ChunkGeometry {
-    const { lod, t, c, z, y, x } = this.indicesOf(key);
-    return this.geometry(lod, t, c, z, y, x);
   }
 
   private indicesOf(key: ChunkKey) {
