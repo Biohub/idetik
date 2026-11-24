@@ -45,8 +45,8 @@ export class ChunkStore {
     this.lowestResLOD_ = this.dimensions_.numLods - 1;
 
     this.validateXYScaleRatios();
-    this.chunksT_ = this.getAndValidateTimeDimension().size;
-    this.chunksC_ = this.getAndValidateChannelDimension().size;
+    this.chunksT_ = this.validatedTimepointCount();
+    this.chunksC_ = this.validatedChannelCount();
 
     let baseKey = 0;
     for (let lod = 0; lod < this.dimensions_.numLods; ++lod) {
@@ -211,8 +211,8 @@ export class ChunkStore {
     };
   }
 
-  public hasChunksAtTime(timeIndex: number): boolean {
-    return timeIndex >= 0 && timeIndex < this.chunksT_;
+  public get timepointCount(): number {
+    return this.chunksT_;
   }
 
   public get lodCount() {
@@ -220,7 +220,7 @@ export class ChunkStore {
   }
 
   public get channelCount(): number {
-    return this.dimensions_.c?.lods[0].size ?? 1;
+    return this.chunksC_;
   }
 
   public get dimensions() {
@@ -303,7 +303,7 @@ export class ChunkStore {
     }
   }
 
-  private getAndValidateTimeDimension() {
+  private validatedTimepointCount(): number {
     for (let lod = 0; lod < this.dimensions_.numLods; ++lod) {
       const tLod = this.dimensions_.t?.lods[lod];
       if (!tLod) continue;
@@ -315,12 +315,10 @@ export class ChunkStore {
         );
       }
     }
-    return {
-      size: this.dimensions_.t?.lods[0].size ?? 1,
-    };
+    return this.dimensions_.t?.lods[0].size ?? 1;
   }
 
-  private getAndValidateChannelDimension() {
+  private validatedChannelCount(): number {
     for (let lod = 0; lod < this.dimensions_.numLods; ++lod) {
       const cLod = this.dimensions_.c?.lods[lod];
       if (!cLod) continue;
@@ -343,9 +341,7 @@ export class ChunkStore {
         );
       }
     }
-    return {
-      size: this.dimensions_.c?.lods[0].size ?? 1,
-    };
+    return this.dimensions_.c?.lods[0].size ?? 1;
   }
 }
 
