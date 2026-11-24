@@ -101,7 +101,7 @@ describe("ChunkStoreView slice chunk range", () => {
     const expected = [0, 1, 2].flatMap((t) =>
       [0, 1].flatMap((y) => [0, 1].map((x) => store.keyOf(0, t, 0, 0, y, x)))
     );
-    expect(new Set(view.chunkViewStates.keys())).toEqual(new Set(expected));
+    expect(new Set(view.demand.keys())).toEqual(new Set(expected));
   });
 });
 

@@ -1,4 +1,4 @@
-import { Chunk, ChunkSource, ChunkViewState } from "./chunk";
+import { Chunk, ChunkSource, ChunkDemand } from "./chunk";
 import { SliceAxes } from "../math/axes";
 import { ChunkQueue, comparePriority } from "./chunk_queue";
 import { chunkMemoryStats, clearChunkData } from "./chunk_memory";
@@ -34,7 +34,7 @@ type WantedChunk = {
   source: ChunkSource;
   store: ChunkStore;
   key: ChunkKey;
-  demand: ChunkViewState;
+  demand: ChunkDemand;
 };
 
 export class ChunkManager {
@@ -251,7 +251,7 @@ export class ChunkManager {
   private evictWorseChunks(
     committedBytes: number,
     pendingBytes: number,
-    candidate: ChunkViewState,
+    candidate: ChunkDemand,
     victims: { store: ChunkStore; chunk: Chunk; drawn: boolean }[]
   ): number {
     while (

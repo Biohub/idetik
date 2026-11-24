@@ -1,6 +1,6 @@
 import {
   Chunk,
-  ChunkViewState,
+  ChunkDemand,
   coordToIndex,
   SliceCoordinates,
   SourceDimension,
@@ -47,9 +47,9 @@ export class ChunkStoreView {
   private lastCCoords_?: number[];
 
   private readonly sourceMaxSquareDistance2D_: number;
-  private readonly chunkViewStates_: Map<ChunkKey, ChunkViewState> = new Map();
+  private readonly demand_: Map<ChunkKey, ChunkDemand> = new Map();
 
-  private chunkViewStatesChanged_ = false;
+  private demandChanged_ = false;
 
   private isDisposed_ = false;
 
@@ -86,19 +86,19 @@ export class ChunkStoreView {
     );
   }
 
-  public get chunkViewStates(): ReadonlyMap<ChunkKey, ChunkViewState> {
-    return this.chunkViewStates_;
+  public get demand(): ReadonlyMap<ChunkKey, ChunkDemand> {
+    return this.demand_;
   }
 
-  public consumeChunkViewStatesChanged(): boolean {
-    const changed = this.chunkViewStatesChanged_;
-    this.chunkViewStatesChanged_ = false;
+  public consumeDemandChanged(): boolean {
+    const changed = this.demandChanged_;
+    this.demandChanged_ = false;
     return changed;
   }
 
-  private resetChunkViewStates(): void {
-    this.chunkViewStates_.clear();
-    this.chunkViewStatesChanged_ = true;
+  private resetDemand(): void {
+    this.demand_.clear();
+    this.demandChanged_ = true;
   }
 
   public get isDisposed(): boolean {
@@ -143,8 +143,8 @@ export class ChunkStoreView {
 
   private residentChunksMarkedVisible(): Chunk[] {
     const chunks: Chunk[] = [];
-    for (const [key, state] of this.chunkViewStates_) {
-      if (!state.visible) continue;
+    for (const [key, demand] of this.demand_) {
+      if (!demand.visible) continue;
       const chunk = this.store_.getEntry(key);
       if (chunk?.state === "loaded" && chunk.texture) chunks.push(chunk);
     }
@@ -199,10 +199,10 @@ export class ChunkStoreView {
     if (!this.store_.hasChunksAtTime(currentTimeIndex)) {
       Logger.warn(
         "ChunkStoreView",
-        "updateChunkViewStates called with no chunks initialized"
+        "updateChunkDemands called with no chunks initialized"
       );
       this.mode_ = null;
-      this.resetChunkViewStates();
+      this.resetDemand();
       return;
     }
 
@@ -211,7 +211,7 @@ export class ChunkStoreView {
 
     const viewBounds3D = this.makeViewBounds3D(viewBounds2D, sliceBounds);
 
-    this.resetChunkViewStates();
+    this.resetDemand();
 
     const channels = this.channelsOfInterest(sliceCoords.c);
     const fallbackLOD = this.lodRange().max;
@@ -247,7 +247,7 @@ export class ChunkStoreView {
             true
           );
           if (priority !== null) {
-            this.chunkViewStates_.set(key, {
+            this.demand_.set(key, {
               visible: isInBounds,
               prefetch,
               priority,
@@ -292,7 +292,7 @@ export class ChunkStoreView {
         "updateChunksForVolume called with no chunks initialized"
       );
       this.mode_ = null;
-      this.resetChunkViewStates();
+      this.resetDemand();
       return;
     }
 
@@ -301,7 +301,7 @@ export class ChunkStoreView {
     // Currently uses a fixed LOD from policy.
     this.targetLOD_ = this.policy_.lod.min;
 
-    this.resetChunkViewStates();
+    this.resetDemand();
 
     const channels = this.channelsOfInterest(sliceCoords.c);
     const fallbackLOD = this.lodRange().max;
@@ -322,7 +322,7 @@ export class ChunkStoreView {
         channels,
         WHOLE_VOLUME,
         (key) => {
-          this.chunkViewStates_.set(key, {
+          this.demand_.set(key, {
             visible: true,
             prefetch: false,
             priority,
@@ -352,8 +352,8 @@ export class ChunkStoreView {
 
   private allVisibleLoadedAt(lod: number): boolean {
     let foundAny = false;
-    for (const [key, state] of this.chunkViewStates_) {
-      if (!state.visible || this.store_.lodOfKey(key) !== lod) continue;
+    for (const [key, demand] of this.demand_) {
+      if (!demand.visible || this.store_.lodOfKey(key) !== lod) continue;
       foundAny = true;
       if (this.store_.getEntry(key)?.texture === undefined) return false;
     }
@@ -368,7 +368,7 @@ export class ChunkStoreView {
   public dispose(): void {
     this.isDisposed_ = true;
     this.mode_ = null;
-    this.resetChunkViewStates();
+    this.resetDemand();
   }
 
   public setImageSourcePolicy(newPolicy: ImageSourcePolicy, key: symbol) {
@@ -429,7 +429,7 @@ export class ChunkStoreView {
           );
           const orderKey = i + normalizedDistance;
 
-          this.chunkViewStates_.set(key, {
+          this.demand_.set(key, {
             visible: false,
             prefetch: true,
             priority,
@@ -458,7 +458,7 @@ export class ChunkStoreView {
         WHOLE_VOLUME,
         (key) => {
           const orderKey = i; // nearer along the playback loop first
-          this.chunkViewStates_.set(key, {
+          this.demand_.set(key, {
             visible: false,
             prefetch: true,
             priority,
