@@ -37,6 +37,12 @@ type WantedChunk = {
   demand: ChunkDemand;
 };
 
+type EvictionCandidate = {
+  store: ChunkStore;
+  chunk: Chunk;
+  drawn: boolean;
+};
+
 export class ChunkManager {
   private readonly stores_: { source: ChunkSource; store: ChunkStore }[] = [];
   private readonly queue_: ChunkQueue;
@@ -223,12 +229,8 @@ export class ChunkManager {
     this.oversizedWarned_ = oversized;
   }
 
-  private evictionCandidates(): {
-    store: ChunkStore;
-    chunk: Chunk;
-    drawn: boolean;
-  }[] {
-    const victims: { store: ChunkStore; chunk: Chunk; drawn: boolean }[] = [];
+  private evictionCandidates(): EvictionCandidate[] {
+    const victims: EvictionCandidate[] = [];
 
     for (const { store } of this.stores_) {
       const drawn = new Set(
@@ -252,7 +254,7 @@ export class ChunkManager {
     committedBytes: number,
     pendingBytes: number,
     candidate: ChunkDemand,
-    victims: { store: ChunkStore; chunk: Chunk; drawn: boolean }[]
+    victims: EvictionCandidate[]
   ): number {
     while (
       committedBytes + pendingBytes > this.memoryLimitBytes_ &&
