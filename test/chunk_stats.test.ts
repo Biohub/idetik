@@ -82,7 +82,9 @@ describe("chunk stats", () => {
     const fallback = states.filter(
       ([key, state]) => state.visible && store.lodOfKey(key) === 1
     );
-    const prefetched = states.filter(([key]) => store.timeOfKey(key) !== 0);
+    const prefetched = states.filter(
+      ([key]) => store.indicesOfKey(key).t !== 0
+    );
     expect(drawn).toHaveLength(4);
     expect(fallback).toHaveLength(1);
     expect(prefetched).toHaveLength(8);

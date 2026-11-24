@@ -112,8 +112,19 @@ export class ChunkStore {
     return lod;
   }
 
-  public timeOfKey(key: ChunkKey): number {
-    return this.indicesOf(key).t;
+  public indicesOfKey(key: ChunkKey) {
+    const lod = this.lodOfKey(key);
+    const g = this.grids_[lod];
+    let rest = key - g.baseKey;
+    const x = rest % g.chunksX;
+    rest = (rest - x) / g.chunksX;
+    const y = rest % g.chunksY;
+    rest = (rest - y) / g.chunksY;
+    const z = rest % g.chunksZ;
+    rest = (rest - z) / g.chunksZ;
+    const c = rest % this.chunksC_;
+    const t = (rest - c) / this.chunksC_;
+    return { lod, t, c, z, y, x };
   }
 
   public getEntry(key: ChunkKey): Chunk | undefined {
@@ -132,7 +143,7 @@ export class ChunkStore {
     if (this.entries_.has(key)) {
       throw new Error(`Chunk ${key} is already admitted`);
     }
-    const { lod, t, c, z, y, x } = this.indicesOf(key);
+    const { lod, t, c, z, y, x } = this.indicesOfKey(key);
     const chunk: Chunk = {
       ...this.placement(lod, t, c, z, y, x),
       ...demand,
@@ -149,7 +160,7 @@ export class ChunkStore {
   }
 
   public elementCount(key: ChunkKey): number {
-    const { lod, z, y, x } = this.indicesOf(key);
+    const { lod, z, y, x } = this.indicesOfKey(key);
     const shape = this.shape(lod, z, y, x);
     return shape.x * shape.y * shape.z;
   }
@@ -186,21 +197,6 @@ export class ChunkStore {
       zMax: chunksZ,
     };
     this.forEachChunkInRange(lod, t, c, range, callback);
-  }
-
-  private indicesOf(key: ChunkKey) {
-    const lod = this.lodOfKey(key);
-    const g = this.grids_[lod];
-    let rest = key - g.baseKey;
-    const x = rest % g.chunksX;
-    rest = (rest - x) / g.chunksX;
-    const y = rest % g.chunksY;
-    rest = (rest - y) / g.chunksY;
-    const z = rest % g.chunksZ;
-    rest = (rest - z) / g.chunksZ;
-    const c = rest % this.chunksC_;
-    const t = (rest - c) / this.chunksC_;
-    return { lod, t, c, z, y, x };
   }
 
   private shape(lod: number, z: number, y: number, x: number) {

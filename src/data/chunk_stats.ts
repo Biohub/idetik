@@ -84,7 +84,7 @@ export function computeSourceChunkStats(
   let resident = 0;
 
   for (const key of store.demand.keys()) {
-    const t = store.timeOfKey(key);
+    const t = store.indicesOfKey(key).t;
     requested += 1;
     timepoints.requested[t] += 1;
     if (store.getEntry(key)?.texture !== undefined) {
