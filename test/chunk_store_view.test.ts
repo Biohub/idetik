@@ -8,76 +8,6 @@ import {
   createNoPrefetchPolicy,
   createPlaybackPolicy,
 } from "@/core/image_source_policy";
-import { OrthographicCamera } from "@/objects/cameras/orthographic_camera";
-import { Viewport } from "@/core/viewport";
-import { createTestViewport } from "./helpers";
-
-function imageView(viewport: Viewport) {
-  return {
-    worldViewRect: (viewport.camera as OrthographicCamera).getWorldViewRect(),
-    bufferWidthPx: viewport.getBufferRect().width,
-  };
-}
-
-describe("ChunkStoreView disposal", () => {
-  test("disposed view's chunks ready for cancellation", () => {
-    const store = new ChunkStore(createSimpleDimensions());
-    const policy = createNoPrefetchPolicy();
-    const view = store.addView(policy);
-    const viewport = createTestViewport();
-
-    // mark some chunks as visible/needed
-    view.updateChunksForImage({ z: 0, c: [0], t: 0 }, imageView(viewport));
-    expect(view.chunkViewStates.size).toBeGreaterThan(0);
-
-    // aggregate states and set priority
-    let collectedChunks = store.updateAndCollectChunkChanges();
-    expect(collectedChunks.size).toBeGreaterThan(0);
-
-    // verify some chunks have priority (are needed)
-    for (const chunk of collectedChunks) {
-      expect(chunk.priority).not.toBe(null);
-    }
-
-    view.dispose();
-
-    // collection should return affected chunks from the disposed view
-    // chunks should have priority=null and visible=false (ready for cancellation)
-    collectedChunks = store.updateAndCollectChunkChanges();
-
-    expect(collectedChunks.size).toBeGreaterThan(0);
-
-    for (const chunk of collectedChunks) {
-      expect(chunk.priority).toBe(null);
-      expect(chunk.visible).toBe(false);
-    }
-  });
-
-  test("disposed view's chunks needed by another view", () => {
-    const store = new ChunkStore(createSimpleDimensions());
-    const policy = createNoPrefetchPolicy();
-
-    const view1 = store.addView(policy);
-    const view2 = store.addView(policy);
-    const viewport = createTestViewport();
-
-    // Both views mark same chunks as needed
-    view1.updateChunksForImage({ z: 0, c: [0], t: 0 }, imageView(viewport));
-    view2.updateChunksForImage({ z: 0, c: [0], t: 0 }, imageView(viewport));
-
-    store.updateAndCollectChunkChanges();
-
-    view1.dispose();
-
-    const collectedChunks = store.updateAndCollectChunkChanges();
-    expect(collectedChunks.size).toBeGreaterThan(0);
-
-    // chunks should still have priority because view2 still needs them
-    for (const chunk of collectedChunks) {
-      expect(chunk.priority).not.toBe(null);
-    }
-  });
-});
 
 // Drawing opportunistic resident chunks the update pass never marked means re-deriving which of
 // them cover the slice, here we just test that the math matches
@@ -98,12 +28,12 @@ describe("ChunkStoreView multiscale rendering", () => {
       expect(view.currentLOD).toBe(1);
       makeResident(store, 1);
       makeResident(store, 2);
-      store.updateAndCollectChunkChanges();
+      store.updateDemand();
       expect(lodsOf()).toEqual([1, 2]);
 
       view.updateChunksForImage({ z, c: [0] }, viewOfWidth(512));
       expect(view.currentLOD).toBe(0);
-      store.updateAndCollectChunkChanges();
+      store.updateDemand();
       expect(lodsOf()).toEqual([1, 2]);
     }
   );
@@ -168,17 +98,31 @@ describe("ChunkStoreView slice chunk range", () => {
 
     view.updateChunksForImage({ z: 100, t: 0, c: [0] }, viewOfWidth(512));
 
-    const requested = [...view.chunkViewStates]
-      .filter(([, state]) => state.priority !== null)
-      .map(([chunk]) => chunk);
-    const zChunks = new Set(requested.map((chunk) => chunk.chunkIndex.z));
-    expect(zChunks).toEqual(new Set([0]));
+    const expected = [0, 1, 2].flatMap((t) =>
+      [0, 1].flatMap((y) => [0, 1].map((x) => store.keyOf(0, t, 0, 0, y, x)))
+    );
+    expect(new Set(view.chunkViewStates.keys())).toEqual(new Set(expected));
+  });
+});
 
-    // the 2x2 chunks in view, at the current timepoint and both prefetched
-    for (const t of [0, 1, 2]) {
-      const atT = requested.filter((chunk) => chunk.chunkIndex.t === t);
-      expect(atT).toHaveLength(4);
-    }
+describe("ChunkStoreView disposal", () => {
+  test("demand survives disposing one of two views that want the same chunks", () => {
+    const store = new ChunkStore(createPyramidDimensions());
+    const view1 = store.addView(createNoPrefetchPolicy());
+    const view2 = store.addView(createNoPrefetchPolicy());
+    view1.updateChunksForImage({ z: 0, c: [0] }, viewOfWidth(512));
+    view2.updateChunksForImage({ z: 0, c: [0] }, viewOfWidth(512));
+    store.updateDemand();
+    const demanded = new Set(store.demand.keys());
+    expect(demanded.size).toBeGreaterThan(0);
+
+    view1.dispose();
+    store.updateDemand();
+    expect(new Set(store.demand.keys())).toEqual(demanded);
+
+    view2.dispose();
+    store.updateDemand();
+    expect(store.demand.size).toBe(0);
   });
 });
 
@@ -191,10 +135,20 @@ function viewOfWidth(bufferWidthPx: number) {
 }
 
 function makeResident(store: ChunkStore, lod: number) {
-  for (const chunk of store.getChunkGrid(lod, 0, 0)!.flat(2)) {
+  // the pyramid fixture has 8 × 8 × 4 chunks at LOD 0, halving per LOD
+  const range = {
+    xMin: 0,
+    xMax: 8 >> lod,
+    yMin: 0,
+    yMax: 8 >> lod,
+    zMin: 0,
+    zMax: 4 >> lod,
+  };
+  store.forEachChunkInRange(lod, 0, 0, range, (key) => {
+    const chunk = store.admit(key);
     chunk.state = "loaded";
-    store.setChunkTexture(chunk, {} as Texture);
-  }
+    chunk.texture = {} as Texture;
+  });
 }
 
 function createPyramidDimensions(): SourceDimensionMap {
@@ -215,48 +169,6 @@ function createPyramidDimensions(): SourceDimensionMap {
     y: { name: "y", index: 1, lods: plane },
     z: { name: "z", index: 2, lods: z },
     numLods: 3,
-  };
-}
-
-function createSimpleDimensions(): SourceDimensionMap {
-  return {
-    x: {
-      name: "x",
-      index: 0,
-      lods: [
-        {
-          size: 512,
-          scale: 1,
-          chunkSize: 256,
-          translation: 0,
-        },
-      ],
-    },
-    y: {
-      name: "y",
-      index: 1,
-      lods: [
-        {
-          size: 512,
-          scale: 1,
-          chunkSize: 256,
-          translation: 0,
-        },
-      ],
-    },
-    z: {
-      name: "z",
-      index: 2,
-      lods: [
-        {
-          size: 10,
-          scale: 1,
-          chunkSize: 5,
-          translation: 0,
-        },
-      ],
-    },
-    numLods: 1,
   };
 }
 

@@ -1,8 +1,8 @@
-import { Chunk, ChunkSource } from "./chunk";
+import { Chunk, ChunkSource, ChunkViewState } from "./chunk";
 import { SliceAxes } from "../math/axes";
 import { ChunkQueue, comparePriority } from "./chunk_queue";
 import { chunkMemoryStats, clearChunkData } from "./chunk_memory";
-import { ChunkStore } from "./chunk_store";
+import { ChunkKey, ChunkStore } from "./chunk_store";
 import { computeSourceChunkStats, SourceChunkStats } from "./chunk_stats";
 import { ChunkStoreView } from "./chunk_store_view";
 import { ImageSourcePolicy } from "../core/image_source_policy";
@@ -25,6 +25,13 @@ export type QueueStats = {
 const DEFAULT_MAX_CONCURRENT_REQUESTS = 8;
 const DEFAULT_MAX_GPU_UPLOADS_PER_UPDATE = 4;
 
+type WantedChunk = {
+  source: ChunkSource;
+  store: ChunkStore;
+  key: ChunkKey;
+  demand: ChunkViewState;
+};
+
 type EvictionCandidate = {
   store: ChunkStore;
   chunk: Chunk;
@@ -33,7 +40,6 @@ type EvictionCandidate = {
 
 export class ChunkManager {
   private readonly stores_: { source: ChunkSource; store: ChunkStore }[] = [];
-  private readonly awaitingUpload_ = new Map<Chunk, ChunkStore>();
   private readonly queue_: ChunkQueue;
 
   private readonly uploadTexture_?: (texture: Texture) => void;
@@ -71,7 +77,7 @@ export class ChunkManager {
     return {
       pending: this.queue_.pendingCount,
       running: this.queue_.runningCount,
-      awaitingUpload: this.awaitingUpload_.size,
+      awaitingUpload: this.awaitingUpload().length,
     };
   }
 
@@ -99,28 +105,33 @@ export class ChunkManager {
   }
 
   public update() {
-    const candidates: {
-      source: ChunkSource;
-      store: ChunkStore;
-      chunk: Chunk;
-    }[] = [];
+    const candidates: WantedChunk[] = [];
 
     for (const { source, store } of this.stores_) {
-      const updatedChunks = store.updateAndCollectChunkChanges();
+      store.updateDemand();
 
-      for (const chunk of updatedChunks) {
+      for (const chunk of store.entries.values()) {
         if (chunk.priority === null) {
-          this.releaseChunk(chunk);
+          this.releaseChunk(store, chunk);
         } else {
           chunk.releasedAt = undefined;
-          if (chunk.state === "queued") {
-            candidates.push({ source, store, chunk });
-          }
+        }
+      }
+
+      for (const [key, demand] of store.demand) {
+        const entry = store.entries.get(key);
+        if (
+          entry === undefined ||
+          entry.state === "queued" ||
+          entry.state === "unloaded"
+        ) {
+          candidates.push({ source, store, key, demand });
         }
       }
     }
 
     this.uploadLoadedChunks();
+
     this.enqueueWithinBudget(candidates);
     this.queue_.flush();
 
@@ -128,43 +139,42 @@ export class ChunkManager {
       const { store } = this.stores_[i];
       if (!store.canDispose()) continue;
 
-      for (const chunk of [...store.residentChunks]) {
-        this.disposeChunkTexture(store, chunk);
-        chunk.state = "unloaded";
+      for (const chunk of store.residentChunks()) {
+        this.disposeChunkTexture(chunk);
+        store.retire(chunk);
       }
       this.stores_.splice(i, 1);
     }
   }
 
-  private releaseChunk(chunk: Chunk) {
-    this.queue_.cancel(chunk);
-
+  private releaseChunk(store: ChunkStore, chunk: Chunk) {
     if (chunk.texture !== undefined) {
       chunk.releasedAt ??= performance.now();
       return;
     }
 
-    this.awaitingUpload_.delete(chunk);
+    this.queue_.cancel(chunk);
+    if (chunk.state === "loading") return;
+
     clearChunkData(chunk);
-    if (chunk.state === "loaded") chunk.state = "unloaded";
+    store.retire(chunk);
   }
 
-  private enqueueWithinBudget(
-    candidates: { source: ChunkSource; store: ChunkStore; chunk: Chunk }[]
-  ) {
+  private enqueueWithinBudget(candidates: WantedChunk[]) {
     if (candidates.length === 0) {
       this.oversizedWarned_ = false;
       return;
     }
 
-    candidates.sort((a, b) => comparePriority(a.chunk, b.chunk));
+    candidates.sort((a, b) => comparePriority(a.demand, b.demand));
 
     let committedBytes = this.getGpuResidentBytes_();
     const victims = this.evictionCandidates();
     let oversized = false;
 
-    for (const { source, store, chunk } of candidates) {
-      const bytes = this.chunkBytes(source, chunk);
+    for (const { source, store, key, demand } of candidates) {
+      const bytes =
+        store.elementCount(key) * source.loader.getBytesPerElement();
 
       // A chunk that can never fit must not trigger eviction. It would drain
       // the entire cache and still be skipped.
@@ -177,7 +187,7 @@ export class ChunkManager {
         committedBytes = this.evictWorseChunks(
           committedBytes,
           bytes,
-          chunk,
+          demand,
           victims
         );
       }
@@ -185,10 +195,11 @@ export class ChunkManager {
       if (committedBytes + bytes > this.memoryLimitBytes_) continue;
 
       committedBytes += bytes;
-      this.queue_.enqueue(chunk, async (signal) => {
-        await source.loader.loadChunkData(chunk, signal);
-        if (!signal.aborted) this.awaitingUpload_.set(chunk, store);
-      });
+      const chunk = store.entries.get(key) ?? store.admit(key);
+      chunk.state = "queued";
+      this.queue_.enqueue(chunk, (signal) =>
+        source.loader.loadChunkData(chunk, signal)
+      );
     }
 
     if (oversized && !this.oversizedWarned_) {
@@ -207,7 +218,7 @@ export class ChunkManager {
       const drawn = new Set(
         store.views.flatMap((view) => view.getChunksToRender())
       );
-      for (const chunk of store.residentChunks) {
+      for (const chunk of store.residentChunks()) {
         if (chunk.visible) continue;
         victims.push({ store, chunk, drawn: drawn.has(chunk) });
       }
@@ -224,7 +235,7 @@ export class ChunkManager {
   private evictWorseChunks(
     committedBytes: number,
     pendingBytes: number,
-    candidate: Chunk,
+    candidate: ChunkViewState,
     victims: EvictionCandidate[]
   ): number {
     while (
@@ -237,38 +248,39 @@ export class ChunkManager {
       if (victim.chunk.texture === undefined) continue;
 
       committedBytes -= textureStorageBytes(victim.chunk.texture);
-      this.disposeChunkTexture(victim.store, victim.chunk);
-      victim.chunk.state = "unloaded";
-      victim.chunk.releasedAt = undefined;
+      this.disposeChunkTexture(victim.chunk);
+      victim.store.retire(victim.chunk);
     }
 
     return committedBytes;
   }
 
-  private chunkBytes(source: ChunkSource, chunk: Chunk): number {
-    const bytesPerElement = source.loader.getBytesPerElement();
-    return chunk.shape.x * chunk.shape.y * chunk.shape.z * bytesPerElement;
+  private awaitingUpload(): Chunk[] {
+    const chunks: Chunk[] = [];
+    for (const { store } of this.stores_) {
+      for (const chunk of store.entries.values()) {
+        if (chunk.state === "loaded" && chunk.texture === undefined) {
+          chunks.push(chunk);
+        }
+      }
+    }
+    return chunks;
   }
 
   private uploadLoadedChunks() {
-    if (!this.uploadTexture_ || this.awaitingUpload_.size === 0) return;
+    if (!this.uploadTexture_) return;
 
-    const pending = [...this.awaitingUpload_.keys()].sort(comparePriority);
-    const count = Math.min(pending.length, this.maxGpuUploadsPerUpdate_);
-
-    for (let i = 0; i < count; i++) {
-      const chunk = pending[i];
-      const store = this.awaitingUpload_.get(chunk)!;
-      this.awaitingUpload_.delete(chunk);
-      const texture = Texture3D.createWithChunk(chunk);
-      this.uploadTexture_(texture);
-      store.setChunkTexture(chunk, texture);
+    const pending = this.awaitingUpload().sort(comparePriority);
+    for (const chunk of pending.slice(0, this.maxGpuUploadsPerUpdate_)) {
+      chunk.texture = Texture3D.createWithChunk(chunk);
+      this.uploadTexture_(chunk.texture);
       clearChunkData(chunk);
     }
   }
 
-  private disposeChunkTexture(store: ChunkStore, chunk: Chunk) {
-    const texture = store.clearChunkTexture(chunk);
+  private disposeChunkTexture(chunk: Chunk) {
+    const texture = chunk.texture;
+    chunk.texture = undefined;
     if (texture !== undefined) this.disposeTexture_?.(texture);
   }
 }

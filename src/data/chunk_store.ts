@@ -1,109 +1,218 @@
-import { Chunk, SourceDimensionMap } from "./chunk";
+import { Chunk, ChunkViewState, SourceDimensionMap } from "./chunk";
 import { SliceAxes } from "../math/axes";
 import { almostEqual } from "../utilities/almost_equal";
 import { Logger } from "../utilities/logger";
 import { ChunkStoreView } from "./chunk_store_view";
 import { ImageSourcePolicy } from "../core/image_source_policy";
-import { Texture } from "../objects/textures/texture";
+
+// (lod, t, c, z, y, x) packed into one integer
+export type ChunkKey = number;
+
+export type ChunkPlacement = Pick<
+  Chunk,
+  "lod" | "shape" | "chunkIndex" | "scale" | "offset"
+>;
+
+interface LodGrid {
+  chunksX: number;
+  chunksY: number;
+  chunksZ: number;
+  baseKey: number;
+}
+
+interface ChunkIndexRange {
+  xMin: number;
+  xMax: number;
+  yMin: number;
+  yMax: number;
+  zMin: number;
+  zMax: number;
+}
 
 export class ChunkStore {
-  // Chunks indexed as chunks_[lod][t][c][z][y][x].
-  private readonly chunks_: Chunk[][][][][][];
+  private readonly entries_ = new Map<ChunkKey, Chunk>();
+  private readonly demand_ = new Map<ChunkKey, ChunkViewState>();
+  private readonly grids_: LodGrid[] = [];
+  private readonly chunksT_: number;
+  private readonly chunksC_: number;
   private readonly lowestResLOD_: number;
   private readonly dimensions_: SourceDimensionMap;
   private readonly views_: ChunkStoreView[] = [];
   private hasHadViews_ = false;
-  private readonly resident_ = new Set<Chunk>();
 
   constructor(dimensions: SourceDimensionMap) {
     this.dimensions_ = dimensions;
     this.lowestResLOD_ = this.dimensions_.numLods - 1;
 
     this.validateXYScaleRatios();
-    const { size: chunksT } = this.getAndValidateTimeDimension();
-    const { size: chunksC } = this.getAndValidateChannelDimension();
+    this.chunksT_ = this.validatedTimepointCount();
+    this.chunksC_ = this.validatedChannelCount();
 
-    const numLods = this.dimensions_.numLods;
-    this.chunks_ = new Array(numLods);
-
-    for (let lod = 0; lod < numLods; ++lod) {
+    let baseKey = 0;
+    for (let lod = 0; lod < this.dimensions_.numLods; ++lod) {
       const xLod = this.dimensions_.x.lods[lod];
       const yLod = this.dimensions_.y.lods[lod];
       const zLod = this.dimensions_.z?.lods[lod];
-
-      const chunkWidth = xLod.chunkSize;
-      const chunkHeight = yLod.chunkSize;
-      const chunkDepth = zLod?.chunkSize ?? 1;
-
-      const chunksX = Math.ceil(xLod.size / chunkWidth);
-      const chunksY = Math.ceil(yLod.size / chunkHeight);
-      const chunksZ = zLod ? Math.ceil(zLod.size / chunkDepth) : 1;
-
-      const lodArr: Chunk[][][][][] = new Array(chunksT);
-      this.chunks_[lod] = lodArr;
-      for (let t = 0; t < chunksT; ++t) {
-        const tArr: Chunk[][][][] = new Array(chunksC);
-        lodArr[t] = tArr;
-        for (let c = 0; c < chunksC; ++c) {
-          const cArr: Chunk[][][] = new Array(chunksZ);
-          tArr[c] = cArr;
-          for (let z = 0; z < chunksZ; ++z) {
-            const zOffset =
-              zLod !== undefined
-                ? zLod.translation + z * chunkDepth * zLod.scale
-                : 0;
-            const yArr: Chunk[][] = new Array(chunksY);
-            cArr[z] = yArr;
-            for (let y = 0; y < chunksY; ++y) {
-              const yOffset = yLod.translation + y * chunkHeight * yLod.scale;
-              const xArr: Chunk[] = new Array(chunksX);
-              yArr[y] = xArr;
-              for (let x = 0; x < chunksX; ++x) {
-                const xOffset = xLod.translation + x * chunkWidth * xLod.scale;
-                xArr[x] = {
-                  state: "unloaded",
-                  lod,
-                  visible: false,
-                  prefetch: false,
-                  priority: null,
-                  orderKey: null,
-                  shape: {
-                    x: Math.min(chunkWidth, xLod.size - x * chunkWidth),
-                    y: Math.min(chunkHeight, yLod.size - y * chunkHeight),
-                    z: Math.min(chunkDepth, (zLod?.size ?? 1) - z * chunkDepth),
-                    c: 1,
-                  },
-                  rowAlignmentBytes: 1,
-                  chunkIndex: { x, y, z, c, t },
-                  scale: {
-                    x: xLod.scale,
-                    y: yLod.scale,
-                    z: zLod?.scale ?? 1,
-                  },
-                  offset: {
-                    x: xOffset,
-                    y: yOffset,
-                    z: zOffset,
-                  },
-                };
-              }
-            }
-          }
-        }
-      }
+      const grid = {
+        chunksX: Math.ceil(xLod.size / xLod.chunkSize),
+        chunksY: Math.ceil(yLod.size / yLod.chunkSize),
+        chunksZ: zLod ? Math.ceil(zLod.size / zLod.chunkSize) : 1,
+        baseKey,
+      };
+      this.grids_.push(grid);
+      baseKey +=
+        this.chunksT_ *
+        this.chunksC_ *
+        grid.chunksZ *
+        grid.chunksY *
+        grid.chunksX;
+    }
+    if (!Number.isSafeInteger(baseKey)) {
+      throw new Error(`ChunkStore cannot index ${baseKey} chunks`);
     }
   }
 
-  public getChunkGrid(
+  public keyOf(
     lod: number,
     t: number,
-    c: number
-  ): Chunk[][][] | undefined {
-    return this.chunks_[lod]?.[t]?.[c];
+    c: number,
+    z: number,
+    y: number,
+    x: number
+  ): ChunkKey {
+    const g = this.grids_[lod];
+    if (
+      g === undefined ||
+      !inRange(t, this.chunksT_) ||
+      !inRange(c, this.chunksC_) ||
+      !inRange(z, g.chunksZ) ||
+      !inRange(y, g.chunksY) ||
+      !inRange(x, g.chunksX)
+    ) {
+      throw new RangeError(
+        `Chunk index out of range: lod=${lod} t=${t} c=${c} z=${z} y=${y} x=${x}`
+      );
+    }
+    return (
+      g.baseKey +
+      (((t * this.chunksC_ + c) * g.chunksZ + z) * g.chunksY + y) * g.chunksX +
+      x
+    );
+  }
+
+  public lodOfKey(key: ChunkKey): number {
+    let lod = this.grids_.length - 1;
+    while (lod > 0 && this.grids_[lod].baseKey > key) --lod;
+    return lod;
+  }
+
+  public indicesOfKey(key: ChunkKey) {
+    const lod = this.lodOfKey(key);
+    const g = this.grids_[lod];
+    let rest = key - g.baseKey;
+    const x = rest % g.chunksX;
+    rest = (rest - x) / g.chunksX;
+    const y = rest % g.chunksY;
+    rest = (rest - y) / g.chunksY;
+    const z = rest % g.chunksZ;
+    rest = (rest - z) / g.chunksZ;
+    const c = rest % this.chunksC_;
+    const t = (rest - c) / this.chunksC_;
+    return { lod, t, c, z, y, x };
+  }
+
+  public get entries(): ReadonlyMap<ChunkKey, Chunk> {
+    return this.entries_;
+  }
+
+  public get demand(): ReadonlyMap<ChunkKey, ChunkViewState> {
+    return this.demand_;
+  }
+
+  public admit(key: ChunkKey): Chunk {
+    if (this.entries_.has(key)) {
+      throw new Error(`Chunk ${key} is already admitted`);
+    }
+    const { lod, t, c, z, y, x } = this.indicesOfKey(key);
+    const chunk: Chunk = {
+      ...this.placement(lod, t, c, z, y, x),
+      ...(this.demand_.get(key) ?? UNWANTED),
+      state: "unloaded",
+      rowAlignmentBytes: 1,
+    };
+    this.entries_.set(key, chunk);
+    return chunk;
+  }
+
+  public retire(chunk: Chunk): void {
+    const { t, c, z, y, x } = chunk.chunkIndex;
+    this.entries_.delete(this.keyOf(chunk.lod, t, c, z, y, x));
+  }
+
+  public elementCount(key: ChunkKey): number {
+    const { lod, z, y, x } = this.indicesOfKey(key);
+    const shape = this.shape(lod, z, y, x);
+    return shape.x * shape.y * shape.z;
+  }
+
+  public forEachChunkInRange(
+    lod: number,
+    t: number,
+    c: number,
+    range: ChunkIndexRange,
+    callback: (key: ChunkKey, placement: ChunkPlacement) => void
+  ): void {
+    for (let z = range.zMin; z < range.zMax; ++z)
+      for (let y = range.yMin; y < range.yMax; ++y)
+        for (let x = range.xMin; x < range.xMax; ++x)
+          callback(
+            this.keyOf(lod, t, c, z, y, x),
+            this.placement(lod, t, c, z, y, x)
+          );
+  }
+
+  private shape(lod: number, z: number, y: number, x: number) {
+    const xLod = this.dimensions_.x.lods[lod];
+    const yLod = this.dimensions_.y.lods[lod];
+    const zLod = this.dimensions_.z?.lods[lod];
+    const chunkDepth = zLod?.chunkSize ?? 1;
+    return {
+      x: Math.min(xLod.chunkSize, xLod.size - x * xLod.chunkSize),
+      y: Math.min(yLod.chunkSize, yLod.size - y * yLod.chunkSize),
+      z: Math.min(chunkDepth, (zLod?.size ?? 1) - z * chunkDepth),
+      c: 1,
+    };
+  }
+
+  private placement(
+    lod: number,
+    t: number,
+    c: number,
+    z: number,
+    y: number,
+    x: number
+  ): ChunkPlacement {
+    const xLod = this.dimensions_.x.lods[lod];
+    const yLod = this.dimensions_.y.lods[lod];
+    const zLod = this.dimensions_.z?.lods[lod];
+    return {
+      lod,
+      shape: this.shape(lod, z, y, x),
+      chunkIndex: { x, y, z, c, t },
+      scale: { x: xLod.scale, y: yLod.scale, z: zLod?.scale ?? 1 },
+      offset: {
+        x: xLod.translation + x * xLod.chunkSize * xLod.scale,
+        y: yLod.translation + y * yLod.chunkSize * yLod.scale,
+        z:
+          zLod !== undefined
+            ? zLod.translation + z * zLod.chunkSize * zLod.scale
+            : 0,
+      },
+    };
   }
 
   public get timepointCount(): number {
-    return this.dimensions_.t?.lods[0].size ?? 1;
+    return this.chunksT_;
   }
 
   public get lodCount() {
@@ -111,7 +220,7 @@ export class ChunkStore {
   }
 
   public get channelCount(): number {
-    return this.dimensions_.c?.lods[0].size ?? 1;
+    return this.chunksC_;
   }
 
   public get dimensions() {
@@ -133,41 +242,31 @@ export class ChunkStore {
     return this.views_;
   }
 
-  public get residentChunks(): ReadonlySet<Chunk> {
-    return this.resident_;
-  }
-
-  public setChunkTexture(chunk: Chunk, texture: Texture): void {
-    chunk.texture = texture;
-    this.resident_.add(chunk);
-  }
-
-  public clearChunkTexture(chunk: Chunk): Texture | undefined {
-    const texture = chunk.texture;
-    chunk.texture = undefined;
-    this.resident_.delete(chunk);
-    return texture;
+  public *residentChunks(): IterableIterator<Chunk> {
+    for (const chunk of this.entries_.values()) {
+      if (chunk.texture !== undefined) yield chunk;
+    }
   }
 
   public canDispose(): boolean {
     return this.hasHadViews_ && this.views_.length === 0;
   }
 
-  public updateAndCollectChunkChanges(): Set<Chunk> {
-    const affectedChunks = new Set<Chunk>();
+  public updateDemand(): void {
+    const demand = this.demand_;
+    demand.clear();
     for (const view of this.views_) {
-      for (const [chunk, _viewState] of view.chunkViewStates) {
-        affectedChunks.add(chunk);
+      for (const [key, state] of view.chunkViewStates) {
+        const other = demand.get(key);
+        demand.set(key, other === undefined ? state : combine(other, state));
       }
     }
 
-    for (const chunk of affectedChunks) {
-      this.aggregateChunkViewStates(chunk);
+    for (const [key, chunk] of this.entries_) {
+      Object.assign(chunk, demand.get(key) ?? UNWANTED);
     }
 
     this.removeDisposedViews();
-
-    return affectedChunks;
   }
 
   private removeDisposedViews(): void {
@@ -175,54 +274,6 @@ export class ChunkStore {
       if (this.views_[i].isDisposed) {
         this.views_.splice(i, 1);
       }
-    }
-  }
-
-  private aggregateChunkViewStates(chunk: Chunk): void {
-    let anyVisible = false;
-    let anyPrefetch = false;
-    let minPriority: number | null = null;
-    let orderKeyForMinPriority: number | null = null;
-
-    for (const view of this.views_) {
-      const viewState = view.chunkViewStates.get(chunk);
-      if (!viewState) continue;
-
-      if (viewState.visible) anyVisible = true;
-      if (viewState.prefetch) anyPrefetch = true;
-
-      if (viewState.priority !== null) {
-        if (minPriority === null || viewState.priority < minPriority) {
-          minPriority = viewState.priority;
-          orderKeyForMinPriority = viewState.orderKey;
-        }
-      }
-
-      if (
-        !viewState.visible &&
-        !viewState.prefetch &&
-        viewState.priority === null
-      ) {
-        view.maybeForgetChunk(chunk);
-      }
-    }
-
-    chunk.visible = anyVisible;
-    chunk.prefetch = anyPrefetch;
-    chunk.priority = minPriority;
-    chunk.orderKey = orderKeyForMinPriority;
-
-    const shouldEnqueueChunk =
-      chunk.priority !== null && chunk.state === "unloaded";
-    if (shouldEnqueueChunk) {
-      chunk.state = "queued";
-      return;
-    }
-
-    const shouldCancelQueuedChunk =
-      chunk.priority === null && chunk.state === "queued";
-    if (shouldCancelQueuedChunk) {
-      chunk.state = "unloaded";
     }
   }
 
@@ -246,7 +297,7 @@ export class ChunkStore {
     }
   }
 
-  private getAndValidateTimeDimension() {
+  private validatedTimepointCount(): number {
     for (let lod = 0; lod < this.dimensions_.numLods; ++lod) {
       const tLod = this.dimensions_.t?.lods[lod];
       if (!tLod) continue;
@@ -258,12 +309,10 @@ export class ChunkStore {
         );
       }
     }
-    return {
-      size: this.dimensions_.t?.lods[0].size ?? 1,
-    };
+    return this.dimensions_.t?.lods[0].size ?? 1;
   }
 
-  private getAndValidateChannelDimension() {
+  private validatedChannelCount(): number {
     for (let lod = 0; lod < this.dimensions_.numLods; ++lod) {
       const cLod = this.dimensions_.c?.lods[lod];
       if (!cLod) continue;
@@ -286,8 +335,27 @@ export class ChunkStore {
         );
       }
     }
-    return {
-      size: this.dimensions_.c?.lods[0].size ?? 1,
-    };
+    return this.dimensions_.c?.lods[0].size ?? 1;
   }
+}
+
+const UNWANTED: ChunkViewState = {
+  visible: false,
+  prefetch: false,
+  priority: null,
+  orderKey: null,
+};
+
+function inRange(i: number, size: number): boolean {
+  return Number.isInteger(i) && i >= 0 && i < size;
+}
+
+function combine(a: ChunkViewState, b: ChunkViewState): ChunkViewState {
+  const best = b.priority! < a.priority! ? b : a;
+  return {
+    visible: a.visible || b.visible,
+    prefetch: a.prefetch || b.prefetch,
+    priority: best.priority,
+    orderKey: best.orderKey,
+  };
 }
