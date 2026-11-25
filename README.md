@@ -1,16 +1,12 @@
-<h1 align="center">Idetik</h1>
+# Idetik
 
-<p align="center">Build interactive viewers for massive bioimaging data in the browser</p>
-
-<div align="center">
-
-![ci-badge](https://github.com/Biohub/idetik/actions/workflows/lint-test-build.yml/badge.svg)
+[![ci-badge](https://img.shields.io/github/actions/workflow/status/Biohub/idetik/lint-test-build.yml?branch=main&label=ci)](https://github.com/Biohub/idetik/actions/workflows/lint-test-build.yml)
 [![npm-badge](https://img.shields.io/npm/v/idetik.svg)](https://www.npmjs.com/package/idetik)
 [![docs-badge](https://img.shields.io/badge/docs-online-blue.svg)](https://biohub.github.io/idetik/)
 
-</div>
+![Idetik](https://raw.githubusercontent.com/Biohub/idetik/main/.github/assets/banner.png)
 
-## Overview
+---
 
 Idetik is a high-performance library for exploring multi-dimensional OME-Zarr datasets right in the browser. It is not a viewer but a framework for building viewers. Define viewports with your own cameras, controls, and layers, and point them at any local or remote store with no conversion step. Chunks are streamed based on what the camera needs at the current zoom and nothing more, with preconfigured policies for smooth temporal playback. When the built-in pieces aren't enough, subclass layers to render your own data, add custom input handlers, or plug in your own data loader.
 
@@ -71,10 +67,6 @@ const idetik = new Idetik({
 
 idetik.start();
 ```
-
-## Project Status
-
-This project is under active development. We welcome bug reports and new ideas but are not prepared to review or accept major contributions at this time.
 
 ## Getting Help
 
