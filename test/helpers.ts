@@ -1,4 +1,4 @@
-import type { Chunk } from "../src/data/chunk";
+import type { Chunk, ChunkDemand } from "../src/data/chunk";
 import { Viewport } from "@/core/viewport";
 import { Layer } from "@/core/layer";
 import { OrthographicCamera } from "@/objects/cameras/orthographic_camera";
@@ -6,8 +6,9 @@ import { ChunkManager } from "@/data/chunk_manager";
 import type { IdetikContext } from "@/idetik";
 
 type ChunkOverrides = Partial<
-  Omit<Chunk, "shape" | "chunkIndex" | "scale" | "offset">
+  Omit<Chunk, "shape" | "chunkIndex" | "scale" | "offset" | "demand">
 > & {
+  demand?: Partial<ChunkDemand>;
   shape?: Partial<Chunk["shape"]>;
   chunkIndex?: Partial<Chunk["chunkIndex"]>;
   scale?: Partial<Chunk["scale"]>;
@@ -15,15 +16,12 @@ type ChunkOverrides = Partial<
 };
 
 export function makeChunk(overrides: ChunkOverrides = {}): Chunk {
-  const { shape, chunkIndex, scale, offset, ...rest } = overrides;
+  const { shape, chunkIndex, scale, offset, demand, ...rest } = overrides;
 
   const defaultChunk: Chunk = {
     state: "unloaded",
     lod: 0,
-    visible: false,
-    prefetch: false,
-    priority: null,
-    orderKey: null,
+    demand: null,
     shape: { x: 256, y: 256, z: 256, c: 1 },
     rowAlignmentBytes: 1,
     chunkIndex: { x: 0, y: 0, z: 0, c: 0, t: 0 },
@@ -36,6 +34,9 @@ export function makeChunk(overrides: ChunkOverrides = {}): Chunk {
   return {
     ...defaultChunk,
     ...rest,
+    demand: demand
+      ? { visible: false, prefetch: false, priority: 0, orderKey: 0, ...demand }
+      : null,
     shape: mergedShape,
     chunkIndex: { ...defaultChunk.chunkIndex, ...(chunkIndex ?? {}) },
     scale: { ...defaultChunk.scale, ...(scale ?? {}) },

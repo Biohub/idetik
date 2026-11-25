@@ -1,24 +1,16 @@
-import { Chunk } from "./chunk";
+import { Chunk, ChunkDemand } from "./chunk";
 import { Logger } from "../utilities/logger";
 
 type LoaderFn = (signal: AbortSignal) => Promise<void>;
 
 type PendingItem = { chunk: Chunk; fn: LoaderFn };
 
-type Ranked = Pick<Chunk, "priority" | "orderKey">;
-
-export function comparePriority(a: Ranked, b: Ranked) {
-  const priorityA = a.priority ?? Number.MAX_SAFE_INTEGER;
-  const priorityB = b.priority ?? Number.MAX_SAFE_INTEGER;
-
-  if (priorityA === priorityB) {
-    return (
-      (a.orderKey ?? Number.MAX_SAFE_INTEGER) -
-      (b.orderKey ?? Number.MAX_SAFE_INTEGER)
-    );
+// Orders by priority, then orderKey; chunks nobody wants sort last.
+export function comparePriority(a: ChunkDemand | null, b: ChunkDemand | null) {
+  if (a === null || b === null) {
+    return Number(a === null) - Number(b === null);
   }
-
-  return priorityA - priorityB;
+  return a.priority - b.priority || a.orderKey - b.orderKey;
 }
 
 export class ChunkQueue {
@@ -75,7 +67,9 @@ export class ChunkQueue {
       return;
     }
 
-    this.pending_.sort((a, b) => comparePriority(a.chunk, b.chunk));
+    this.pending_.sort((a, b) =>
+      comparePriority(a.chunk.demand, b.chunk.demand)
+    );
 
     while (
       this.running_.size < this.maxConcurrent_ &&

@@ -111,7 +111,7 @@ export class ChunkManager {
       store.updateDemand();
 
       for (const chunk of store.entries.values()) {
-        if (chunk.priority === null) {
+        if (chunk.demand === null) {
           this.releaseChunk(store, chunk);
         } else {
           chunk.releasedAt = undefined;
@@ -219,14 +219,14 @@ export class ChunkManager {
         store.views.flatMap((view) => view.getChunksToRender())
       );
       for (const chunk of store.residentChunks()) {
-        if (chunk.visible) continue;
+        if (chunk.demand?.visible) continue;
         victims.push({ store, chunk, drawn: drawn.has(chunk) });
       }
     }
 
     return victims.sort((x, y) => {
       if (x.drawn !== y.drawn) return x.drawn ? 1 : -1;
-      const byRankDescending = -comparePriority(x.chunk, y.chunk);
+      const byRankDescending = -comparePriority(x.chunk.demand, y.chunk.demand);
       if (byRankDescending !== 0) return byRankDescending;
       return (x.chunk.releasedAt ?? 0) - (y.chunk.releasedAt ?? 0);
     });
@@ -241,7 +241,7 @@ export class ChunkManager {
     while (
       committedBytes + pendingBytes > this.memoryLimitBytes_ &&
       victims.length > 0 &&
-      comparePriority(victims[0].chunk, candidate) > 0 &&
+      comparePriority(victims[0].chunk.demand, candidate) > 0 &&
       (!victims[0].drawn || candidate.visible)
     ) {
       const victim = victims.shift()!;
@@ -270,7 +270,9 @@ export class ChunkManager {
   private uploadLoadedChunks() {
     if (!this.uploadTexture_) return;
 
-    const pending = this.awaitingUpload().sort(comparePriority);
+    const pending = this.awaitingUpload().sort((a, b) =>
+      comparePriority(a.demand, b.demand)
+    );
     for (const chunk of pending.slice(0, this.maxGpuUploadsPerUpdate_)) {
       chunk.texture = Texture3D.createWithChunk(chunk);
       this.uploadTexture_(chunk.texture);
