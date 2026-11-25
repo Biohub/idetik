@@ -25,6 +25,12 @@ export type QueueStats = {
 const DEFAULT_MAX_CONCURRENT_REQUESTS = 8;
 const DEFAULT_MAX_GPU_UPLOADS_PER_UPDATE = 4;
 
+type EvictionCandidate = {
+  store: ChunkStore;
+  chunk: Chunk;
+  drawn: boolean;
+};
+
 export class ChunkManager {
   private readonly stores_: { source: ChunkSource; store: ChunkStore }[] = [];
   private readonly awaitingUpload_ = new Map<Chunk, ChunkStore>();
@@ -194,12 +200,8 @@ export class ChunkManager {
     this.oversizedWarned_ = oversized;
   }
 
-  private evictionCandidates(): {
-    store: ChunkStore;
-    chunk: Chunk;
-    drawn: boolean;
-  }[] {
-    const victims: { store: ChunkStore; chunk: Chunk; drawn: boolean }[] = [];
+  private evictionCandidates(): EvictionCandidate[] {
+    const victims: EvictionCandidate[] = [];
 
     for (const { store } of this.stores_) {
       const drawn = new Set(
@@ -223,7 +225,7 @@ export class ChunkManager {
     committedBytes: number,
     pendingBytes: number,
     candidate: Chunk,
-    victims: { store: ChunkStore; chunk: Chunk; drawn: boolean }[]
+    victims: EvictionCandidate[]
   ): number {
     while (
       committedBytes + pendingBytes > this.memoryLimitBytes_ &&

@@ -74,7 +74,7 @@ export function computeSourceChunkStats(
   source: ChunkSource,
   store: ChunkStore
 ): SourceChunkStats {
-  const numTimepoints = store.dimensions.t?.lods[0].size ?? 1;
+  const numTimepoints = store.timepointCount;
   const timepoints = {
     requested: new Uint32Array(numTimepoints),
     resident: new Uint32Array(numTimepoints),
