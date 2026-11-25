@@ -45,7 +45,7 @@ export class ChunkQueue {
     }
 
     const running = this.running_.get(chunk);
-    if (running) {
+    if (running && !running.controller.signal.aborted) {
       running.controller.abort();
       Logger.debug("ChunkQueue", "Cancelled fetch request");
     }
