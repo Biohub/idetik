@@ -1,6 +1,6 @@
 import {
   Chunk,
-  ChunkViewState,
+  ChunkDemand,
   coordToIndex,
   SliceCoordinates,
   SourceDimension,
@@ -47,7 +47,7 @@ export class ChunkStoreView {
   private lastCCoords_?: number[];
 
   private readonly sourceMaxSquareDistance2D_: number;
-  private readonly chunkViewStates_: Map<ChunkKey, ChunkViewState> = new Map();
+  private readonly demand_: Map<ChunkKey, ChunkDemand> = new Map();
 
   private isDisposed_ = false;
 
@@ -84,8 +84,8 @@ export class ChunkStoreView {
     );
   }
 
-  public get chunkViewStates(): ReadonlyMap<ChunkKey, ChunkViewState> {
-    return this.chunkViewStates_;
+  public get demand(): ReadonlyMap<ChunkKey, ChunkDemand> {
+    return this.demand_;
   }
 
   public isResident(key: ChunkKey): boolean {
@@ -138,8 +138,8 @@ export class ChunkStoreView {
 
   private residentChunksMarkedVisible(): Chunk[] {
     const chunks: Chunk[] = [];
-    for (const [key, state] of this.chunkViewStates_) {
-      if (!state.visible) continue;
+    for (const [key, demand] of this.demand_) {
+      if (!demand.visible) continue;
       const chunk = this.store_.entries.get(key);
       if (chunk?.state === "loaded" && chunk.texture) chunks.push(chunk);
     }
@@ -198,7 +198,7 @@ export class ChunkStoreView {
           `is outside the source's ${this.store_.timepointCount} timepoints`
       );
       this.mode_ = null;
-      this.chunkViewStates_.clear();
+      this.demand_.clear();
       return;
     }
 
@@ -207,7 +207,7 @@ export class ChunkStoreView {
 
     const viewBounds3D = this.makeViewBounds3D(viewBounds2D, sliceBounds);
 
-    this.chunkViewStates_.clear();
+    this.demand_.clear();
 
     const channels = this.channelsOfInterest(sliceCoords.c);
     const fallbackLOD = this.lodRange().max;
@@ -242,7 +242,7 @@ export class ChunkStoreView {
             prefetch
           );
           if (priority !== null) {
-            this.chunkViewStates_.set(key, {
+            this.demand_.set(key, {
               visible: isInBounds,
               prefetch,
               priority,
@@ -288,7 +288,7 @@ export class ChunkStoreView {
           `is outside the source's ${this.store_.timepointCount} timepoints`
       );
       this.mode_ = null;
-      this.chunkViewStates_.clear();
+      this.demand_.clear();
       return;
     }
 
@@ -297,7 +297,7 @@ export class ChunkStoreView {
     // Currently uses a fixed LOD from policy.
     this.targetLOD_ = this.policy_.lod.min;
 
-    this.chunkViewStates_.clear();
+    this.demand_.clear();
 
     const channels = this.channelsOfInterest(sliceCoords.c);
     const fallbackLOD = this.lodRange().max;
@@ -317,7 +317,7 @@ export class ChunkStoreView {
         channels,
         WHOLE_VOLUME,
         (key) => {
-          this.chunkViewStates_.set(key, {
+          this.demand_.set(key, {
             visible: true,
             prefetch: false,
             priority,
@@ -347,8 +347,8 @@ export class ChunkStoreView {
 
   private allVisibleLoadedAt(lod: number): boolean {
     let foundAny = false;
-    for (const [key, state] of this.chunkViewStates_) {
-      if (!state.visible || this.lodOfKey(key) !== lod) continue;
+    for (const [key, demand] of this.demand_) {
+      if (!demand.visible || this.lodOfKey(key) !== lod) continue;
       foundAny = true;
       if (!this.isResident(key)) return false;
     }
@@ -363,7 +363,7 @@ export class ChunkStoreView {
   public dispose(): void {
     this.isDisposed_ = true;
     this.mode_ = null;
-    this.chunkViewStates_.clear();
+    this.demand_.clear();
   }
 
   public setImageSourcePolicy(newPolicy: ImageSourcePolicy, key: symbol) {
@@ -424,7 +424,7 @@ export class ChunkStoreView {
           );
           const orderKey = i + normalizedDistance;
 
-          this.chunkViewStates_.set(key, {
+          this.demand_.set(key, {
             visible: false,
             prefetch: true,
             priority,
@@ -453,7 +453,7 @@ export class ChunkStoreView {
         WHOLE_VOLUME,
         (key) => {
           const orderKey = i; // nearer along the playback loop first
-          this.chunkViewStates_.set(key, {
+          this.demand_.set(key, {
             visible: false,
             prefetch: true,
             priority,

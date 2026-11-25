@@ -30,7 +30,7 @@ function updateView(view: ChunkStoreView) {
 }
 
 function visibleChunks(view: ChunkStoreView) {
-  return [...view.chunkViewStates]
+  return [...view.demand]
     .filter(([, state]) => state.visible)
     .map(([key]) => key);
 }
@@ -75,7 +75,7 @@ describe("chunk stats", () => {
     );
     expect(view.currentLOD).toBe(0);
 
-    const states = [...view.chunkViewStates];
+    const states = [...view.demand];
     const drawn = states.filter(
       ([key, state]) => state.visible && store.lodOfKey(key) === 0
     );

@@ -1,4 +1,4 @@
-import { Chunk, ChunkViewState, SourceDimensionMap } from "./chunk";
+import { Chunk, ChunkDemand, SourceDimensionMap } from "./chunk";
 import { SliceAxes } from "../math/axes";
 import { almostEqual } from "../utilities/almost_equal";
 import { Logger } from "../utilities/logger";
@@ -31,7 +31,7 @@ interface ChunkIndexRange {
 
 export class ChunkStore {
   private readonly entries_ = new Map<ChunkKey, Chunk>();
-  private readonly demand_ = new Map<ChunkKey, ChunkViewState>();
+  private readonly demand_ = new Map<ChunkKey, ChunkDemand>();
   private readonly grids_: LodGrid[] = [];
   private readonly chunksT_: number;
   private readonly chunksC_: number;
@@ -125,7 +125,7 @@ export class ChunkStore {
     return this.entries_;
   }
 
-  public get demand(): ReadonlyMap<ChunkKey, ChunkViewState> {
+  public get demand(): ReadonlyMap<ChunkKey, ChunkDemand> {
     return this.demand_;
   }
 
@@ -256,9 +256,9 @@ export class ChunkStore {
     const demand = this.demand_;
     demand.clear();
     for (const view of this.views_) {
-      for (const [key, state] of view.chunkViewStates) {
+      for (const [key, wanted] of view.demand) {
         const other = demand.get(key);
-        demand.set(key, other === undefined ? state : combine(other, state));
+        demand.set(key, other === undefined ? wanted : combine(other, wanted));
       }
     }
 
@@ -339,7 +339,7 @@ export class ChunkStore {
   }
 }
 
-const UNWANTED: ChunkViewState = {
+const UNWANTED = {
   visible: false,
   prefetch: false,
   priority: null,
@@ -350,8 +350,8 @@ function inRange(i: number, size: number): boolean {
   return Number.isInteger(i) && i >= 0 && i < size;
 }
 
-function combine(a: ChunkViewState, b: ChunkViewState): ChunkViewState {
-  const best = b.priority! < a.priority! ? b : a;
+function combine(a: ChunkDemand, b: ChunkDemand): ChunkDemand {
+  const best = b.priority < a.priority ? b : a;
   return {
     visible: a.visible || b.visible,
     prefetch: a.prefetch || b.prefetch,

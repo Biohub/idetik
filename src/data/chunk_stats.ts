@@ -112,14 +112,14 @@ export function computeViewportChunkStats(
 
   for (const view of views) {
     const currentLOD = view.currentLOD;
-    for (const [key, state] of view.chunkViewStates) {
+    for (const [key, demand] of view.demand) {
       const isResident = view.isResident(key);
       requested += 1;
       if (isResident) resident += 1;
 
       // only the current timepoint is marked visible, so this skips temporal
       // prefetch as well as spatial prefetch and fallback
-      if (!state.visible || view.lodOfKey(key) !== currentLOD) continue;
+      if (!demand.visible || view.lodOfKey(key) !== currentLOD) continue;
       current.requested += 1;
       if (isResident) current.resident += 1;
     }

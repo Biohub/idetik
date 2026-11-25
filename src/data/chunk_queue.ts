@@ -1,11 +1,13 @@
-import { Chunk, ChunkViewState } from "./chunk";
+import { Chunk } from "./chunk";
 import { Logger } from "../utilities/logger";
 
 type LoaderFn = (signal: AbortSignal) => Promise<void>;
 
 type PendingItem = { chunk: Chunk; fn: LoaderFn };
 
-export function comparePriority(a: ChunkViewState, b: ChunkViewState) {
+type Ranked = Pick<Chunk, "priority" | "orderKey">;
+
+export function comparePriority(a: Ranked, b: Ranked) {
   const priorityA = a.priority ?? Number.MAX_SAFE_INTEGER;
   const priorityB = b.priority ?? Number.MAX_SAFE_INTEGER;
 
