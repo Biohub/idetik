@@ -49,6 +49,8 @@ export class ChunkStoreView {
   private readonly sourceMaxSquareDistance2D_: number;
   private readonly demand_: Map<ChunkKey, ChunkDemand> = new Map();
 
+  private demandChanged_ = false;
+
   private isDisposed_ = false;
 
   constructor(
@@ -86,6 +88,17 @@ export class ChunkStoreView {
 
   public get demand(): ReadonlyMap<ChunkKey, ChunkDemand> {
     return this.demand_;
+  }
+
+  public consumeDemandChanged(): boolean {
+    const changed = this.demandChanged_;
+    this.demandChanged_ = false;
+    return changed;
+  }
+
+  private resetDemand(): void {
+    this.demand_.clear();
+    this.demandChanged_ = true;
   }
 
   public isResident(key: ChunkKey): boolean {
@@ -198,7 +211,7 @@ export class ChunkStoreView {
           `is outside the source's ${this.store_.timepointCount} timepoints`
       );
       this.mode_ = null;
-      this.demand_.clear();
+      this.resetDemand();
       return;
     }
 
@@ -207,7 +220,7 @@ export class ChunkStoreView {
 
     const viewBounds3D = this.makeViewBounds3D(viewBounds2D, sliceBounds);
 
-    this.demand_.clear();
+    this.resetDemand();
 
     const channels = this.channelsOfInterest(sliceCoords.c);
     const fallbackLOD = this.lodRange().max;
@@ -288,7 +301,7 @@ export class ChunkStoreView {
           `is outside the source's ${this.store_.timepointCount} timepoints`
       );
       this.mode_ = null;
-      this.demand_.clear();
+      this.resetDemand();
       return;
     }
 
@@ -297,7 +310,7 @@ export class ChunkStoreView {
     // Currently uses a fixed LOD from policy.
     this.targetLOD_ = this.policy_.lod.min;
 
-    this.demand_.clear();
+    this.resetDemand();
 
     const channels = this.channelsOfInterest(sliceCoords.c);
     const fallbackLOD = this.lodRange().max;
@@ -363,7 +376,7 @@ export class ChunkStoreView {
   public dispose(): void {
     this.isDisposed_ = true;
     this.mode_ = null;
-    this.demand_.clear();
+    this.resetDemand();
   }
 
   public setImageSourcePolicy(newPolicy: ImageSourcePolicy, key: symbol) {
