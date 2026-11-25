@@ -9,12 +9,30 @@ import ExamplePage from './components/ExamplePage.vue'
 import biohubLogo from './icons/biohub.svg?raw'
 import './custom.css'
 
+const BIOHUB_URL = 'https://biohub.org/'
+
+function openBiohub(event) {
+  if (event.type === 'keydown' && event.key !== 'Enter') return
+  event.preventDefault()
+  event.stopPropagation()
+  window.open(BIOHUB_URL, '_blank', 'noopener')
+}
+
 export default {
   extends: DefaultTheme,
   Layout() {
     return h(DefaultTheme.Layout, null, {
       'nav-bar-title-before': () =>
-        h('span', { class: 'biohub-logo', role: 'img', 'aria-label': 'Biohub', innerHTML: biohubLogo }),
+        h('span', {
+          class: 'biohub-logo',
+          role: 'link',
+          tabindex: 0,
+          'aria-label': 'Biohub',
+          title: BIOHUB_URL,
+          innerHTML: biohubLogo,
+          onClick: openBiohub,
+          onKeydown: openBiohub,
+        }),
       'home-hero-before': () => h(HeroGlow),
       'home-features-after': () => [h(HomeGallery), h(AgentOnboard)],
     })

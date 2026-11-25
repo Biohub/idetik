@@ -63,10 +63,13 @@ const biohubLogo = readFileSync(new URL('./theme/icons/biohub.svg', import.meta.
 
 const base = process.env.DOCS_BASE || '/'
 
+const title = 'Idetik'
+const description = 'A library for interactive visualization of bioimaging data, right in the browser'
+
 export default defineConfig({
   base,
-  title: 'Idetik',
-  description: 'A library for creating interactive viewers for large bioimaging data',
+  title,
+  description,
 
   transformPageData(pageData) {
     if (pageData.params?.title) {
@@ -87,6 +90,14 @@ export default defineConfig({
 
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}icon.svg` }],
+    ['meta', { property: 'og:type', content: 'website' }],
+    ['meta', { property: 'og:site_name', content: title }],
+    ['meta', { property: 'og:title', content: title }],
+    ['meta', { property: 'og:description', content: description }],
+    ['meta', { property: 'og:image', content: 'https://idetik.org/og-image.jpg' }],
+    ['meta', { property: 'og:image:width', content: '1200' }],
+    ['meta', { property: 'og:image:height', content: '630' }],
+    ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
     ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
     ['link', { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' }],
     [
@@ -172,7 +183,7 @@ export default defineConfig({
       message:
         'Released under the <a href="https://github.com/Biohub/idetik/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>. © 2026-present Chan Zuckerberg Biohub, Inc.',
       copyright:
-        `<a href="https://biohub.ai" target="_blank" rel="noopener" aria-label="Biohub">${biohubLogo}</a>`,
+        `<a href="https://biohub.org/" target="_blank" rel="noopener" aria-label="Biohub">${biohubLogo}</a>`,
     },
   },
 })
