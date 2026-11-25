@@ -102,8 +102,8 @@ export class ChunkStore {
     return this.chunks_[lod]?.[t]?.[c];
   }
 
-  public hasChunksAtTime(timeIndex: number): boolean {
-    return this.chunks_[0]?.[timeIndex] !== undefined;
+  public get timepointCount(): number {
+    return this.dimensions_.t?.lods[0].size ?? 1;
   }
 
   public get lodCount() {
