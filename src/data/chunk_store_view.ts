@@ -228,8 +228,7 @@ export class ChunkStoreView {
             isFallback,
             isCurrent,
             isInBounds,
-            prefetch,
-            true
+            prefetch
           );
           if (priority !== null) {
             this.chunkViewStates_.set(chunk, {
@@ -300,8 +299,7 @@ export class ChunkStoreView {
         isFallbackLOD,
         isCurrentLOD,
         true,
-        false,
-        true
+        false
       );
       if (priority === null) return;
       this.chunkViewStates_.set(chunk, {
@@ -470,11 +468,8 @@ export class ChunkStoreView {
     isFallbackLOD: boolean,
     isCurrentLOD: boolean,
     isVisible: boolean,
-    isPrefetch: boolean,
-    isChannelInSlice: boolean
+    isPrefetch: boolean
   ) {
-    if (!isChannelInSlice) return null;
-
     const m = this.policy_.priorityMap;
     if (isFallbackLOD && isVisible) return m["fallbackVisible"];
     if (isCurrentLOD && isVisible) return m["visibleCurrent"];
